@@ -13,7 +13,7 @@ export function validateMessage(v){
  return s;
 }
 export const EMPTY_PROFILE=Object.freeze({
- employmentStatus:'',currentRole:'',experience:'',goal:'',targetRole:'',timeframe:'',
+ employmentStatus:'',currentRole:'',industry:'',experience:'',goal:'',targetRole:'',timeframe:'',
  responsibilities:[],achievements:[],skills:[],gaps:[],constraints:''
 });
 const text=(v,max=240)=>typeof v==='string'?v.replace(/\s+/g,' ').trim().slice(0,max):'';
@@ -29,11 +29,19 @@ function uniqueArr(old, incoming){
 }
 export function mergeProfile(current={},candidate={}){
  const out={...EMPTY_PROFILE,...current};
- for(const k of ['employmentStatus','currentRole','experience','goal','targetRole','timeframe','constraints']){
+ for(const k of ['employmentStatus','currentRole','industry','experience','goal','targetRole','timeframe','constraints']){
   const v=text(candidate?.[k]);if(v)out[k]=v;
  }
  for(const k of ['responsibilities','achievements','skills','gaps'])out[k]=uniqueArr(out[k],candidate?.[k]);
  return out;
+}
+export function looksLikeEvidence(v){
+ if(typeof v!=='string')return false;
+ const s=v.trim();
+ if(s.length<24||s.split(/\s+/).length<5)return false;
+ if(/^(?:none|n\/?a|not sure|don't know|i am good at|i have good skills)/i.test(s))return false;
+ // An example must describe something done, delivered, experienced or achieved.
+ return /\b(led|managed|built|created|delivered|implemented|improved|reduced|increased|saved|coordinated|organis(?:ed|zed)|completed|handled|supported|trained|launched|designed|analys(?:ed|zed)|automated|achieved|developed|resolved|worked|responsible|helped|grew|streamlined|introduced|mentored|ran|conducted|prepared|volunteered|planned|executed|collaborated|won|earned|produced|maintained)\b/i.test(s) || /(?:\d+\s*%|on time|ahead of schedule|hours saved|per cent|percent)/i.test(s);
 }
 export function reportReadiness(p={}){
  const missing=[];
@@ -42,7 +50,7 @@ export function reportReadiness(p={}){
  if(!has(p.goal)||!has(p.targetRole))missing.push('Career objective and target direction');
  if(!has(p.timeframe))missing.push('Target timeframe or explicit flexibility');
  if(!Array.isArray(p.responsibilities)||p.responsibilities.filter(s=>has(s)).length<1)missing.push('Current or past responsibilities');
- if(!Array.isArray(p.achievements)||p.achievements.filter(s=>has(s)&&s.trim().length>=24).length<2)missing.push('Two concrete achievements or equivalent examples');
+ if(!Array.isArray(p.achievements)||p.achievements.filter(looksLikeEvidence).length<2)missing.push('Two concrete achievements or equivalent examples');
  if(!Array.isArray(p.skills)||p.skills.filter(has).length<2)missing.push('At least two relevant skills');
  if(!Array.isArray(p.gaps)||p.gaps.filter(has).length<1)missing.push('A potential development gap or skill to validate');
  if(!has(p.constraints))missing.push('Time, learning budget or mobility constraints (including none)');

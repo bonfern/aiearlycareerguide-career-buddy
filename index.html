@@ -24,8 +24,27 @@
    <section class="chat-card" aria-label="Career Buddy chat">
     <div class="chat-head"><div class="avatar" aria-hidden="true">✦</div><div><strong>Career Buddy</strong><small>AI career coach · Career topics only</small></div><div class="chat-head-right" id="chatStatus">Preview mode</div></div>
     <div id="notice" class="notice hidden" role="status"></div>
+    <nav id="modeTabs" class="mode-tabs hidden" aria-label="Coaching mode">
+      <button id="modeQuick" type="button" class="mode-tab selected" aria-pressed="true"><span>⚡</span> Quick Answers <small>Recommended</small></button>
+      <button id="modeChat" type="button" class="mode-tab" aria-pressed="false"><span>◉</span> Ask Career Buddy <small>Free chat</small></button>
+    </nav>
+    <section id="guidedPanel" class="guided-panel hidden" aria-label="Quick career questions">
+      <div class="guided-intro"><strong>A few quick answers help me tailor your guidance.</strong><span>Choose an option where possible. Most questions take only a few seconds.</span></div>
+      <div id="quickHistory" class="quick-history" aria-label="Recent answers"></div>
+      <div id="quickQuestionWrap" class="quick-question-wrap">
+        <div class="quick-bot-label">CAREER BUDDY</div>
+        <div id="quickPrompt" class="quick-prompt"></div>
+        <div id="quickOptionList" class="quick-option-list"></div>
+        <div id="quickOtherWrap" class="quick-other hidden"><label for="quickOther">Please specify</label><input id="quickOther" maxlength="120" type="text" placeholder="Your short response" /></div>
+        <div id="quickTextWrap" class="quick-text hidden"><label class="sr-only" for="quickText">Short answer</label><textarea id="quickText" rows="2" maxlength="300"></textarea><span id="quickCount" class="quick-count">0 / 300 characters</span></div>
+        <div class="quick-actions"><button type="button" id="quickSkip" class="link-btn hidden">Skip for now</button><span id="quickError" class="quick-error" role="alert"></span><button type="button" id="quickSubmit" class="primary">Continue →</button></div>
+      </div>
+      <div id="quickDone" class="quick-done hidden"></div>
+      <div class="guided-foot"><div class="mini-progress"><span id="quickProgressText">0 of 13 explored</span><div class="bar-track"><div id="quickProgressBar" class="bar-fill green" style="width:0%"></div></div></div><p>Have a question? Switch to <button type="button" id="quickToChat" class="inline-link">Ask Career Buddy</button> anytime.</p></div>
+    </section>
     <div id="chatMessages" class="messages" role="log" aria-live="polite"><div class="empty-message">Preparing your private preview…</div></div>
     <div id="signIn" class="signin hidden"><h2>Access your private preview</h2><p>This is an owner test environment. No real payments are collected and the interaction credits are test credits.</p><label for="accessCode">Preview access code</label><div class="signin-row"><input id="accessCode" type="password" autocomplete="off" placeholder="Enter preview access code" /><button id="startButton" class="primary">Start testing</button></div><p class="small-muted" id="setupInfo"></p></div>
+    <div id="chatModeHint" class="chat-mode-hint hidden">Ask a specific career question here. Detailed answers use one test credit; use <button type="button" id="chatToQuick" class="inline-link">Quick Answers</button> for faster profile building.</div>
     <form id="composer" class="composer hidden">
       <label class="sr-only" for="userMessage">Your career question or response</label>
       <textarea id="userMessage" rows="2" maxlength="1200" placeholder="Tell Career Buddy about your goals or ask a career question…"></textarea>
@@ -34,12 +53,12 @@
    </section>
    <aside class="side" aria-label="Career development overview">
     <section class="panel"><p class="eyebrow">YOUR PREVIEW PACKAGE</p><div class="price-row"><strong>Career Buddy Starter</strong><span>₹299*</span></div><div class="credit-count" id="creditCount">— <span>interactions left</span></div><div class="bar-track"><div id="creditBar" class="bar-fill" style="width:0%"></div></div><p class="small-muted" id="expiryDate">Not started</p><div id="creditWarning" class="credit-warning hidden" role="status"></div><p class="small-muted">*Indicative price. No checkout in this test build. Standard and Extended refills will follow after cost validation.</p></section>
-    <section class="panel"><div class="panel-top"><h2>Your career profile</h2><span id="progressText">0 / 8</span></div><div class="bar-track slim"><div id="progressBar" class="bar-fill green" style="width:0%"></div></div><p class="small-muted">The report unlocks only after all essential information is available.</p><div id="missingTopics" class="topic-list"><span class="topic">Start a conversation to begin</span></div></section>
+    <section class="panel"><div class="panel-top"><h2>Your career profile</h2><span id="progressText">0 / 8</span></div><div class="bar-track slim"><div id="progressBar" class="bar-fill green" style="width:0%"></div></div><p class="small-muted">The report unlocks only after enough specific career context is available. Quick Answers and Free Chat update the same profile.</p><div id="missingTopics" class="topic-list"><span class="topic">Start a conversation to begin</span></div></section>
     <section class="panel report-panel"><div class="panel-top"><h2>Career development report</h2><span id="reportState" class="state-badge">Locked</span></div><p id="reportText" class="small-muted">As we learn more about your experience and career goals, we'll identify when you're ready for a personalised report.</p><button class="primary full" id="generateReport" disabled>Generate my report</button><button class="outline full hidden" id="viewReport">View generated report</button><p class="small-muted">Report generation uses zero chat credits. You can continue chatting afterwards.</p></section>
     <section class="panel cost-panel"><div class="panel-top"><h2>API usage · Owner view</h2><span class="mini-label">Test</span></div><p class="usage" id="usageText">No API calls yet</p><p class="small-muted">Recorded token usage and model cost; price rates are editable environment settings.</p></section>
    </aside>
   </div>
-  <p class="footer-note">Career Buddy provides AI-generated career guidance, not a guarantee of employment or validated professional competency. Preview accounts are for testing only.</p>
+  <p class="footer-note">Career Buddy provides AI-generated career guidance, not a guarantee of employment or validated professional competency. Quick-choice answers are self-reported. Preview accounts are for testing only.</p>
  </main>
  <dialog id="reportDialog"><div class="report-dialog-header"><div><p class="eyebrow">AI EARLY CAREER GUIDE</p><h2>Your Career Development Report</h2></div><button id="closeReport" class="close-button" aria-label="Close report">✕</button></div><div id="reportContent"></div><div class="dialog-actions"><button id="printReport" class="outline">Print / Save as PDF</button><button id="doneReport" class="primary">Return to coaching</button></div></dialog>
 </body>

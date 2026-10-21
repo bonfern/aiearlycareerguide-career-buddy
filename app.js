@@ -1,5 +1,5 @@
 const $=id=>document.getElementById(id);
-let state=null,loading=false,configured=false;
+let state=null,loading=false,configured=false,mode='quick',quickLoading=false;
 const msg=$('userMessage'),composer=$('composer');
 async function api(action,data){
  const response=await fetch(`/api/service?action=${encodeURIComponent(action)}`,{method:data?'POST':'GET',credentials:'same-origin',headers:data?{'Content-Type':'application/json'}:{},body:data?JSON.stringify(data):undefined});
@@ -20,7 +20,7 @@ function renderMessages(){
 function safeDate(d){const date=new Date(d);return Number.isFinite(date.getTime())?date.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):'—';}
 function render(){
  if(!state)return;
- $('signIn').classList.add('hidden');composer.classList.remove('hidden');
+ $('signIn').classList.add('hidden');$('modeTabs').classList.remove('hidden');
  const remaining=Number(state.credits||0),total=Number(state.creditsGranted||60);
  $('creditCount').replaceChildren(document.createTextNode(String(remaining)+' '),el('span','',`of ${total} test interactions left`));
  $('creditBar').style.width=`${Math.round(Math.min(100,remaining/Math.max(total,1)*100))}%`;
@@ -32,7 +32,7 @@ function render(){
  $('creditWarning').classList.toggle('hidden',!warning);$('creditWarning').textContent=warning;
  const readiness=state.readiness||{ready:false,missing:[],completed:0,total:8};
  $('progressText').textContent=`${readiness.completed} / ${readiness.total}`;
- $('progressBar').style.width=`${Math.round(readiness.completed/8*100)}%`;
+ $('progressBar').style.width=`${Math.round(readiness.completed/Math.max(readiness.total,1)*100)}%`;
  $('missingTopics').replaceChildren();
  if(readiness.ready)$('missingTopics').append(el('span','topic','All essential topics covered.'));
  else for(const t of readiness.missing)$('missingTopics').append(el('span','topic',t));
@@ -49,9 +49,100 @@ function render(){
  $('chatStatus').textContent=state.expired?'Access expired':remaining?'Private coaching session':'Credits exhausted';
  if(!canChat)msg.placeholder=state.expired?'Test access expired — read-only':!remaining?'Test credits used — read-only':'Processing…';
  else msg.placeholder='Share your career goal, experience or question…';
- renderMessages();
+ renderMode();renderMessages();
 }
-function showSignIn(message=''){$('signIn').classList.remove('hidden');composer.classList.add('hidden');$('chatMessages').replaceChildren(el('div','empty-message','Your Career Buddy conversation will appear here.'));$('setupInfo').textContent=message;}
+function switchMode(next){
+ mode=next==='chat'?'chat':'quick';
+ if(state)renderMode();
+}
+function renderMode(){
+ const quick=mode==='quick';
+ $('modeQuick').classList.toggle('selected',quick);$('modeChat').classList.toggle('selected',!quick);
+ $('modeQuick').setAttribute('aria-pressed',String(quick));$('modeChat').setAttribute('aria-pressed',String(!quick));
+ $('guidedPanel').classList.toggle('hidden',!quick);$('chatMessages').classList.toggle('hidden',quick);
+ $('chatModeHint').classList.toggle('hidden',quick);composer.classList.toggle('hidden',quick);
+ if(quick)renderQuick();
+}
+function updateOther(){
+ const q=state?.guided?.question;if(!q||q.kind==='text')return;
+ const selected=[...$('quickOptionList').querySelectorAll('input:checked')].map(x=>x.value);
+ $('quickOtherWrap').classList.toggle('hidden',!selected.includes('Other'));
+}
+function renderQuick(){
+ const guided=state.guided||{completed:0,total:13,question:null,finished:false},q=guided.question;
+ $('quickProgressText').textContent=`${guided.completed} of ${guided.total} topics explored`;
+ $('quickProgressBar').style.width=`${Math.round(100*guided.completed/Math.max(1,guided.total))}%`;
+ const h=$('quickHistory');h.replaceChildren();
+ for(const item of state.quickHistory||[]){
+  const line=el('div','quick-history-row');line.append(el('strong','', 'YOU'),el('span','',item.answer||''));h.append(line);
+ }
+ $('quickQuestionWrap').classList.toggle('hidden',!q);
+ $('quickDone').classList.toggle('hidden',!!q);
+ if(!q){
+  const done=$('quickDone');done.replaceChildren();
+  done.append(el('strong','',state.readiness?.ready?'Your career profile is ready for a report.':'Your quick answers are complete.'));
+  done.append(el('p','',state.readiness?.ready?'You can generate your included report whenever you like. Or keep coaching in Free Chat.':'A few important report areas still need more specific evidence. Review the missing topics in your career profile, then use Free Chat to add details.'));
+  const b=el('button','outline','Ask Career Buddy');b.type='button';b.addEventListener('click',()=>switchMode('chat'));done.append(b);
+  return;
+ }
+ $('quickPrompt').textContent=q.text;
+ $('quickError').textContent='';
+ const choices=$('quickOptionList');choices.replaceChildren();
+ const textMode=q.kind==='text';
+ $('quickTextWrap').classList.toggle('hidden',!textMode);
+ $('quickOptionList').classList.toggle('hidden',textMode);
+ $('quickOtherWrap').classList.add('hidden');$('quickOther').value='';
+ $('quickText').value='';$('quickText').maxLength=q.maxLength||300;
+ $('quickText').placeholder=q.placeholder||'Short response';
+ $('quickCount').textContent=`0 / ${q.maxLength||300} characters`;
+ $('quickSkip').classList.toggle('hidden',!q.optional);
+ const dis=quickLoading||loading||state.expired||state.credits<=0;
+ $('quickSubmit').disabled=dis;$('quickSkip').disabled=dis;
+ if(!textMode){
+  for(const op of q.options){
+   const label=el('label','choice-option');const input=document.createElement('input');input.type=q.kind==='multi'?'checkbox':'radio';input.name='quickChoice';input.value=op;input.disabled=dis;
+   input.addEventListener('change',()=>{
+    if(q.kind==='multi'){
+     const selected=choices.querySelectorAll('input:checked');
+     if(selected.length>(q.maxSelections||4)){input.checked=false;$('quickError').textContent=`Select up to ${q.maxSelections} options.`;}
+     else $('quickError').textContent='';
+    }
+    updateOther();
+   });
+   label.append(input,el('span','',op));choices.append(label);
+  }
+ }
+}
+async function submitQuick(skip=false){
+ if(!state||loading||quickLoading)return;
+ const q=state.guided?.question;if(!q)return;
+ if(state.expired||state.credits<=0){notice('Preview credits exhausted or access expired. Answers are read-only.',true);return;}
+ const selected=[...$('quickOptionList').querySelectorAll('input:checked')].map(x=>x.value);
+ let value=q.kind==='text'?$('quickText').value.trim():q.kind==='multi'?selected:selected[0];
+ const other=$('quickOther').value.trim();
+ if(!skip){
+  if(q.kind==='text'&&value.length<q.minLength){$('quickError').textContent=q.example?'Please add one specific example (at least 24 characters).':'Please enter a short job title.';return;}
+  if(q.kind!=='text'&&selected.length<(q.minSelections||1)){$('quickError').textContent=`Choose ${q.minSelections||1} or more options.`;return;}
+  if(selected.includes('Other')&&other.length<2){$('quickError').textContent='Please add a short description for Other.';return;}
+ }
+ quickLoading=true;let success=false;$('quickSubmit').disabled=true;$('quickSkip').disabled=true;$('quickError').textContent='Saving…';
+ try{
+  const response=await api('quick',{questionId:q.id,value,other,skip,requestId:crypto.randomUUID()});
+  state=response.state;success=true;notice('');render();
+ }catch(e){$('quickError').textContent=e.message;notice(e.message,true);}
+ finally{quickLoading=false;if(state){if(success)renderQuick();else {const disabled=state.expired||state.credits<=0||loading;$('quickSubmit').disabled=disabled;$('quickSkip').disabled=disabled;}}}
+}
+$('modeQuick').addEventListener('click',()=>switchMode('quick'));
+$('modeChat').addEventListener('click',()=>switchMode('chat'));
+$('quickToChat').addEventListener('click',()=>switchMode('chat'));
+$('chatToQuick').addEventListener('click',()=>switchMode('quick'));
+$('quickSubmit').addEventListener('click',()=>submitQuick(false));
+$('quickSkip').addEventListener('click',()=>submitQuick(true));
+$('quickText').addEventListener('input',()=>{
+ $('quickCount').textContent=`${$('quickText').value.length} / ${state?.guided?.question?.maxLength||300} characters`;
+});
+$('quickText').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();submitQuick(false);}});
+function showSignIn(message=''){$('signIn').classList.remove('hidden');$('modeTabs').classList.add('hidden');$('guidedPanel').classList.add('hidden');$('chatModeHint').classList.add('hidden');composer.classList.add('hidden');$('chatMessages').replaceChildren(el('div','empty-message','Your Career Buddy conversation will appear here.'));$('setupInfo').textContent=message;}
 async function init(){
  try{
   const config=await api('config');configured=config.configured;
