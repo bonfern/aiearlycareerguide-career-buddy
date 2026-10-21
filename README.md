@@ -1,58 +1,66 @@
-# Career Buddy V3 — Free Snapshot → Paid Coaching (OWNER PREVIEW)
+# Career Buddy V4 – Verified Email → Free Snapshot → Detailed Professional Report → Optional Revised Resume
 
-**AI Early Career Guide: separate `aiearlycareerguide-career-buddy` repository / Vercel project / Firebase project.** No changes to existing Student, Professional or Recruiter code or databases.
+**A separate application for AI Early Career Guide** (`aiearlycareerguide-career-buddy`). This release does not alter Student, Professional Assessment or Recruiter code/deployments. **Protected owner preview only. No real payments.**
 
-> **IMPORTANT: This version is for protected owner testing only. There is NO live checkout or customer authentication. Its "Activate Starter" and "Refill" buttons merely simulate purchases and issue test credits. Do not publicly launch, promote as a live product, or accept payments until Razorpay payment verification, identity, anti-abuse controls and production credit accounting are implemented.**
+## The agreed user journey
 
-## What is new in V3
+1. **One unique, verified email identity.** User enters their email and the private preview access code. Career Buddy sends a six-digit one-time code via Resend (valid for 10 minutes). After verifying, the user starts or resumes the *same* Firestore career profile, answers, reports and credits. Simply typing another person's email never exposes that person's record.
+2. **Free discovery.** Ten guided, short questions, with quick choices by default and brief free text as needed. The free Career Snapshot contains only (a) profile summary, (b) target-role competencies, (c) five generic actions, and (d) further assessment areas. It never reports validated skills gaps. One free snapshot per verified email, subject to a global free-report daily cap.
+3. **Detailed paid exploration.** The ₹499 / 60-interaction Starter (simulated in this preview) continues with the exact same profile and asks *only new, deeper questions*. The model does not repeatedly ask answered profile questions.
+4. **Optional pasted resume.** Once the paid profile has sufficient evidence, the user can paste resume text (100–12,000 characters) or explicitly skip; no resume file upload. Email and phone patterns are redacted from saved resume text. The report remains available to users who skip; they can return later and paste a resume for a separate revised resume draft.
+5. **Detailed Professional Assessment-style career report.** One included user-triggered report, never costing a coaching credit. The layout, header, logo, styling and core sections reference the supplied Professional Assessment repository PDF report. Career Buddy adds role-specific interview preparation and optional resume analysis. Self-reported evidence is NEVER described as a verified test result.
+6. **Revised resume.** If resume text was provided, the user can generate a revised resume from the original text and assessed goals. Review suggested changes and missing evidence, and download editable **Word (.docx)** or **PDF**. The AI must not invent employers, dates, achievements or qualifications.
+7. **Continue coaching.** Users can keep asking career questions until interactions are used or time validity expires, including after report generation. Credit warnings at 10 / 5 / 1 / 0. Refills add to the same profile and conversation: ₹249/35 credits (30 days) and ₹399/75 (60 days), prices indicative. Coupons supported in preview.
 
-1. **Free discovery:** One question at a time, ten simple guided questions (industry is optional). All free answers update the same saved career profile. Free screening does **not** call OpenAI.
-2. **Free report:** One concise **Career Snapshot** per preview session, user-triggered only after sufficient screening context. It has exactly four sections: (1) short professional profile summary; (2) target role competencies; (3) **five** general action recommendations; (4) what further assessment is needed before identifying exact competency gaps. A free report NEVER claims to have measured or validated personal gaps.
-3. **Paid continuation:** Simulated owner-preview Starter unlocks **60 test interactions**, without losing any answers. The guided flow automatically starts with *unanswered* deeper questions (learning constraints and two experience examples). The full report remains gated by detailed evidence. After generating the full report, the customer can continue using unused valid chat credits.
-4. **Indicative packages:** Starter **₹499 / 60 interactions / 30 days**; Standard Refill **₹249 / 35 / 30 days**; Extended Refill **₹399 / 75 / 60 days**. Server computes pack prices; test top-ups add credits to the same session and extend expiry from the later of current expiry or today.
-5. **Coupons:** Preview coupons are optionally configured in Vercel using a JSON environment variable. Server validates discounts and stores *simulated* orders. Real Razorpay coupons and payments are **not implemented**.
-6. **Career Toolkit:** Paid full-report users can request **profile-based resume improvements** (no file uploads) and a **12-question role-specific interview bank**. Interview banks are cached in a separate `buddyInterviewBanks` Firestore collection by normalised target role and industry. Shared cache contains generic role-level questions, NOT the user's personal profile.
-7. **Costs:** OpenAI token usage and estimated INR costs recorded for free snapshots, coaching, included full reports, resume guidance and interview bank cache misses. Free reports are additionally capped globally per UTC day in this owner preview.
+## Detailed report contents (mirrors the supplied Professional Assessment design)
 
-## Required setup
+- Career summary and specific goal.
+- Technical and leadership/behavioural competencies expected in the target role.
+- Career execution route with actions and outcomes.
+- Skill-by-skill development plan: expected benchmark, current self-reported evidence, development priorities, 2–3 practice actions, practical evidence task and improvement indicator.
+- Additional high-priority capabilities not yet assessed, with suggestions for how to verify each.
+- An integrated 30/60/90-day career and learning plan.
+- Progress/evidence checklist and relevant learning recommendations.
+- **NEW:** ten role-specific interview questions, what interviewers assess and answer frameworks. A generic, privacy-safe interview question bank is cached by role and industry; private answer guidance is generated individually.
+- **NEW:** resume improvement observations only when resume text was provided; otherwise clearly marked optional.
 
-1. Extract ZIP into the **existing separate repository** `aiearlycareerguide-career-buddy`, replacing Version 2.1 files while preserving the `api/_lib` and `tests` folders. Do **not** upload into your existing Professional Assessment repo.
-2. The **existing separate Career Buddy Firebase project** continues to work. No Firebase migrations needed: V3 adds optional fields to `buddyPreviewSessions` and creates collections `buddyPreviewLimits` (free-report budget), `buddyPreviewOrders` (simulation), and `buddyInterviewBanks` (role-based cache). Older V2 sessions retain paid preview behaviour; start a new session to test the free entry flow.
-3. Deploy this repository to its **existing separate Vercel project**. Retain these Vercel environment settings, only on Career Buddy: `PREVIEW_ACCESS_CODE`, `PREVIEW_SESSION_SECRET`, `FIREBASE_SERVICE_ACCOUNT_JSON`, `OPENAI_API_KEY`, `OPENAI_MODEL`, and cost variables `OPENAI_INPUT_USD_PER_MILLION`, `OPENAI_OUTPUT_USD_PER_MILLION`, `OPENAI_USD_INR`. Verify actual model and rates, and configure OpenAI project spend limits.
-4. Recommended optional Vercel settings (in Career Buddy only): `FREE_REPORT_DAILY_LIMIT=25` and `PREVIEW_COUPONS_JSON={"EARLY30":30,"TEST100":100}`. `TEST100` is for private owner testing only. Environment values must be set through Vercel settings, NOT committed to GitHub.
-5. Enable Vercel Deployment Protection; private preview access code is a **shared testing gate**, not an appropriate production login or anti-bot defence.
-6. Run `npm test` with Node 20+; tests cover intake, input lengths, report gates, pricing, discount validation and free-to-paid carryover.
+The server produces a **branded A4 PDF** using an adapted copy of the renderer and embedded brand logo from the user-supplied Professional Assessment repository. The section structure is intentionally equivalent, but competency ratings are not copied across because Career Buddy does not administer the same tested assessment. If the current live Professional report differs from the supplied October 9 source ZIP, compare its latest changes before public launch.
 
-## Acceptance test — run in this order
+## Deploy safely
 
-1. Open the protected test URL **in a private/incognito browser window** (or clear cookies for the Career Buddy test domain only), enter the preview access code and begin a **new** session. Existing V2 test cookies intentionally retain their earlier preview credits and do not start the new free funnel. You should see **Free Career Discovery**, not 60 free credits.
-2. Answer ten short questions, with an optional industry skip. Verify **Generate free report** is locked until required profile topics are covered. A job-specific target role such as *Director of Process Excellence* improves the usefulness of competency guidance.
-3. Generate the free report. Confirm **exactly four sections**: summary, role competencies, five general actions, and areas for further assessment. No actual personal gap scores. Try refreshing: report remains saved; generating it again does not trigger another AI call.
-4. Observe the **Starter ₹499** owner-preview offer. Optionally enter `EARLY30` (if configured) and click **Simulate Starter Unlock**. No real money is collected.
-5. Confirm previously answered free questions are **not repeated**. The next Quick Answer should be learning-time constraints or another genuinely missing paid topic.
-6. Complete two short evidence examples and generate the detailed career development report. Chat interactions remain available; generating the report consumes **zero** chat credits.
-7. After full report, open **Resume Improvements** and **Interview Preparation**. Resume guidance should be based on the saved profile and should not invent achievements. Interview bank should show twelve target-role questions with preparation hints.
-8. Ask an on-topic career question in **Ask Career Buddy** and confirm the successful AI response consumes one test credit. Try a short resume bullet, with personal contact details removed. Select top-up to add more test credits; the same career context remains.
-9. Check Firestore: `buddyPreviewUsage` has per-call token/cost records. For interview banks, the first role/industry generates a cached bank; additional users with the same role reuse it without new AI spending. Cost estimates show “unpriced” if model rates are missing.
-10. Confirm remaining-credit alerts at **10, 5, 1 and 0**, plus expiry warnings, and report/history availability after credits run out. Before public launch, also test simultaneous requests, retries, forced failures and rate limits.
+1. Download this ZIP and extract **all** files into the *existing independent* GitHub repository `aiearlycareerguide-career-buddy`, replacing V3 files. Do not upload V4 into your Professional Assessment repository.
+2. Keep the separate Career Buddy Firebase project and Vercel deployment. No migrations to existing products. V4 uses Firestore collections **`buddyEmailSessions`, `buddyLoginChallenges`, `buddyInterviewBanks`, `buddyPreviewUsage`, `buddyPreviewOrders`, `buddyPreviewLimits`**. V3 `buddyPreviewSessions` remain untouched, but the old anonymous sessions are **not automatically migrated** to verified emails; start a new verified-email test session in V4.
+3. In Career Buddy Vercel **Environment Variables**, retain `PREVIEW_ACCESS_CODE`, `PREVIEW_SESSION_SECRET`, `FIREBASE_SERVICE_ACCOUNT_JSON`, `OPENAI_API_KEY`, and `OPENAI_MODEL`. `PREVIEW_SESSION_SECRET` must be at least 24 characters and should be a long random value. Changing it will require testers to sign in again.
+4. Add `RESEND_API_KEY` and `RESEND_FROM_EMAIL` (sender on a verified Resend domain). Resend credentials must be entered in the separate Career Buddy Vercel project, not put in ZIP or chat. Set `OWNER_RESET_CODE` to a separate, strong secret for the owner-only test reset button. Configure `FREE_REPORT_DAILY_LIMIT`, cost-rate environment variables and optional `PREVIEW_COUPONS_JSON` as shown in `.env.example`.
+5. Keep Vercel Deployment Protection enabled. Deploy. You must verify email to access the test application. OTP delivery requires a working Resend account with a verified sending domain.
+6. Run `npm test` (Node 20+), then test the deployed UI and documents end to end. The tests cover offline business logic and sample document exports but **do not substitute for live Firebase/Resend/OpenAI tests**.
 
-## Limits and privacy
+## Test cases to complete before launch
 
-- Quick-choice answers do **not** spend an AI request or credit. Paid AI chat consumes one test credit per successful career-related reply. Rejected/off-topic messages are not billed to the customer but can still incur API cost.
-- User messages max **1,200 characters**. Guided experience examples max **300**; role/other fields max **120**. Server validates every question and answer; no file upload feature.
-- Free snapshot is one per private preview session; the **global daily preview quota** provides additional protection but is not a substitute for production per-user verified quotas and bot protection.
-- Guidance is based on self-reported inputs. Interview questions are representative preparation questions and never guarantees of what an employer will ask.
-- Do not send API keys, Firebase service accounts or sensitive resume/assessment data in the chat. Vercel environment variables should be private.
-- **Existing Professional Assessment report import is NOT connected yet.** Carryover from this new free Career Buddy screening to paid Career Buddy is implemented; cross-product import requires a separate signed, consented handoff. Never connect the live Professional Firebase project directly to this preview without the required design and permissions.
+- Test new email → receive code → verify → start free intake. Sign out, reopen and verify the same email; answers should resume at the next unanswered question.
+- Try an invalid code, an expired code, wrong email and six consecutive guesses. Invalid OTP attempts are limited; emails can be requested at most once per minute per email and up to five times per hour.
+- Generate one free snapshot. Refresh and sign back in with the same email: no extra free AI call, existing snapshot reappears. Try different browser sessions with the same email.
+- Simulate Starter upgrade (including coupon); confirm earlier free answers carry forward and are not repeated.
+- Enter two meaningful project examples. Paste a resume (100–12,000 characters) and generate the detailed report; verify every original Professional Assessment section, interview questions, and personalised resume comments. Then download the branded PDF.
+- Repeat with **Skip Resume**; the detailed report should still unlock without inventing resume insights. Return later, paste a resume, generate the draft, download DOCX/PDF, and check all facts.
+- Generate the report at a nonzero credit balance; verify no deduction. Check post-report chat, expiry, warnings and refill behaviour.
+- **Owner-only test reset:** sign in with the tester email, select **Reset this test session**, provide `OWNER_RESET_CODE`, and confirm. This clears test career data/credits for that email only; the global usage log and daily free-report budget are retained.
+- Inspect Firestore `buddyPreviewUsage` for free snapshot, interview cache miss, full report, revised resume and paid chat token costs. Set real model token prices first; costs are unpriced if pricing variables are zero.
 
-## Before going live
+## Not yet implemented / production blockers
 
-Production needs secure email-based identity, enforceable per-person free report limits, CAPTCHA/rate limiting, verified Razorpay order creation/webhooks (idempotent credit grants), coupon rules, refunds and expiry policies, privacy notices and user data deletion, accurate per-model cost measurement, QA on real API outputs and secure assessment-to-coaching migration. The *simulated purchase endpoint must be removed/disabled* before public launch.
+- **Live Razorpay payments are disabled.** The Starter/refill buttons *simulate* credits and must not be enabled publicly. Next phase: verified payment orders/webhooks, idempotent credit grants, refunds, real coupon approval and pack entitlements.
+- Login and email quotas have preview controls; public deployment still requires bot/CAPTCHA controls, IP-based throttling, privacy/retention and deletion workflows, abuse monitoring and security review. Email normalization is not a general identity-federation mechanism.
+- **Import from the existing Professional Assessment is not yet connected.** It requires a separately designed, consented, signed cross-product handoff and minimal changes to the source product. No existing database is read by this V4 preview.
+- Live end-to-end testing with your Firebase/Resend/OpenAI configuration is pending. User-generated report quality, Word/PDF layout for long resumes, conversions and actual costs must be evaluated with representative cases.
 
-## Key files
+## Files
 
-- `api/_lib/quickflow.js` — 10 free guided questions, plus deeper paid questions and deterministic validation.
-- `api/_lib/domain.js` — pricing/coupons, profile merging and two report readiness gates.
-- `api/service.js` — private preview API, free report, test order/refills, paid coaching, detailed report, resume guidance, cached interview bank and cost ledger.
-- `index.html`, `app.js`, `style.css` — responsive branded UI and report dialogs.
-- `tests/` — pure automated tests (`npm test`).
+- `api/service.js` – verified-email workflow, coaching, report, optional resume, test purchases, usage and exports.
+- `api/_lib/report-v4.js` – detailed report schema, required sections, responsible competency language, model instructions.
+- `api/_lib/pdf-report.js`, `report-brand.js` – adapted Professional Assessment PDF layout and original brand asset.
+- `api/_lib/resume-documents.js` – dependency-free Word DOCX and PDF exporters.
+- `api/_lib/identity.js` – email normalization, OTP signature/expiry, cookie identity.
+- `api/_lib/domain.js`, `quickflow.js` – credit, pricing, profile and guided-question rules.
+- `index.html`, `style.css`, `app.js` – simplified one-column experience.
+- `tests/` – Node unit tests.

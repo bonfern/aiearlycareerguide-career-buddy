@@ -1,5 +1,5 @@
 const $=id=>document.getElementById(id);
-let state=null,loading=false,configured=false,mode='quick',quickLoading=false;
+let state=null,loading=false,configured=false,mode='quick',quickLoading=false,showTopups=false;
 const msg=$('userMessage'),composer=$('composer');
 async function api(action,data){
  const response=await fetch(`/api/service?action=${encodeURIComponent(action)}`,{method:data?'POST':'GET',credentials:'same-origin',headers:data?{'Content-Type':'application/json'}:{},body:data?JSON.stringify(data):undefined});
@@ -21,7 +21,7 @@ function safeDate(d){const date=new Date(d);return Number.isFinite(date.getTime(
 function render(){
  if(!state)return;
  const paid=state.tier==='paid';
- $('signIn').classList.add('hidden');$('modeTabs').classList.remove('hidden');
+ $('signIn').classList.add('hidden');document.querySelector('.side').classList.remove('hidden');$('modeTabs').classList.remove('hidden');$('ownerTools').classList.remove('hidden');$('signedEmail').textContent=state.email||'';
  const remaining=Number(state.credits||0),total=Number(state.creditsGranted||0);
  $('packageEyebrow').textContent=paid?'YOUR TEST COACHING PACKAGE':'YOUR FREE CAREER SNAPSHOT';
  $('packageName').textContent=paid?'Career Buddy Starter':'Career Snapshot';
@@ -46,18 +46,26 @@ function render(){
  $('generateFreeReport').classList.toggle('hidden',!!state.freeReport||paid);
  $('generateFreeReport').disabled=!state.freeReportReady||!!state.freeReport||loading;
  $('viewFreeReport').classList.toggle('hidden',!state.freeReport);
+ $('statusPanel').classList.toggle('hidden',!paid);
+ $('profilePanel').classList.toggle('hidden',!paid||state.reportGenerated);
+ $('freePanel').classList.toggle('hidden',paid);
  $('purchasePanel').classList.toggle('hidden',paid||!state.freeReport);
- $('refillPanel').classList.toggle('hidden',!paid);
+ $('refillPanel').classList.toggle('hidden',!paid||(!showTopups&&remaining>10));
  $('paidReportPanel').classList.toggle('hidden',!paid);
  $('toolkitPanel').classList.toggle('hidden',!paid||!state.reportGenerated);
+ $('resumeStep').classList.toggle('hidden',!paid||(!state.readiness?.ready&&(!state.reportGenerated||state.resumeDecision))||state.resumeSubmitted);
+ $('resumeSaved').textContent=state.resumeDecision==='skip'?'Resume skipped. You can still generate your full report.':state.resumeSubmitted?'Resume text saved for analysis.':'Choose paste or skip before report generation.';
  const generated=state.reportGenerated,ready=state.reportReady;
+ $('downloadReport').classList.toggle('hidden',!generated);
+ $('resumeDownloads').classList.toggle('hidden',!state.resumeRevision);
  $('reportState').textContent=generated?'Generated':ready?'Ready':'Locked';
- $('reportText').textContent=generated?'Your detailed report is ready; coaching continues with remaining valid credits.':ready?'You have enough career evidence to generate the included detailed report.':'Complete the remaining context and examples to enable the detailed paid report.';
+ $('reportText').textContent=generated?'Your report is complete. You may continue coaching with unused valid credits.':ready?'Your profile and optional resume decision are complete. Generate the included report.':state.readiness?.ready?'Choose whether to paste your resume or skip before generating your report.':'Complete the remaining targeted questions to unlock your detailed report.';
  $('generateReport').classList.toggle('hidden',generated);
  $('generateReport').disabled=!ready||generated||state.expired||loading;
  $('viewReport').classList.toggle('hidden',!generated);
- $('openResume').textContent=state.resumeGuidance?'View resume improvements':'Generate resume improvements';
- $('openInterview').textContent=state.interviewBank?'View interview questions':'Get 12 interview questions';
+ $('openResume').textContent=state.resumeRevision?'View revised resume':'Generate revised resume';
+ $('openResume').disabled=!state.resumeSubmitted;
+ $('openInterview').textContent='View interview questions';
  const u=state.usageSummary||{};
  $('usageText').textContent=u.calls?`${Number(u.calls).toLocaleString()} calls · ${Number(u.inputTokens||0).toLocaleString()} input / ${Number(u.outputTokens||0).toLocaleString()} output tokens${u.unpricedCalls?' · model pricing not configured':` · ₹${Number(u.inrCost||0).toFixed(3)} estimated`}`:'No AI calls yet';
  const canChat=paid&&!state.expired&&remaining>0&&!loading;
@@ -162,22 +170,33 @@ $('quickText').addEventListener('input',()=>{ $('quickError').textContent='';
  $('quickCount').textContent=`${$('quickText').value.length} / ${state?.guided?.question?.maxLength||300} characters`;
 });
 $('quickText').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();submitQuick(false);}});
-function showSignIn(message=''){$('signIn').classList.remove('hidden');$('modeTabs').classList.add('hidden');$('guidedPanel').classList.add('hidden');$('chatModeHint').classList.add('hidden');composer.classList.add('hidden');$('chatMessages').replaceChildren(el('div','empty-message','Your Career Buddy conversation will appear here.'));$('setupInfo').textContent=message;}
+function showSignIn(message=''){document.querySelector('.side').classList.add('hidden');$('signIn').classList.remove('hidden');$('modeTabs').classList.add('hidden');$('guidedPanel').classList.add('hidden');$('chatModeHint').classList.add('hidden');composer.classList.add('hidden');$('ownerTools').classList.add('hidden');$('chatMessages').replaceChildren();$('setupInfo').textContent=message;}
 async function init(){
  try{
   const config=await api('config');configured=config.configured;
-  if(!configured){showSignIn('Setup required: configure a separate Firebase project and the preview environment variables listed in README.md.');$('startButton').disabled=true;return;}
+  if(!configured){showSignIn('Set up Resend verification, Firebase and OpenAI in the new Career Buddy Vercel project.');$('startButton').disabled=true;return;}
   try{state=(await api('state')).state;render();}
-  catch{showSignIn('Enter the private access code that you set in your new Vercel project.');}
- }catch(e){showSignIn('The backend has not been deployed yet. Upload the full code package to your new repository and deploy on Vercel.');$('startButton').disabled=true;}
+  catch{showSignIn('Enter your email and private access code. A six-digit verification code will be sent to you.');}
+ }catch{showSignIn('The independent Career Buddy backend is unavailable. Check the Vercel deployment.');$('startButton').disabled=true;}
 }
 $('startButton').addEventListener('click',async()=>{
- if(!configured)return;
- const code=$('accessCode').value;if(!code){$('setupInfo').textContent='Enter the private preview code.';return;}
+ if(!configured)return;const email=$('emailAddress').value.trim(),previewCode=$('accessCode').value;
  $('startButton').disabled=true;
- try{state=(await api('start',{code})).state;notice('Owner preview only. These are test credits, not a purchase.');render();}
- catch(e){$('setupInfo').textContent=e.message;}
- finally{$('startButton').disabled=false;}
+ try{await api('requestCode',{email,previewCode});$('verifyBox').classList.remove('hidden');$('setupInfo').textContent='Verification email sent. Code valid for 10 minutes.';}
+ catch(e){$('setupInfo').textContent=e.message;}finally{$('startButton').disabled=false;}
+});
+$('verifyButton').addEventListener('click',async()=>{
+ $('verifyButton').disabled=true;
+ try{state=(await api('verifyCode',{email:$('emailAddress').value,previewCode:$('accessCode').value,code:$('otpCode').value})).state;notice('Email verified. Your previous answers have been restored.');render();}
+ catch(e){$('setupInfo').textContent=e.message;}finally{$('verifyButton').disabled=false;}
+});
+$('toggleRefills').addEventListener('click',()=>{showTopups=!showTopups;if(state)render();});
+$('signOut').addEventListener('click',async()=>{try{await api('logout',{});}finally{state=null;showSignIn('You are signed out. Verify your email to resume.');}});
+$('ownerReset').addEventListener('click',async()=>{
+ const ownerCode=window.prompt('Owner reset only: enter OWNER_RESET_CODE to clear test answers for this email.');if(!ownerCode)return;
+ if(!window.confirm('Clear this verified email’s test progress and test credits? Previous usage logs remain.'))return;
+ try{state=(await api('ownerReset',{ownerCode})).state;notice('Test session reset. Begin again.');mode='quick';render();}
+ catch(e){notice(e.message,true);}
 });
 msg.addEventListener('input',()=>{$('charCount').textContent=`${msg.value.length.toLocaleString()} / 1,200 characters`;$('charCount').style.color=msg.value.length>=1000?'#a45100':'';});
 msg.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();composer.requestSubmit();}});
@@ -220,33 +239,41 @@ function openFreeReport(){
  $('reportDialog').showModal();
 }
 function openResume(){
- const r=state?.resumeGuidance;if(!r)return;
- const root=modal('Resume Improvements');root.append(el('h3','','Suggested resume positioning'),el('p','',r.headline));
- section(root,'Five recommended changes',r.priorities);section(root,'Example resume bullets — verify all facts',r.exampleBullets);
- section(root,'Evidence to add before finalising',r.missingEvidence);
- root.append(el('div','report-warning','Based on your career profile—not a review of an uploaded document. No results or metrics have been independently verified.'));
+ const r=state?.resumeRevision;if(!r)return;
+ const root=modal('Your Revised Resume · Review Before Use');root.append(el('h3','',r.headline),el('p','',r.summary));
+ section(root,'Core skills',r.coreSkills);
+ for(const job of r.experience||[]){root.append(el('h3','',[job.role,job.employer,job.period].filter(Boolean).join(' · ')));section(root,'Suggested responsibilities and achievements',job.bullets);}
+ section(root,'Education',r.education);section(root,'Certifications',r.certifications);
+ section(root,'Recommended resume improvements',r.improvements);section(root,'Check these details before applying',r.missingEvidence);
+ root.append(el('p','small-muted','Your resume is an editable draft based only on supplied text. Check all content before sharing.'));
  $('reportDialog').showModal();
 }
 function openInterview(){
- const r=state?.interviewBank;if(!r)return;
- const root=modal('Interview Preparation');root.append(el('h3','',r.role||'Your target role'));
- for(const [i,q] of r.questions.entries()){
-  const section=el('div','toolkit-item');section.append(el('strong','',`${i+1}. ${q.question}`));
-  section.append(el('p','',`Competency: ${q.competency}`),el('p','',`Preparation guidance: ${q.preparationTip}`));root.append(section);
- }
- root.append(el('p','small-muted','These are illustrative preparation questions, not guaranteed questions from a particular employer.'));
- $('reportDialog').showModal();
+ const r=state?.report;if(!r)return;
+ const root=modal('Interview Preparation · '+(state?.report?.targetRole||'Your target role'));
+ for(const [i,q] of (r.interviewPreparation||[]).entries()){
+  const item=el('div','toolkit-item');item.append(el('strong','',`${i+1}. ${q.question}`),el('p','',`Competency: ${q.competency}`),el('p','',`What interviewers assess: ${q.whatEvaluated}`),el('p','',`Suggested framework: ${q.answerFramework}`));root.append(item);
+ }root.append(el('p','small-muted','Illustrative preparation questions, not guaranteed employer interview questions.'));$('reportDialog').showModal();
 }
-async function toolkit(action){
- if(!state?.reportGenerated||loading)return;
- if(state[action==='resume'?'resumeGuidance':'interviewBank']){(action==='resume'?openResume:openInterview)();return;}
- loading=true;notice(`Preparing ${action==='resume'?'profile-based resume improvements':'role-specific interview questions'}…`);render();
- try{state=(await api(action,{requestId:crypto.randomUUID()})).state;notice('Career Toolkit prepared with no coaching credit deduction.');render();(action==='resume'?openResume:openInterview)();}
- catch(e){notice(e.message,true);}
- finally{loading=false;render();}
+$('openResume').addEventListener('click',async()=>{
+ if(!state?.reportGenerated||!state?.resumeSubmitted)return;
+ if(state.resumeRevision){openResume();return;}
+ loading=true;render();notice('Building your revised resume from the text you pasted…');
+ try{state=(await api('generateResume',{requestId:crypto.randomUUID()})).state;notice('Resume draft generated. Please review the details before using it.');render();openResume();}
+ catch(e){notice(e.message,true);}finally{loading=false;render();}
+});
+$('openInterview').addEventListener('click',openInterview);
+$('resumePaste').addEventListener('input',()=>{$('resumeCount').textContent=`${$('resumePaste').value.length.toLocaleString()} / 12,000 characters`;});
+async function chooseResume(skip){
+ loading=true;render();
+ try{state=(await api('chooseResume',{skip,resumeText:skip?'':$('resumePaste').value})).state;notice(skip?'Resume skipped. Full report remains available.':'Resume securely saved for your paid report.');render();}
+ catch(e){notice(e.message,true);}finally{loading=false;render();}
 }
-$('openResume').addEventListener('click',()=>toolkit('resume'));
-$('openInterview').addEventListener('click',()=>toolkit('interview'));
+$('saveResume').addEventListener('click',()=>chooseResume(false));$('skipResume').addEventListener('click',()=>chooseResume(true));
+function download(kind,format){window.location.assign(`/api/service?action=download&kind=${encodeURIComponent(kind)}&format=${encodeURIComponent(format)}`);}
+$('downloadReport').addEventListener('click',()=>download('report','pdf'));
+$('downloadResumeDocx').addEventListener('click',()=>download('resume','docx'));
+$('downloadResumePdf').addEventListener('click',()=>download('resume','pdf'));
 $('viewFreeReport').addEventListener('click',openFreeReport);
 $('generateReport').addEventListener('click',async()=>{
  if(!state?.reportReady||loading)return;
@@ -259,17 +286,32 @@ $('generateReport').addEventListener('click',async()=>{
 function section(parent,title,items){if(!Array.isArray(items)||!items.length)return;parent.append(el('h3','',title));const ul=el('ul');for(const i of items)ul.append(el('li','',i));parent.append(ul);}
 function openReport(){
  const r=state?.report;if(!r)return;
- const root=modal('Your Career Development Report');root.append(el('h3','','Career summary'),el('p','',r.summary));
- section(root,'Self-reported strengths',r.strengths);section(root,'Path to your target role',r.roleSteps);
- if(r.requiredSkills?.length){root.append(el('h3','','Important skills for your target role'));for(const item of r.requiredSkills)root.append(el('p','',`${item.name}: ${item.expectation}`));}
- if(r.skillGaps?.length){root.append(el('h3','','Development priorities'));for(const item of r.skillGaps){root.append(el('p','',`${item.name}: ${item.explanation}`));section(root,'Recommended actions',item.actions);}}
- section(root,'Capabilities to validate further',r.untestedSkills);
- if(r.actionPlan?.length){root.append(el('h3','','Your 30 / 60 / 90 day plan'));for(const item of r.actionPlan){root.append(el('h3','',item.period+': '+item.focus));section(root,'Actions',item.actions);}}
- root.append(el('p','small-muted',r.note||'Guidance based on user-provided information. Skills have not been independently verified.'));
+ const root=modal('Career Action & Skill Development Report');
+ root.append(el('h3','report-hdr','Your career summary and goal'),el('p','',r.summary),el('h3','','Your goal'),el('p','',r.goalPath?.headline||''));
+ for(const [name,items] of [['Technical capability priorities',r.capabilityFocus?.technical],['Leadership and behavioural priorities',r.capabilityFocus?.behavioural]]){
+  root.append(el('h3','report-section',name));for(const x of items||[])root.append(el('p','',`${x.name} — ${x.currentCompetency} | ${x.status}. Next step: ${x.firstAction}`));
+ }
+ root.append(el('h3','report-section','How to get there'));
+ for(const [i,x] of (r.goalPath?.careerActions||[]).entries())root.append(el('h4','',`${i+1}. ${x.title}`),el('p','',x.action),el('p','small-muted','Desired outcome: '+x.outcome));
+ root.append(el('h3','report-section','Skill-by-skill development plan'));
+ for(const s of r.skillAssessments||[]){const div=el('div','skills-card');div.append(el('h4','',s.name),el('p','',`Role expectation: ${s.targetBenchmark}`),el('p','',`Current evidence: ${s.currentCompetency}`),el('p','',`Development need: ${s.gap}`));section(div,'Actions',s.actions);div.append(el('p','',`Evidence task: ${s.practiceTask}`),el('p','',`Success indicator: ${s.successIndicator}`));root.append(div);}
+ root.append(el('h3','report-section','Other capabilities requiring assessment'));
+ for(const x of r.additionalSkills||[])root.append(el('h4','',x.name),el('p','',x.expectation),el('p','',`Build: ${x.nextStep}`),el('p','',`Verify: ${x.howToVerify}`));
+ root.append(el('h3','report-section','30 / 60 / 90-day execution plan'));
+ for(const x of r.actionPlan||[]){root.append(el('h4','',`${x.period}: ${x.focus}`));section(root,'Actions',x.actions);}
+ root.append(el('h3','report-section','Progress and evidence checklist'));
+ for(const x of r.progressChecklist||[])root.append(el('p','',`${x.skill}: ${x.deliverable} · Evidence: ${x.evidence}`));
+ section(root,'Learning and development options',[...(r.learningGuidance?.free||[]),...(r.learningGuidance?.paid||[]),...(r.learningGuidance?.certifications||[])]);
+ root.append(el('h3','report-section','Interview preparation (10 questions)'));
+ for(const [i,q] of (r.interviewPreparation||[]).entries())root.append(el('h4','',`${i+1}. ${q.question}`),el('p','',`Evaluated: ${q.whatEvaluated}`),el('p','',`Answer approach: ${q.answerFramework}`));
+ root.append(el('h3','report-section','Resume analysis'));
+ if(r.resumeReview?.status==='provided'){section(root,'Recommended changes',r.resumeReview.changes);section(root,'Details to verify',r.resumeReview.missingEvidence);}
+ else root.append(el('p','','Resume skipped. Your full career report is ready. You can paste a resume later if you want a revised document.'));
+ root.append(el('p','small-muted','This guidance uses self-reported facts; it is not a validated competency test. Interview questions are illustrative.'));
  $('reportDialog').showModal();
 }
 $('viewReport').addEventListener('click',openReport);
 $('closeReport').addEventListener('click',()=>$('reportDialog').close());
 $('doneReport').addEventListener('click',()=>$('reportDialog').close());
-$('printReport').addEventListener('click',()=>window.print());
+$('printReport').addEventListener('click',()=>state?.reportGenerated?download('report','pdf'):window.print());
 init();
