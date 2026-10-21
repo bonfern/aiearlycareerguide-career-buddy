@@ -1,4 +1,4 @@
-# Career Buddy V5 — two clear entry paths, one verified email identity
+# Career Buddy V5.1 — Free Snapshot + Direct Coaching hotfix
 
 **By AI Early Career Guide** — independent application for the private repository `aiearlycareerguide-career-buddy`. Does **not** change the Student, Professional Assessment or Recruiter repos, Firebase projects, or Vercel deployments.
 
@@ -49,3 +49,30 @@
 - Static desktop and mobile browser fixtures checked with Chromium: no JavaScript errors, no horizontal overflow, no unexpected scroll position; verified the free-question option layout. These fixtures simulate authenticated state, **not** actual OTP/API usage.
 - One-page A4 free snapshot PDF sample exported and rendered/read successfully.
 - Real Vercel, Firebase, Resend and OpenAI behaviour must be tested after deployment; neither the source ZIP nor static screenshots constitute a live deployment.
+
+---
+
+## V5.1 focused hotfix — Free Snapshot and Direct Coaching controls
+
+This update fixes the two problems seen during the live owner's V5 test **without changing database schema, coupon configuration, AI prompts, report content, pack entitlements or any of the other three AI Early Career Guide projects**.
+
+### Root cause and fixes
+
+- **Unclickable free snapshot:** after the final quick answer, a newly rendered `Generate free snapshot` button inherited `loading=true` and stayed disabled because V5 did not recompute newly created controls after its API call. V5.1 calls `syncBusyControls()` when the operation starts and finishes, so the valid report button becomes clickable as soon as the previous action completes. Report readiness is still enforced on both frontend and backend.
+- **Direct chat disabled even after activating intro:** the same loading-state issue disabled the composer when the purchase API returned. V5.1 re-enables the composer once the introductory pack is activated and valid credits remain. **No free assessment or free snapshot is needed for the direct-coaching intro.** Paid coaching history stays visible (read-only) if credits are zero or expired; users can refill from the balance button.
+- **Oversized blank chat panel:** when there is no user chat turn yet, V5.1 shows four compact sample prompts and a short input field. Prompt chips only *populate* the message field—they do not silently charge a credit or send a message. Once the user asks their first question, the history pane appears with a responsive, content-sized max-height.
+
+### Replace V5 in your existing Career Buddy repository
+
+1. Extract the **V5.1 ZIP** and copy its files into `aiearlycareerguide-career-buddy`, replacing the V5 files; do not copy an enclosing folder. Use the **separate Career Buddy Vercel project**, never your Student, Professional Assessment or Recruiter projects.
+2. Commit the files to GitHub. Vercel should build a new preview deployment if connected. **No changes to Vercel environment variables, Firebase collections or Resend are required for this hotfix.**
+3. Open Vercel's latest Career Buddy deployment in a new private/incognito browser session (or hard-refresh the existing page). The script and stylesheet URLs remain the same, so a hard refresh is important if the browser cached older assets.
+4. Using an existing verified tester email, finish your free screening. **Generate free snapshot** should be enabled once the ten free topics are complete, and the PDF should be available on that screen and in **My reports**.
+5. From **Home → Ask Career Buddy**, activate the **test intro pack** before finishing the free assessment. The text box and Send button should immediately work; try a prompt suggestion and send it. The free assessment is not a prerequisite for standalone coaching.
+6. Check the same flow on a mobile browser. Your saved Firebase testing history and remaining credits should be preserved. Payments are still simulated and **must not be made public**.
+
+### Tests performed
+
+- `npm test`: existing product tests plus three V5.1 regression assertions.
+- `python tests/browser_flow.py`: real Chromium UI simulation (local/mock API) on desktop (1400px) and mobile (390px). Simulates the last free question, enabled report button, snapshot download click, direct intro purchase without an assessment, enabled chat input, suggestion prompt and successful chat response.
+- **Not yet verified**: your live Vercel deployment, your real OpenAI request, free-report provider response, Firebase/Resend services, or Razorpay (disabled). Backend API errors will be shown in the notification banner and won't silently charge credits.

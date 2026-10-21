@@ -1,4 +1,4 @@
-/* Career Buddy V5: deliberately minimal, one-screen-at-a-time preview. */
+/* Career Buddy V5.1: fix post-request disabled controls and improve first-chat experience. */
 const $=id=>document.getElementById(id);
 const screens=['Choose','Login','Free','Snapshot','Upgrade','Resume','Paid','Toolkit','CoachOffer','Coach','Refills','Reports'];
 let state=null,configured=false,flow='assessment',current='Choose',loading=false,reportKind='free';
@@ -12,7 +12,7 @@ function setFlow(next){flow=next;try{localStorage.setItem('buddy-v5-path',flow);
 function isAssessmentPaid(){return state?.tier==='paid';}
 function isCoachActive(){return state?.tier==='paid'||state?.tier==='coach';}
 function goAssessment(){setFlow('assessment');if(!state){show('Login');return;}if(isAssessmentPaid())show(state.reportGenerated?'Toolkit':state.resumeDecision?'Paid':'Resume');else show(state.freeReport?'Snapshot':'Free');paint();}
-function goCoach(){setFlow('coaching');if(!state){show('Login');return;}if(isCoachActive()){show(Number(state.credits)>0&&!state.expired?'Coach':'Refills');}else show('CoachOffer');paint();}
+function goCoach(){setFlow('coaching');if(!state){show('Login');return;}if(isCoachActive()){show('Coach');}else show('CoachOffer');paint();}
 function choose(next){setFlow(next);if(state){next==='assessment'?goAssessment():goCoach();}else show('Login');}
 function paint(){if(!state)return;const s=current;
  if(s==='Free'||s==='Paid')paintQuestion(s==='Free');
@@ -23,15 +23,30 @@ function paint(){if(!state)return;const s=current;
  if(s==='Refills')$('refillBalance').textContent=`${state.credits||0} interactions remaining · Valid until ${new Date(state.expiresAt).toLocaleDateString('en-IN')}`;
  if(s==='Reports')paintReports();
 }
-async function run(work){if(loading)return;loading=true;document.querySelectorAll('button').forEach(b=>{if(b.dataset.busy==='1')b.disabled=true;});try{await work();}catch(e){notice(e.message,true);}finally{loading=false;document.querySelectorAll('[data-busy="1"]').forEach(b=>b.disabled=false);}}
+// A new stage is sometimes painted *inside* an async action. Its controls must be
+// unlocked only after the async action finishes, not left disabled forever.
+function syncBusyControls(){
+ for(const b of document.querySelectorAll('[data-async-action="1"]')) b.disabled=loading||(b.dataset.requiresFreeReady==='1'&&!state?.freeReportReady);
+ if(current==='Coach'&&state){
+  const blocked=loading||Number(state.credits||0)<=0||Boolean(state.expired);
+  $('chatInput').disabled=blocked;$('chatSend').disabled=blocked;
+ }
+}
+async function run(work){
+ if(loading)return;
+ loading=true;syncBusyControls();
+ try{await work();}
+ catch(e){notice(e.message,true);}
+ finally{loading=false;syncBusyControls();}
+}
 function addList(root,heading,items){root.append(el('h3','',heading));const ul=el('ul');for(const item of items||[])ul.append(el('li','',typeof item==='string'?item:JSON.stringify(item)));root.append(ul);}
 function paintQuestion(free){const name=free?'free':'paid',host=$(name+'Question'),guided=state.guided||{},q=guided.question;
  const progress=(guided.completed||0)/(guided.total||10);$(name+'Progress').style.width=`${Math.round(100*progress)}%`;$(name+'Counter').textContent=`${guided.completed||0} of ${guided.total||10} topics completed`;
  host.replaceChildren();if(!free&&(!state.resumeDecision)){host.append(el('p','','Your optional resume decision comes first.'));const b=el('button','primary','Continue to resume step');b.onclick=()=>show('Resume');host.append(b);return;}
  if(!q){const ready=free?state.freeReportReady:state.reportReady;host.append(el('h2','',free?'Your free screening is complete.':ready?'Your detailed report is ready to generate.':'A little more context is needed.'));
-  host.append(el('p','muted',free?'Create your concise snapshot. You can download it now or at any time in My reports.':ready?'Your initial detailed report is included and does not cost a chat interaction.':'You can use paid coaching to provide additional examples and clarify any missing areas.'));
-  if(!free&&!ready){const missing=(state.readiness?.missing||[]);addList(host,'Information still needed',missing);}
-  const button=el('button','primary',free?'Generate free snapshot →':ready?'Generate detailed report →':'Ask Career Buddy for guidance →');button.onclick=()=>free?generateFree():ready?generateDetailed():goCoach();button.disabled=loading;host.append(button);return;}
+  host.append(el('p','muted',free?(state.freeReportReady?'Create your concise snapshot. You can download it now or at any time in My reports.':'A required area is incomplete. Please review the missing details before requesting a snapshot.'):ready?'Your initial detailed report is included and does not cost a chat interaction.':'You can use paid coaching to provide additional examples and clarify any missing areas.'));
+  if(!ready){const missing=free?(state.freeReadiness?.missing||[]):(state.readiness?.missing||[]);if(missing.length)addList(host,'Information still needed',missing);}
+  const button=el('button','primary',free?'Generate free snapshot →':ready?'Generate detailed report →':'Ask Career Buddy for guidance →');button.dataset.asyncAction='1';if(free)button.dataset.requiresFreeReady='1';button.onclick=()=>free?generateFree():ready?generateDetailed():goCoach();button.disabled=loading||(free&&!state.freeReportReady);host.append(button);return;}
  host.append(el('h2','',q.text));
  const choices=el('div','answers'),inputs=[];
  if(q.kind!=='text'){
@@ -49,9 +64,25 @@ async function sendQuick(q,skip,value,other=''){await run(async()=>{const v=awai
 function paintSnapshot(){const r=state.freeReport||{},view=$('snapshotSummary');view.replaceChildren();if(!state.freeReport){view.append(el('p','','Finish the free assessment first.'));return;}view.append(el('h3','','Your professional profile'),el('p','',r.profileSummary||''));addList(view,'Target role competencies',(r.targetCompetencies||[]));addList(view,'Five next steps',(r.nextSteps||[]));addList(view,'Areas needing further assessment',(r.furtherAssessment||[]));}
 function paintResume(){const box=$('resumePaste');box.value=state?.resumeDecision==='provided'?'':box.value||'';$('resumeCount').textContent=`${box.value.length.toLocaleString()} / 12,000 characters`;}
 function paintToolkit(){const provided=state.resumeSubmitted,revised=!!state.resumeRevision;$('resumeKitText').textContent=revised?'Your revised resume is ready. Review the facts before using it.':provided?'Your pasted resume can now be revised into an editable Word document and PDF.':'Resume review is optional. You can paste one later without repeating the detailed assessment.';$('buildResume').classList.toggle('hidden',!provided||revised);$('resumeDownloadRow').classList.toggle('hidden',!revised);$('resumeLater').classList.toggle('hidden',provided);$('remainingNote').textContent=`${state.credits||0} interactions remaining. Your reports will stay in My reports.`;}
-function paintCoach(){const rem=Number(state.credits||0);$('coachCreditPill').textContent=`${rem} interaction${rem===1?'':'s'} left · Refill`;$('creditWarning').classList.toggle('hidden',rem>10&&!(state.warning||'').trim());$('creditWarning').textContent=state.warning||'';$('chatInput').disabled=loading||rem<=0||state.expired;$('chatSend').disabled=loading||rem<=0||state.expired;
- const pane=$('chatMessages');pane.replaceChildren();const msgs=state.messages||[];if(!msgs.length)pane.append(el('div','message','Ask me about a professional role, interview, promotion or career transition.'));
- for(const m of msgs){const row=el('div',`message ${m.role==='user'?'user':'assistant'}`);row.append(el('small','',m.role==='user'?'YOU':'CAREER BUDDY'),el('span','',m.content));pane.append(row);}pane.scrollTop=pane.scrollHeight;
+function paintCoach(){
+ const rem=Number(state.credits||0);
+ $('coachCreditPill').textContent=`${rem} interaction${rem===1?'':'s'} left · Refill`;
+ const warn=state.warning||((rem<=0)?'Your coaching credits are exhausted. Refill to continue; previous messages remain visible.':state.expired?'Your pack has expired. Refill to continue; previous messages remain visible.':'');
+ $('creditWarning').classList.toggle('hidden',rem>10&&!state.expired&&!warn.trim());
+ $('creditWarning').textContent=warn;
+ const msgs=state.messages||[];
+ const hasConversation=msgs.some(m=>m.role==='user');
+ $('coachPrompts').classList.toggle('hidden',hasConversation);
+ const pane=$('chatMessages');pane.classList.toggle('hidden',!hasConversation);pane.replaceChildren();
+ if(hasConversation){
+  // Hide the generic account-welcome notification; keep actual coaching turns.
+  for(const m of msgs.filter(m=>m.at||m.role==='user')){
+   const row=el('div',`message ${m.role==='user'?'user':'assistant'}`);
+   row.append(el('small','',m.role==='user'?'YOU':'CAREER BUDDY'),el('span','',m.content));pane.append(row);
+  }
+  pane.scrollTop=pane.scrollHeight;
+ }
+ syncBusyControls();
 }
 function paintReports(){const host=$('reportsList');host.replaceChildren();function item(title,desc,buttons){const card=el('div','report-item');card.append(el('h2','',title),el('p','',desc));for(const [label,fn] of buttons){const b=el('button','secondary',label);b.onclick=fn;card.append(b);}host.append(card);}
  if(state.freeReport)item('Free Career Snapshot','Your saved preliminary four-section assessment.',[['View',()=>openFree()],['Download PDF',()=>download('free','pdf')]]);
@@ -89,7 +120,11 @@ $('loginForm').onsubmit=async e=>{e.preventDefault();await run(async()=>{if(!con
 $('verifyForm').onsubmit=async e=>{e.preventDefault();await run(async()=>{state=(await api('verifyCode',{email:$('emailAddress').value.trim(),previewCode:$('accessCode').value,code:$('otpCode').value.trim()})).state;notice('Email verified. Your progress is saved.');flow==='coaching'?goCoach():goAssessment();});};
 $('snapshotDownload').onclick=()=>download('free');$('snapshotView').onclick=openFree;$('snapshotUpgrade').onclick=()=>show('Upgrade');$('backSnapshot').onclick=()=>{show('Snapshot');paint();};$('activateStarter').onclick=()=>activate('starter','starterCoupon');$('activateIntro').onclick=()=>activate('intro','introCoupon');$('saveResume').onclick=()=>saveResume(false);$('skipResume').onclick=()=>saveResume(true);$('resumePaste').oninput=()=>{$('resumeCount').textContent=`${$('resumePaste').value.length.toLocaleString()} / 12,000 characters`;};
 $('viewDetailed').onclick=openDetailed;$('downloadDetailed').onclick=()=>download('report');$('buildResume').onclick=buildResume;$('downloadDocx').onclick=()=>download('resume','docx');$('downloadResumePdf').onclick=()=>download('resume');$('resumeLater').onclick=()=>{show('Resume');paint();};$('toolkitCoach').onclick=goCoach;
-$('coachCreditPill').onclick=()=>{show('Refills');paint();};$('chatForm').onsubmit=submitChat;$('chatInput').oninput=()=>{$('chatCount').textContent=`${$('chatInput').value.length.toLocaleString()} / 1,200 characters`;};$('chatInput').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('chatForm').requestSubmit();}};
+$('coachCreditPill').onclick=()=>{show('Refills');paint();};
+for(const button of document.querySelectorAll('[data-coach-prompt]')){
+ button.onclick=()=>{const input=$('chatInput');if(input.disabled)return;input.value=button.dataset.coachPrompt;input.dispatchEvent(new Event('input'));input.focus();input.scrollIntoView({block:'center',behavior:'smooth'});};
+}
+$('chatForm').onsubmit=submitChat;$('chatInput').oninput=()=>{$('chatCount').textContent=`${$('chatInput').value.length.toLocaleString()} / 1,200 characters`;};$('chatInput').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('chatForm').requestSubmit();}};
 $('buyStandard').onclick=()=>activate('standard','refillCoupon');$('buyExtended').onclick=()=>activate('extended','refillCoupon');$('refillBack').onclick=goCoach;
 $('resetSession').onclick=async()=>{const ownerCode=prompt('Owner-only reset: enter the OWNER_RESET_CODE.');if(!ownerCode)return;await run(async()=>{state=(await api('ownerReset',{ownerCode})).state;notice('Test session reset. Your API usage logs remain available.');goAssessment();});};
 $('closeDialog').onclick=$('dialogDone').onclick=()=>$('reportDialog').close();$('dialogDownload').onclick=()=>download(reportKind==='resume'?'resume':reportKind,reportKind==='resume'?'docx':'pdf');
