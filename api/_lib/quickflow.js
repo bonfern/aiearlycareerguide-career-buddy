@@ -17,8 +17,8 @@ export const QUESTIONS=Object.freeze([
  {id:'skills',kind:'multi',text:'Which skills do you use most often? Choose at least two.',options:['Leading teams','Stakeholder communication','Solving problems','Project planning','Data analysis','Process improvement','Other'],maxSelections:5,minSelections:2},
  {id:'gaps',kind:'single',text:'Where would you most like to develop?',options:['Leadership and influence','Technical / digital skills','Project delivery','Strategic thinking','Interview confidence','Not sure yet','Other']},
  {id:'constraints',kind:'single',text:'How much time can you spend learning each week?',options:['Under 2 hours','2–4 hours','5–8 hours','More than 8 hours','Flexible / not sure']},
- {id:'achievement1',kind:'text',text:'What is one project or result you are proud of?',placeholder:'e.g. Led an automation that saved 200 hours each month',maxLength:QUICK_TEXT_LIMIT,minLength:24,example:true},
- {id:'achievement2',kind:'text',text:'What is another result or responsibility you handled well?',placeholder:'e.g. Coordinated three teams to deliver a new process on time',maxLength:QUICK_TEXT_LIMIT,minLength:24,example:true},
+ {id:'achievement1',kind:'text',text:'What is one project or responsibility you have worked on?',placeholder:'e.g. Building an AI chatbot for HR queries',maxLength:QUICK_TEXT_LIMIT,minLength:18,example:true},
+ {id:'achievement2',kind:'text',text:'What is another project or responsibility you handled?',placeholder:'e.g. Handling HR queries for employees',maxLength:QUICK_TEXT_LIMIT,minLength:18,example:true},
 ]);
 const known=Object.freeze(Object.fromEntries(QUESTIONS.map(q=>[q.id,q])));
 const norm=v=>String(v??'').trim();
@@ -65,7 +65,7 @@ export function guidedProgress(p={},answers={},skips=[]){
 function sanitizeText(v,min,max){
  if(typeof v!=='string')throw new Error('Please enter a short response.');
  const s=norm(v).replace(/\s+/g,' ');
- if(s.length<min)throw new Error(min>=24?'Please add a short, specific example (at least 24 characters).':'Please enter a short response.');
+ if(s.length<min)throw new Error(min>=18?`Please briefly name the work or project (at least ${min} characters).`:'Please enter a short response.');
  if(s.length>max)throw new Error(`Keep your response within ${max} characters.`);
  if(/[\u0000-\u001f]/.test(s))throw new Error('Control characters are not supported.');
  return s;
@@ -75,7 +75,7 @@ export function validateQuickAnswer(q,raw){
  let value,other='';
  if(q.kind==='text'){
   const value=sanitizeText(raw?.value,q.minLength,q.maxLength);
-  if(q.example&&!looksLikeEvidence(value))throw new Error('Please mention one specific action or result, in a short sentence.');
+  if(q.example&&!looksLikeEvidence(value))throw new Error('Please name a project or responsibility, such as “Building an AI chatbot for HR queries”. Ongoing work is fine.');
   return {value,other:''};
  }
  const selections=q.kind==='multi'?raw?.value:[raw?.value];

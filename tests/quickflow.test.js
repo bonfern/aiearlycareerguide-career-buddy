@@ -59,7 +59,7 @@ test('a complete guided sequence populates profile and unlocks report only with 
 });
 test('shallow self-praise is not treated as evidence and cannot unlock report',()=>{
  assert.equal(looksLikeEvidence('I am good at almost everything I ever do'),false);
- assert.throws(()=>validateQuickAnswer(QUESTIONS.find(x=>x.id==='achievement1'),{value:'I am good at almost everything I ever do'}),/specific action/);
+ assert.throws(()=>validateQuickAnswer(QUESTIONS.find(x=>x.id==='achievement1'),{value:'I am good at almost everything I ever do'}),/name a project or responsibility/);
  const p={employmentStatus:'Employed',currentRole:'Manager',experience:'10 years',goal:'Get promoted',targetRole:'Director',timeframe:'12 months',responsibilities:['Working across teams'],skills:['Planning','Leadership'],gaps:['Strategy'],constraints:'5 hours',achievements:['I am good at almost everything I ever do','I am a very smart and capable professional']};
  assert.equal(reportReadiness(p).ready,false);
 });
@@ -73,4 +73,24 @@ test('short achievement examples are capped at 300 characters',()=>{
  assert.equal(QUICK_TEXT_LIMIT,300);
  const q=QUESTIONS.find(x=>x.id==='achievement1');
  assert.throws(()=>validateQuickAnswer(q,{value:'Led '+('a'.repeat(301))}),/300 characters/);
+});
+
+test('ongoing project example from owner screenshot is accepted without rewriting in past tense',()=>{
+ const sample='building an ai chatbot for th HR queries';
+ const q=QUESTIONS.find(x=>x.id==='achievement2');
+ assert.equal(validateQuickAnswer(q,{value:sample}).value,sample);
+ assert.equal(looksLikeEvidence(sample),true);
+ const original={employmentStatus:'Employed full-time',currentRole:'Operations Manager',experience:'8–12 years',goal:'Get promoted',targetRole:'Director / Head of Function',timeframe:'6–12 months',responsibilities:['Leading projects'],skills:['Process improvement','Project planning'],gaps:['Strategic thinking'],constraints:'5 hours weekly',industry:'Manufacturing / FMCG',achievements:['Led a team to deliver process improvements for operations']};
+ const updated=addQuickAnswer(original,q,{value:sample,other:''});
+ assert.equal(updated.achievements.length,2);
+ assert.equal(reportReadiness(updated).ready,true);
+ assert.equal(guidedProgress(updated,{achievement1:original.achievements[0],achievement2:sample}).finished,true);
+});
+test('natural past, present and progressive work examples all count as self-reported evidence',()=>{
+ const accepted=['Building an AI chatbot for HR queries','Working on automation for HR inquiries','Handling HR queries for employees','Managed payroll queries for 200 employees','Creating process dashboards for managers','Led a major cross-team automation'];
+ for(const item of accepted){assert.equal(looksLikeEvidence(item),true,item);assert.equal(validateQuickAnswer(QUESTIONS.find(x=>x.id==='achievement1'),{value:item}).value,item);}
+});
+test('short, generic praise without concrete work cannot unlock a report',()=>{
+ const invalid=['I am good at almost everything I ever do','I have good skills and I am excellent','I am building something','I am a very capable professional'];
+ for(const item of invalid)assert.equal(looksLikeEvidence(item),false,item);
 });

@@ -35,13 +35,18 @@ export function mergeProfile(current={},candidate={}){
  for(const k of ['responsibilities','achievements','skills','gaps'])out[k]=uniqueArr(out[k],candidate?.[k]);
  return out;
 }
+// Treat concise descriptions of past and ongoing *work* as career examples.
+// These are self-reported examples, not independently verified achievements.
 export function looksLikeEvidence(v){
  if(typeof v!=='string')return false;
- const s=v.trim();
- if(s.length<24||s.split(/\s+/).length<5)return false;
- if(/^(?:none|n\/?a|not sure|don't know|i am good at|i have good skills)/i.test(s))return false;
- // An example must describe something done, delivered, experienced or achieved.
- return /\b(led|managed|built|created|delivered|implemented|improved|reduced|increased|saved|coordinated|organis(?:ed|zed)|completed|handled|supported|trained|launched|designed|analys(?:ed|zed)|automated|achieved|developed|resolved|worked|responsible|helped|grew|streamlined|introduced|mentored|ran|conducted|prepared|volunteered|planned|executed|collaborated|won|earned|produced|maintained)\b/i.test(s) || /(?:\d+\s*%|on time|ahead of schedule|hours saved|per cent|percent)/i.test(s);
+ const s=v.replace(/\s+/g,' ').trim();
+ if(s.length<18 || s.split(/\s+/).length<3)return false;
+ // A generic personal claim is not a concrete project, result or responsibility.
+ if(/^(?:none|n\/?a|not sure|don\'?t know|no example|nothing|i am good at|i have good skills|i am (?:very )?(?:skilled|capable|excellent)|i have strong skills)/i.test(s))return false;
+ if(/\b(?:everything|anything|something|stuff|all sorts of things)\b/i.test(s))return false;
+ // Include present tense and progressive forms. "Building an AI chatbot for
+ // HR queries" and "Handling employee queries" are legitimate examples.
+ return /\b(?:led|lead|leading|managed?|manages|managing|built|build|building|created?|creating|delivered?|delivering|implemented?|implementing|improved?|improving|reduced?|reducing|increased?|increasing|saved?|saving|coordinated?|coordinating|organis(?:ed|ing|e)|organiz(?:ed|ing|e)|completed?|completing|handled?|handling|supported?|supporting|trained?|training|launched?|launching|designed?|designing|analys(?:ed|ing|e)|analyz(?:ed|ing|e)|automated?|automating|achieved?|achieving|developed?|developing|resolved?|resolving|worked?|working|responsible|helped?|helping|grew|growing|streamlined?|streamlining|introduced?|introducing|mentored?|mentoring|ran|running|conducted?|conducting|prepared?|preparing|volunteered?|volunteering|planned?|planning|executed?|executing|collaborated?|collaborating|won|earned?|produced?|producing|maintained?|maintaining|oversaw|overseeing|initiated?|initiating|operated?|operating|facilitated?|facilitating|reviewed?|reviewing|drafted?|drafting)\b/i.test(s) || /(?:\d+\s*%|on time|ahead of schedule|hours saved|per cent|percent)/i.test(s);
 }
 export function reportReadiness(p={}){
  const missing=[];

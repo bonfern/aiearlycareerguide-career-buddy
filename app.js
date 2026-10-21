@@ -95,6 +95,7 @@ function renderQuick(){
  $('quickText').value='';$('quickText').maxLength=q.maxLength||300;
  $('quickText').placeholder=q.placeholder||'Short response';
  $('quickCount').textContent=`0 / ${q.maxLength||300} characters`;
+ $('quickHelp').classList.toggle('hidden',!q.example);
  $('quickSkip').classList.toggle('hidden',!q.optional);
  const dis=quickLoading||loading||state.expired||state.credits<=0;
  $('quickSubmit').disabled=dis;$('quickSkip').disabled=dis;
@@ -121,7 +122,7 @@ async function submitQuick(skip=false){
  let value=q.kind==='text'?$('quickText').value.trim():q.kind==='multi'?selected:selected[0];
  const other=$('quickOther').value.trim();
  if(!skip){
-  if(q.kind==='text'&&value.length<q.minLength){$('quickError').textContent=q.example?'Please add one specific example (at least 24 characters).':'Please enter a short job title.';return;}
+  if(q.kind==='text'&&value.length<q.minLength){$('quickError').textContent=q.example?`Please briefly name the work or project (at least ${q.minLength} characters).`:'Please enter a short job title.';return;}
   if(q.kind!=='text'&&selected.length<(q.minSelections||1)){$('quickError').textContent=`Choose ${q.minSelections||1} or more options.`;return;}
   if(selected.includes('Other')&&other.length<2){$('quickError').textContent='Please add a short description for Other.';return;}
  }
@@ -138,7 +139,7 @@ $('quickToChat').addEventListener('click',()=>switchMode('chat'));
 $('chatToQuick').addEventListener('click',()=>switchMode('quick'));
 $('quickSubmit').addEventListener('click',()=>submitQuick(false));
 $('quickSkip').addEventListener('click',()=>submitQuick(true));
-$('quickText').addEventListener('input',()=>{
+$('quickText').addEventListener('input',()=>{ $('quickError').textContent='';
  $('quickCount').textContent=`${$('quickText').value.length} / ${state?.guided?.question?.maxLength||300} characters`;
 });
 $('quickText').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();submitQuick(false);}});

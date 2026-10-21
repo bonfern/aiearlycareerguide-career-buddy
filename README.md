@@ -1,4 +1,12 @@
-# Career Buddy by AI Early Career Guide — Version 2 (Hybrid Quick Answers)
+## Version 2.1 hotfix (21 October 2026)
+
+The previous server validator rejected legitimate progressive-tense work descriptions such as **"building an AI chatbot for HR queries"**, causing users to get stuck on the second experience question. This release expands action-verb recognition to ongoing responsibilities, reduces the minimum example length from 24 to 18 characters, and provides a clear inline example. A project does **not** need to have finished or delivered a quantifiable result to count as self-reported experience; it still is not a verified outcome.
+
+**Deploy:** Replace the Version 2 files in the separate `aiearlycareerguide-career-buddy` repository with this ZIP's contents. No new environment variables, Firebase migration, secret changes, or changes to the live Student, Professional, or Recruiter applications are required. Wait for Vercel deployment and then reload the chat. The original response "building an ai chatbot for th HR queries" will be accepted.
+
+**Existing progress:** Preview session history and credit balances are left untouched. The changes only affect validation and question wording. No new Firestore collections are required.
+
+# Career Buddy by AI Early Career Guide — Version 2.1 (Quick Answer Fix)
 
 **Separate owner-preview application.** This code is for the existing new repository `aiearlycareerguide-career-buddy`. It does NOT modify or share customer data with the live Student, Professional or Recruiter apps. No production billing is enabled.
 
