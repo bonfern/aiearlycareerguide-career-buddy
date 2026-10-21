@@ -25,8 +25,8 @@ test('quick answer validation rejects arbitrary options, oversized free text and
  assert.throws(()=>validateQuickAnswer(roleQ,{value:'x'.repeat(121)}),/120 characters/);
  assert.throws(()=>validateQuickAnswer(roleQ,{value:'PM'}),/short response/);
  const targetQ=QUESTIONS.find(q=>q.id==='targetRole');
- assert.throws(()=>validateQuickAnswer(targetQ,{value:'Other'}),/short response/);
- assert.equal(validateQuickAnswer(targetQ,{value:'Other',other:'Director of Process Excellence'}).other,'Director of Process Excellence');
+ assert.throws(()=>validateQuickAnswer(targetQ,{value:'PM'}),/short response/);
+ assert.equal(validateQuickAnswer(targetQ,{value:'Director of Process Excellence'}).value,'Director of Process Excellence');
 });
 test('multi choices enforce ranges and valid selections',()=>{
  const q=QUESTIONS.find(q=>q.id==='skills');
@@ -48,7 +48,7 @@ test('optional fields can be skipped; mandatory ones cannot',()=>{
 });
 test('a complete guided sequence populates profile and unlocks report only with two meaningful examples',()=>{
  let p={...EMPTY_PROFILE},answers={};
- const selections={employmentStatus:'Employed full-time',currentRole:'Process Excellence Manager',industry:'Manufacturing / FMCG',experience:'13+ years',goal:'Get promoted',targetRole:'Director / Head of Function',timeframe:'6–12 months',responsibilities:['Improving processes','Leading projects'],skills:['Leading teams','Process improvement','Project planning'],gaps:'Strategic thinking',constraints:'5–8 hours',achievement1:'Led a major process transformation that saved 150 hours monthly',achievement2:'Implemented a governance framework across multiple departments'};
+ const selections={employmentStatus:'Employed full-time',currentRole:'Process Excellence Manager',industry:'Manufacturing / FMCG',experience:'13+ years',goal:'Get promoted',targetRole:'Director of Process Excellence',timeframe:'6–12 months',responsibilities:['Improving processes','Leading projects'],skills:['Leading teams','Process improvement','Project planning'],gaps:'Strategic thinking',constraints:'5–8 hours',achievement1:'Led a major process transformation that saved 150 hours monthly',achievement2:'Implemented a governance framework across multiple departments'};
  for(const q of QUESTIONS){
   assert.equal(flow(p,answers).question?.id,q.id);
   [p,answers]=advance(p,answers,selections[q.id]);
@@ -80,7 +80,7 @@ test('ongoing project example from owner screenshot is accepted without rewritin
  const q=QUESTIONS.find(x=>x.id==='achievement2');
  assert.equal(validateQuickAnswer(q,{value:sample}).value,sample);
  assert.equal(looksLikeEvidence(sample),true);
- const original={employmentStatus:'Employed full-time',currentRole:'Operations Manager',experience:'8–12 years',goal:'Get promoted',targetRole:'Director / Head of Function',timeframe:'6–12 months',responsibilities:['Leading projects'],skills:['Process improvement','Project planning'],gaps:['Strategic thinking'],constraints:'5 hours weekly',industry:'Manufacturing / FMCG',achievements:['Led a team to deliver process improvements for operations']};
+ const original={employmentStatus:'Employed full-time',currentRole:'Operations Manager',experience:'8–12 years',goal:'Get promoted',targetRole:'Director of Process Excellence',timeframe:'6–12 months',responsibilities:['Leading projects'],skills:['Process improvement','Project planning'],gaps:['Strategic thinking'],constraints:'5 hours weekly',industry:'Manufacturing / FMCG',achievements:['Led a team to deliver process improvements for operations']};
  const updated=addQuickAnswer(original,q,{value:sample,other:''});
  assert.equal(updated.achievements.length,2);
  assert.equal(reportReadiness(updated).ready,true);

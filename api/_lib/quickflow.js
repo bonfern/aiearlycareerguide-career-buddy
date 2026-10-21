@@ -11,7 +11,7 @@ export const QUESTIONS=Object.freeze([
  {id:'industry',kind:'single',optional:true,text:'Which industry do you mainly work in?',options:['Technology / IT','Financial services','Manufacturing / FMCG','Healthcare / Education','Other']},
  {id:'experience',kind:'single',text:'How much relevant work experience do you have?',options:['Less than 1 year','1–3 years','4–7 years','8–12 years','13+ years']},
  {id:'goal',kind:'single',text:'What would you like help with most?',options:['Get promoted','Move to another company','Change careers','Return to work','Explore career options']},
- {id:'targetRole',kind:'single',text:'Which career direction interests you?',options:['Director / Head of Function','Manager / Team Lead','Specialist / Individual Contributor','A different career field','Still exploring','Other']},
+ {id:'targetRole',kind:'text',text:'Which specific job or career would you like to work towards?',placeholder:'e.g. Director of Process Excellence (or Still exploring)',maxLength:120,minLength:3},
  {id:'timeframe',kind:'single',text:'When would you like to make your next move?',options:['Within 3 months','3–6 months','6–12 months','More than a year','Flexible / unsure']},
  {id:'responsibilities',kind:'multi',text:'What do you spend most of your time doing?',options:['Managing people','Improving processes','Leading projects','Analysing data','Working with customers','Other'],maxSelections:4,minSelections:1},
  {id:'skills',kind:'multi',text:'Which skills do you use most often? Choose at least two.',options:['Leading teams','Stakeholder communication','Solving problems','Project planning','Data analysis','Process improvement','Other'],maxSelections:5,minSelections:2},
@@ -20,6 +20,7 @@ export const QUESTIONS=Object.freeze([
  {id:'achievement1',kind:'text',text:'What is one project or responsibility you have worked on?',placeholder:'e.g. Building an AI chatbot for HR queries',maxLength:QUICK_TEXT_LIMIT,minLength:18,example:true},
  {id:'achievement2',kind:'text',text:'What is another project or responsibility you handled?',placeholder:'e.g. Handling HR queries for employees',maxLength:QUICK_TEXT_LIMIT,minLength:18,example:true},
 ]);
+export const FREE_QUESTION_IDS=Object.freeze(['employmentStatus','currentRole','industry','experience','goal','targetRole','timeframe','responsibilities','skills','gaps']);
 const known=Object.freeze(Object.fromEntries(QUESTIONS.map(q=>[q.id,q])));
 const norm=v=>String(v??'').trim();
 const nonempty=v=>typeof v==='string'&&v.trim().length>=2;
@@ -56,10 +57,11 @@ function publicQuestion(q){
  const {id,kind,text,options,maxSelections,minSelections,maxLength,minLength,placeholder,optional,example}=q;
  return {id,kind,text,options:options||[],maxSelections:maxSelections||1,minSelections:minSelections||1,maxLength:maxLength||OTHER_TEXT_LIMIT,minLength:minLength||1,placeholder:placeholder||'',optional:!!optional,example:!!example};
 }
-export function guidedProgress(p={},answers={},skips=[]){
- const completed=QUESTIONS.filter(q=>answeredByProfile(q,p)||Object.hasOwn(answers,q.id)||skips.includes(q.id)).length;
- const next=QUESTIONS.find(q=>!answeredByProfile(q,p)&&!Object.hasOwn(answers,q.id)&&!skips.includes(q.id));
- return {completed,total:QUESTIONS.length,question:publicQuestion(next?adaptQuestion(next,p):null),finished:!next,
+export function guidedProgress(p={},answers={},skips=[],phase='paid'){
+ const questionSet=phase==='free'?QUESTIONS.filter(q=>FREE_QUESTION_IDS.includes(q.id)):QUESTIONS;
+ const completed=questionSet.filter(q=>answeredByProfile(q,p)||Object.hasOwn(answers,q.id)||skips.includes(q.id)).length;
+ const next=questionSet.find(q=>!answeredByProfile(q,p)&&!Object.hasOwn(answers,q.id)&&!skips.includes(q.id));
+ return {completed,total:questionSet.length,question:publicQuestion(next?adaptQuestion(next,p):null),finished:!next,
   skipped:skips.filter(id=>!!known[id])};
 }
 function sanitizeText(v,min,max){
@@ -97,7 +99,7 @@ export function addQuickAnswer(profile,q,answer){
   case 'industry':fields.industry=resolved[0];break;
   case 'experience':fields.experience=v;break;
   case 'goal':fields.goal=v;break;
-  case 'targetRole':fields.targetRole=resolved[0];break;
+  case 'targetRole':fields.targetRole=v;break;
   case 'timeframe':fields.timeframe=v;break;
   case 'responsibilities':fields.responsibilities=resolved;break;
   case 'skills':fields.skills=resolved;break;

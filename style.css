@@ -31,3 +31,12 @@ dialog{width:min(760px,calc(100vw - 28px));max-height:92vh;border:1px solid var(
 @media (max-width:650px){.mode-tabs{padding:9px;gap:6px}.mode-tab{padding:10px 4px;font-size:11.5px;flex-wrap:wrap;gap:4px}.mode-tab small{font-size:9px}.guided-panel{padding:14px 11px 10px}.quick-question-wrap{padding:13px 12px}.quick-prompt{font-size:15px}.quick-option-list{grid-template-columns:1fr}.choice-option{min-height:41px;padding:10px;font-size:12px}.quick-history-row{font-size:11px}.guided-foot{align-items:start;flex-direction:column;gap:9px}.guided-foot .mini-progress{width:100%}.guided-foot p{text-align:left}}
 
 .quick-help{font-size:11px;line-height:1.45;color:#596e87;margin:0 0 2px}
+/* Version 3: free snapshot, explicit owner-preview upgrade, continuous paid coaching */
+.payment-panel{border-color:#d8d0ff;background:linear-gradient(145deg,#fff,#faf9ff)}
+.payment-panel h2{font-size:16px;line-height:1.35;margin:7px 0}
+.field-label{display:block;font-size:11px;font-weight:750;margin:14px 0 6px}
+.coupon-input{width:100%;border:1px solid #d7dfea;border-radius:9px;padding:11px 12px;font-size:12px;background:white}
+.refill-buttons{display:grid;grid-template-columns:1fr 1fr;gap:8px}.refill-buttons button{font-size:11px;line-height:1.35;padding:10px}
+.report-warning{margin:12px 0;padding:12px;background:#fff8e7;border:1px solid #f1dfb3;border-radius:9px;color:#684e1c;font-size:12px;line-height:1.5}
+.toolkit-item{border-bottom:1px solid var(--edge);padding:11px 0}.toolkit-item strong{display:block;margin-bottom:6px}.toolkit-item p{margin:5px 0}
+@media(max-width:600px){.refill-buttons{grid-template-columns:1fr}}

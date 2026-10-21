@@ -1,8 +1,8 @@
 export const MESSAGE_LIMIT=1200;
 export const PACKS=Object.freeze({
- starter:{label:'Career Buddy Starter',priceInr:299,credits:60,days:30},
- standard:{label:'Standard Top-up',priceInr:179,credits:35,days:30},
- extended:{label:'Extended Top-up',priceInr:299,credits:75,days:60}
+ starter:{label:'Career Buddy Starter',priceInr:499,credits:60,days:30},
+ standard:{label:'Standard Refill',priceInr:249,credits:35,days:30},
+ extended:{label:'Extended Refill',priceInr:399,credits:75,days:60}
 });
 export function validateMessage(v){
  if(typeof v!=='string')throw new Error('Please enter a message.');
@@ -47,6 +47,27 @@ export function looksLikeEvidence(v){
  // Include present tense and progressive forms. "Building an AI chatbot for
  // HR queries" and "Handling employee queries" are legitimate examples.
  return /\b(?:led|lead|leading|managed?|manages|managing|built|build|building|created?|creating|delivered?|delivering|implemented?|implementing|improved?|improving|reduced?|reducing|increased?|increasing|saved?|saving|coordinated?|coordinating|organis(?:ed|ing|e)|organiz(?:ed|ing|e)|completed?|completing|handled?|handling|supported?|supporting|trained?|training|launched?|launching|designed?|designing|analys(?:ed|ing|e)|analyz(?:ed|ing|e)|automated?|automating|achieved?|achieving|developed?|developing|resolved?|resolving|worked?|working|responsible|helped?|helping|grew|growing|streamlined?|streamlining|introduced?|introducing|mentored?|mentoring|ran|running|conducted?|conducting|prepared?|preparing|volunteered?|volunteering|planned?|planning|executed?|executing|collaborated?|collaborating|won|earned?|produced?|producing|maintained?|maintaining|oversaw|overseeing|initiated?|initiating|operated?|operating|facilitated?|facilitating|reviewed?|reviewing|drafted?|drafting)\b/i.test(s) || /(?:\d+\s*%|on time|ahead of schedule|hours saved|per cent|percent)/i.test(s);
+}
+// Lightweight, low-cost pre-purchase readiness. There is no free full skills diagnosis.
+export function freeReadiness(p={}){
+ const missing=[];
+ const ok=v=>typeof v==='string'&&v.trim().length>=3;
+ if(!ok(p.employmentStatus)||!ok(p.currentRole)||!ok(p.experience))missing.push('Current role and experience');
+ if(!ok(p.goal)||!ok(p.targetRole))missing.push('Career goal and target role');
+ if(!ok(p.timeframe))missing.push('Career timeframe');
+ if(!Array.isArray(p.responsibilities)||p.responsibilities.length<1)missing.push('Main responsibilities');
+ if(!Array.isArray(p.skills)||p.skills.length<2)missing.push('Two strengths or skills');
+ if(!Array.isArray(p.gaps)||p.gaps.length<1)missing.push('Area to develop (or not sure)');
+ return {ready:missing.length===0,missing,completed:6-missing.length,total:6};
+}
+export function computeOffer({packId,couponCode='',coupons={}}){
+ const pack=PACKS[packId];if(!pack)throw new Error('Invalid pack.');
+ const code=String(couponCode||'').trim().toUpperCase();
+ if(code&&!/^[A-Z0-9_-]{3,24}$/.test(code))throw new Error('Invalid coupon format.');
+ const percent=code?coupons[code]:0;
+ if(code&&(!Number.isInteger(percent)||percent<1||percent>100))throw new Error('Coupon is not valid.');
+ return {packId,label:pack.label,credits:pack.credits,days:pack.days,originalPriceInr:pack.priceInr,
+  coupon:code||null,discountPercent:percent||0,priceInr:Math.round(pack.priceInr*(100-(percent||0))/100)};
 }
 export function reportReadiness(p={}){
  const missing=[];
