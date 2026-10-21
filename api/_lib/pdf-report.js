@@ -33,12 +33,12 @@ export function buildReportPdf(report){
  lines('A direct route from your current position to your stated career goal',{size:10,color:C.muted});gap(9);
  lines('YOUR GOAL',{size:9,bold:true,color:C.purple});lines(report.goalPath?.headline||report.targetRole||'Your next career move',{size:13,bold:true,max:73,leading:18});gap(9);
  const priorityItems=(items,limit=3)=>{const meaningful=(items||[]).filter(item=>item.priority!=='Maintain and stretch');const source=meaningful.length?meaningful:(items||[]);return source.slice(0,limit).map(item=>`${item.name} - ${item.status||friendlyPriority(item.priority)}`);};
- const quickGroups=[['TECHNICAL PRIORITIES',priorityItems(report.capabilityFocus?.technical||[])],['LEADERSHIP & BEHAVIOURAL PRIORITIES',priorityItems(report.capabilityFocus?.behavioural||[])],['CAREER ACTIONS TO TAKE',(report.goalPath?.careerActions||[]).slice(0,3).map(step=>step.title)]];
+ const quickGroups=[['TECHNICAL PRIORITIES',priorityItems(report.capabilityFocus?.technical||[])],['LEADERSHIP & SOFT SKILLS',priorityItems(report.capabilityFocus?.behavioural||[])],['CAREER ACTIONS TO TAKE',(report.goalPath?.careerActions||[]).slice(0,3).map(step=>step.title)]];
  for(const [heading,items] of quickGroups){lines(heading,{size:9,bold:true,color:C.purple});bulletList(items.length?items:['See the detailed plan below.']);gap(3);}
  gap(4);ensure(54);rect(43,y-28,509,44,C.lavender);textAt(`${report.coverage?.total??0} essential capabilities explored (self-reported)`,58,y-2,11,true,C.navy);textAt(`${report.priorities?.length??0} priority areas to build further`,58,y-20,10,false,C.purple);y-=57;
 
  title(`1. What you need to build for ${report.targetRole||'your goal'}`);
- const capabilityGroups=[['TECHNICAL CAPABILITIES',report.capabilityFocus?.technical||[]],['LEADERSHIP & BEHAVIOURAL CAPABILITIES',report.capabilityFocus?.behavioural||[]]];
+ const capabilityGroups=[['TECHNICAL CAPABILITIES',report.capabilityFocus?.technical||[]],['LEADERSHIP & SOFT-SKILL CAPABILITIES',report.capabilityFocus?.behavioural||[]]];
  for(const [heading,items] of capabilityGroups){
   lines(heading,{size:9,bold:true,color:C.purple});
   if(!items.length){lines('No essential capabilities identified in this category.',{size:9,color:C.muted});gap(6);continue;}

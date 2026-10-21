@@ -1,5 +1,6 @@
 export const MESSAGE_LIMIT=1200;
 export const PACKS=Object.freeze({
+ intro:{label:'Ask Career Buddy Intro',priceInr:149,credits:15,days:14},
  starter:{label:'Career Buddy Starter',priceInr:499,credits:60,days:30},
  standard:{label:'Standard Refill',priceInr:249,credits:35,days:30},
  extended:{label:'Extended Refill',priceInr:399,credits:75,days:60}
@@ -59,6 +60,15 @@ export function freeReadiness(p={}){
  if(!Array.isArray(p.skills)||p.skills.length<2)missing.push('Two strengths or skills');
  if(!Array.isArray(p.gaps)||p.gaps.length<1)missing.push('Area to develop (or not sure)');
  return {ready:missing.length===0,missing,completed:6-missing.length,total:6};
+}
+export function checkPackEligibility(session={},packId){
+ const tier=session.tier||'free',hasCoaching=['coach','paid'].includes(tier)||Number(session.creditsGranted)>0;
+ if(!Object.hasOwn(PACKS,packId))throw new Error('Invalid pack.');
+ if(packId==='intro'&&hasCoaching)throw new Error('The introductory coaching pack is for new coaching users. Choose a refill.');
+ if(packId==='starter'&&!session.freeReport)throw new Error('Complete the free snapshot before unlocking the detailed assessment.');
+ if(packId==='starter'&&tier==='paid')throw new Error('Use a refill pack for additional coaching.');
+ if(['standard','extended'].includes(packId)&&!hasCoaching)throw new Error('Start with a coaching intro or detailed assessment pack.');
+ return packId==='starter'?'paid':packId==='intro'?'coach':tier;
 }
 export function computeOffer({packId,couponCode='',coupons={}}){
  const pack=PACKS[packId];if(!pack)throw new Error('Invalid pack.');

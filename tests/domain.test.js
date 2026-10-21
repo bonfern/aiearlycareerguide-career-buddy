@@ -25,4 +25,4 @@ test('unknown token prices do not invent cost estimates',()=>{
  assert.equal(estimateUsage({prompt_tokens:2000,completion_tokens:500},{}).inrCost,null);
  assert.ok(Math.abs(estimateUsage({prompt_tokens:2000,completion_tokens:500},{OPENAI_INPUT_USD_PER_MILLION:'1',OPENAI_OUTPUT_USD_PER_MILLION:'5',OPENAI_USD_INR:'90'}).inrCost-0.405)<1e-10);
 });
-test('indicative packs are three only',()=>assert.deepEqual(Object.keys(PACKS),['starter','standard','extended']));
+test('indicative packs include separate coaching introductory option',()=>assert.deepEqual(Object.keys(PACKS),['intro','starter','standard','extended']));

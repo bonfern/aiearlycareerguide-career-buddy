@@ -8,6 +8,7 @@ export const PROFESSIONAL_SECTIONS=Object.freeze([
  'Progress and evidence checklist', 'Interview preparation', 'Resume analysis (optional)'
 ]);
 export const DETAILED_PROMPT=`You are the report writer for Career Buddy by AI Early Career Guide. Produce ONE detailed professional Career Action & Skill Development report in JSON. Use the owner-provided Professional Assessment report STRUCTURE, but DO NOT claim an MCQ assessment took place. Coaching profile is SELF-REPORTED and does not validate competence. Stay evidence-aligned; distinguish demonstrated examples, self-reported skills and unassessed requirements. Avoid proctoring, scores, assessment confidence and fabricated evidence.
+CRITICAL STYLE: Address the reader directly using 'you'/'your' in report narrative. Do not use the person's name in prose and never narrate their story as 'Firstname Lastname is...', 'he', 'she', or 'the candidate'. The report is for the reader. Treat soft skills (communication, stakeholder influence, collaboration, emotional intelligence, coaching, negotiation) as distinct role-specific behavioural competencies, not generic labels.
 Return JSON with these REQUIRED keys:
 summary: 60-100 words;
 goalPath: {headline:short career goal, careerActions:array 4-6 {title,action,outcome}}, with concrete actions such as speaking with manager/HOD, resume, LinkedIn, job search, project evidence and interviews when relevant;
@@ -42,7 +43,7 @@ export function asProfessionalReport(r,profile){
   learning:{free:[],paid:[],certifications:[]},tested:0,correct:0,subskillsNeedingWork:[],subskillsNotTested:[]}));
  const group=t=>skills.filter(s=>s.type===t).map(s=>({name:s.name,currentCompetency:s.currentCompetency,priority:s.priority,status:s.priority,firstAction:s.actions[0]}));
  const additional=(r.additionalSkills||[]).map(s=>({...s,assessmentStatus:'Not assessed'}));
- return {reportVersion:'buddy-4',targetRole:profile?.targetRole||'',summary:r.summary,goalPath:r.goalPath,
+ return {reportVersion:'buddy-5',targetRole:profile?.targetRole||'',summary:r.summary,goalPath:r.goalPath,
   capabilityFocus:{technical:group('technical'),behavioural:group('behavioural')},skillAssessments:skills,
   additionalSkills:additional,actionPlan:r.actionPlan,learningPreferences:null,
   coverage:{assessed:0,total:skills.length,answered:0},

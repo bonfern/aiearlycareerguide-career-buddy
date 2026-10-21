@@ -1,0 +1,20 @@
+/* Career Buddy free snapshot: lightweight, A4, downloadable, content-safe PDF. */
+function clean(x){return String(x??'').replace(/\s+/g,' ').trim().replace(/[^\x20-\x7E]/g,c=>({'–':'-','—':'-','•':'-','’':"'",'₹':'INR'}[c]||' ')).replace(/[()\\]/g,c=>'\\'+c);}
+function lines(str,max=93){const out=[];let line='';for(const word of clean(str).split(' ')){if(line&&line.length+word.length+1>max){out.push(line);line=word;}else line+=(line?' ':'')+word;}if(line)out.push(line);return out;}
+export function buildFreeSnapshotPdf(snapshot={}){
+ let y=780;let current=[],pages=[];
+ const footer=()=>{current.push('0.84 0.88 0.92 RG 46 65 m 549 65 l S',`BT /R 8 Tf 0.42 0.46 0.56 rg 1 0 0 1 48 50 Tm (AI Early Career Guide | Preliminary career guidance - not a validated competency test) Tj ET`);};
+ const newPage=()=>{if(current.length){footer();pages.push(current);}current=[];y=780;};
+ const draw=(text,opts={})=>{const {size=10.5,bold=false,color='0.08 0.16 0.31',max=92}=opts;for(const line of lines(text,max)){if(y<92)newPage();current.push(`BT /${bold?'B':'R'} ${size} Tf ${color} rg 1 0 0 1 48 ${y} Tm (${line}) Tj ET`);y-=size+6;}};
+ draw('AI EARLY CAREER GUIDE',{size:12,bold:true,color:'0.06 0.42 0.29'});y-=9;draw('Your Free Career Snapshot',{size:21,bold:true,max:55});y-=7;draw('A preliminary starting point for your professional journey',{size:10,color:'0.45 0.5 0.6'});y-=22;
+ const section=(name,arr,list=false)=>{if(y<148)newPage();draw(name,{size:13,bold:true});y-=7;for(const item of arr){draw(list?'- '+item:item,{max:92});y-=6;}y-=12;};
+ section('1. Your professional profile',[snapshot.profileSummary||'No profile summary was generated.']);
+ section('2. Target role competencies',snapshot.targetCompetencies||[],true);
+ section('3. Five general career actions',snapshot.nextSteps||[],true);
+ section('4. Areas for deeper assessment',snapshot.furtherAssessment||[],true);footer();pages.push(current);
+ const objects=[null],add=s=>(objects.push(s),objects.length-1),root=add(''),kidsRoot=add('');const regular=add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');const bold=add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');const kids=[];
+ for(const cmds of pages){const stream=cmds.join('\n');const content=add(`<< /Length ${Buffer.byteLength(stream,'latin1')} >>\nstream\n${stream}\nendstream`);kids.push(add(`<< /Type /Page /Parent ${kidsRoot} 0 R /MediaBox [0 0 595 842] /Resources << /Font << /R ${regular} 0 R /B ${bold} 0 R >> >> /Contents ${content} 0 R >>`));}
+ objects[kidsRoot]=`<< /Type /Pages /Kids [${kids.map(k=>k+' 0 R').join(' ')}] /Count ${kids.length} >>`;objects[root]=`<< /Type /Catalog /Pages ${kidsRoot} 0 R >>`;
+ const buffers=[Buffer.from('%PDF-1.4\n')],offsets=[0];let n=buffers[0].length;for(let i=1;i<objects.length;i++){offsets[i]=n;const b=Buffer.from(`${i} 0 obj\n${objects[i]}\nendobj\n`,'latin1');buffers.push(b);n+=b.length;}
+ let last=`xref\n0 ${objects.length}\n0000000000 65535 f \n`;for(let i=1;i<objects.length;i++)last+=`${String(offsets[i]).padStart(10,'0')} 00000 n \n`;last+=`trailer\n<< /Size ${objects.length} /Root ${root} 0 R >>\nstartxref\n${n}\n%%EOF`;buffers.push(Buffer.from(last,'latin1'));return Buffer.concat(buffers);
+}

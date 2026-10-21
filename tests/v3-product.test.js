@@ -4,8 +4,8 @@ import {PACKS,EMPTY_PROFILE,freeReadiness,reportReadiness,computeOffer,mergeProf
 import {guidedProgress,validateQuickAnswer,addQuickAnswer,FREE_QUESTION_IDS} from '../api/_lib/quickflow.js';
 const sample={employmentStatus:'Employed full-time',currentRole:'Process Excellence Manager',industry:'Manufacturing / FMCG',experience:'13+ years',goal:'Get promoted',targetRole:'Director of Process Excellence',timeframe:'6–12 months',responsibilities:['Leading projects'],skills:['Project planning','Process improvement'],gaps:['Strategic thinking']};
 test('V3 price and pack entitlements are indicative and correct',()=>{
- assert.deepEqual(Object.keys(PACKS),['starter','standard','extended']);
- assert.deepEqual(Object.values(PACKS).map(p=>[p.priceInr,p.credits]),[[499,60],[249,35],[399,75]]);
+ assert.deepEqual(Object.keys(PACKS),['intro','starter','standard','extended']);
+ assert.deepEqual(Object.values(PACKS).map(p=>[p.priceInr,p.credits]),[[149,15],[499,60],[249,35],[399,75]]);
 });
 test('Free snapshot needs basic profile but never requires experience examples or paid context',()=>{
  assert.equal(freeReadiness(EMPTY_PROFILE).ready,false);
