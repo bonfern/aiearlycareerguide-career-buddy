@@ -15,7 +15,7 @@ test('quick question is short, one at a time, and has supported answer formats',
  assert.equal(q.id,'employmentStatus');
  assert.ok(q.text.split(' ').length<=20);
  assert.equal(q.kind,'single');
- assert.equal(QUESTIONS.length,13);
+ assert.equal(QUESTIONS.length,12);
 });
 test('quick answer validation rejects arbitrary options, oversized free text and missing Other',()=>{
  const q=flow({}).question;
@@ -39,18 +39,20 @@ test('academic student route uses suitable project-based questions',()=>{
  const q=flow({...EMPTY_PROFILE,employmentStatus:'Student or recent graduate'}).question;
  assert.equal(q.id,'currentRole');
  assert.match(q.text,/studying/);
- const p={...EMPTY_PROFILE,employmentStatus:'Student or recent graduate', currentRole:'BBA graduate',industry:'Education',experience:'Less than 1 year',goal:'Explore career options',targetRole:'Still exploring',timeframe:'Flexible / unsure', responsibilities:['Analysing data'],skills:['Solving problems','Data analysis'],gaps:['Not sure which development gap to prioritise'],constraints:'Flexible'};
+ const p={...EMPTY_PROFILE,employmentStatus:'Student or recent graduate', currentRole:'BBA graduate',experience:'Less than 1 year',goal:'Explore career options',targetRole:'Still exploring', roleExperience:[],responsibilities:['Analysing data'],skills:['Solving problems','Data analysis'],gaps:['Not sure which development gap to prioritise'],constraints:'Flexible'};
  assert.match(flow(p).question.text,/project|internship/i);
 });
 test('optional fields can be skipped; mandatory ones cannot',()=>{
- assert.equal(validateSkip(QUESTIONS.find(x=>x.id==='industry')),'industry');
+ assert.throws(()=>validateSkip(QUESTIONS.find(x=>x.id==='roleExperience')),/needed/);
  assert.throws(()=>validateSkip(QUESTIONS.find(x=>x.id==='experience')),/needed/);
 });
 test('a complete guided sequence populates profile and unlocks report only with two meaningful examples',()=>{
  let p={...EMPTY_PROFILE},answers={};
- const selections={employmentStatus:'Employed full-time',currentRole:'Process Excellence Manager',industry:'Manufacturing / FMCG',experience:'13+ years',goal:'Get promoted',targetRole:'Director of Process Excellence',timeframe:'6–12 months',responsibilities:['Improving processes','Leading projects'],skills:['Leading teams','Process improvement','Project planning'],gaps:'Strategic thinking',constraints:'5–8 hours',achievement1:'Led a major process transformation that saved 150 hours monthly',achievement2:'Implemented a governance framework across multiple departments'};
- for(const q of QUESTIONS){
-  assert.equal(flow(p,answers).question?.id,q.id);
+ const selections={employmentStatus:'Employed full-time',currentRole:'Process Excellence Manager',experience:'Over 20 years',goal:'Get promoted',targetRole:'Director of Process Excellence',roleExperience:['Lean Six Sigma and process improvement','Transformation programme delivery'],responsibilities:['Improving processes','Leading projects'],skills:['Leading teams','Process improvement','Project planning'],gaps:'Strategic planning and benefits realisation',constraints:'5–8 hours',achievement1:'Led a major process transformation that saved 150 hours monthly',achievement2:'Implemented a governance framework across multiple departments'};
+ for(let i=0;i<QUESTIONS.length;i++){
+  const q=flow(p,answers).question;
+  if(!q)break;
+  assert.ok(Object.hasOwn(selections,q.id), 'Answer available for '+q.id);
   [p,answers]=advance(p,answers,selections[q.id]);
  }
  assert.equal(flow(p,answers).finished,true);
@@ -65,9 +67,7 @@ test('shallow self-praise is not treated as evidence and cannot unlock report',(
 });
 test('free-chat populated profile skips questions already satisfied',()=>{
  const p={...EMPTY_PROFILE,employmentStatus:'Employed full-time',currentRole:'Programme Manager',experience:'8–12 years'};
- assert.equal(flow(p).question.id,'industry');
- const withIndustry={...p,industry:'Technology'};
- assert.equal(flow(withIndustry).question.id,'goal');
+ assert.equal(flow(p).question.id,'goal');
 });
 test('short achievement examples are capped at 300 characters',()=>{
  assert.equal(QUICK_TEXT_LIMIT,300);
@@ -80,7 +80,7 @@ test('ongoing project example from owner screenshot is accepted without rewritin
  const q=QUESTIONS.find(x=>x.id==='achievement2');
  assert.equal(validateQuickAnswer(q,{value:sample}).value,sample);
  assert.equal(looksLikeEvidence(sample),true);
- const original={employmentStatus:'Employed full-time',currentRole:'Operations Manager',experience:'8–12 years',goal:'Get promoted',targetRole:'Director of Process Excellence',timeframe:'6–12 months',responsibilities:['Leading projects'],skills:['Process improvement','Project planning'],gaps:['Strategic thinking'],constraints:'5 hours weekly',industry:'Manufacturing / FMCG',achievements:['Led a team to deliver process improvements for operations']};
+ const original={employmentStatus:'Employed full-time',currentRole:'Operations Manager',experience:'8–12 years',goal:'Get promoted',targetRole:'Director of Process Excellence',timeframe:'6–12 months',responsibilities:['Leading projects'],skills:['Process improvement','Project planning'],gaps:['Strategic thinking'],constraints:'5 hours weekly',roleExperience:['Lean Six Sigma and process improvement','Transformation programme delivery'],industry:'Manufacturing / FMCG',achievements:['Led a team to deliver process improvements for operations']};
  const updated=addQuickAnswer(original,q,{value:sample,other:''});
  assert.equal(updated.achievements.length,2);
  assert.equal(reportReadiness(updated).ready,true);

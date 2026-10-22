@@ -41,7 +41,7 @@ function isPaid(s){return ['paid','coach'].includes(s.tier)||(!s.tier&&Number(s.
 function isAssessmentPaid(s){return s.tier==='paid';}
 function safeState(s){
  const paid=isAssessmentPaid(s),coaching=isPaid(s),ready=reportReadiness(s.profile||{}),free=freeReadiness(s.profile||{});const rem=Math.max(0,s.credits||0);
- return {id:s.id,email:s.email||'',mode:'preview',version:'5.3',journeyPreference:s.journeyPreference||'free',coachingEligible:Boolean(s.freeReport||s.report),tier:paid?'paid':coaching?'coach':'free',paymentsEnabled:false,
+ return {id:s.id,email:s.email||'',mode:'preview',version:'5.4',journeyPreference:s.journeyPreference||'free',coachingEligible:Boolean(s.freeReport||s.report),tier:paid?'paid':coaching?'coach':'free',paymentsEnabled:false,
   guided:paid&&s.freeReport&&!s.resumeDecision?{completed:0,total:3,question:null,finished:false,skipped:[]}:guidedProgress(s.profile||{},s.quickAnswers||{},s.quickSkipped||[],paid&&s.freeReport?'paid':'free'),
   quickHistory:(s.quickHistory||[]).slice(-3),credits:rem,creditsGranted:s.creditsGranted||0,
   expiresAt:new Date(s.expiresAt).toISOString(),warning:coaching?creditWarning(rem):'',expired:coaching&&now()>s.expiresAt,
@@ -194,7 +194,7 @@ async function chat(req,res){
   return out(res,200,{state:saved});
  }catch(e){await release(ref,key);throw e;}
 }
-// Guided answers cost no tokens. The free tier is limited to ten one-time guided questions.
+// Guided answers cost no tokens. The free tier uses focused role-aware guided questions.
 async function quickAnswer(req,res){
  const body=jsonBody(req),key=body.requestId;
  if(!validId(key))fail(400,'Request ID missing. Refresh and retry.');

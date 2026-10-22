@@ -15,7 +15,7 @@ export function validateMessage(v){
 }
 export const EMPTY_PROFILE=Object.freeze({
  employmentStatus:'',currentRole:'',industry:'',experience:'',goal:'',targetRole:'',timeframe:'',
- responsibilities:[],achievements:[],skills:[],gaps:[],constraints:''
+ responsibilities:[],roleExperience:[],achievements:[],skills:[],gaps:[],constraints:''
 });
 const text=(v,max=240)=>typeof v==='string'?v.replace(/\s+/g,' ').trim().slice(0,max):'';
 function uniqueArr(old, incoming){
@@ -33,7 +33,7 @@ export function mergeProfile(current={},candidate={}){
  for(const k of ['employmentStatus','currentRole','industry','experience','goal','targetRole','timeframe','constraints']){
   const v=text(candidate?.[k]);if(v)out[k]=v;
  }
- for(const k of ['responsibilities','achievements','skills','gaps'])out[k]=uniqueArr(out[k],candidate?.[k]);
+ for(const k of ['responsibilities','roleExperience','achievements','skills','gaps'])out[k]=uniqueArr(out[k],candidate?.[k]);
  return out;
 }
 // Treat concise descriptions of past and ongoing *work* as career examples.
@@ -55,11 +55,9 @@ export function freeReadiness(p={}){
  const ok=v=>typeof v==='string'&&v.trim().length>=3;
  if(!ok(p.employmentStatus)||!ok(p.currentRole)||!ok(p.experience))missing.push('Current role and experience');
  if(!ok(p.goal)||!ok(p.targetRole))missing.push('Career goal and target role');
- if(!ok(p.timeframe))missing.push('Career timeframe');
- if(!Array.isArray(p.responsibilities)||p.responsibilities.length<1)missing.push('Main responsibilities');
- if(!Array.isArray(p.skills)||p.skills.length<2)missing.push('Two strengths or skills');
+ if(!(Array.isArray(p.roleExperience)&&p.roleExperience.length>0)&&!((p.responsibilities||[]).length>0&&(p.skills||[]).length>=2))missing.push('Experience with target-role competencies');
  if(!Array.isArray(p.gaps)||p.gaps.length<1)missing.push('Area to develop (or not sure)');
- return {ready:missing.length===0,missing,completed:6-missing.length,total:6};
+ return {ready:missing.length===0,missing,completed:4-missing.length,total:4};
 }
 export function checkPackEligibility(session={},packId){
  const tier=session.tier||'free',hasCoaching=['coach','paid'].includes(tier)||Number(session.creditsGranted)>0;
@@ -86,13 +84,12 @@ export function reportReadiness(p={}){
  const has=s=>typeof s==='string'&&s.trim().length>=3;
  if(!has(p.employmentStatus)||!has(p.currentRole)||!has(p.experience))missing.push('Current situation, role and experience');
  if(!has(p.goal)||!has(p.targetRole))missing.push('Career objective and target direction');
- if(!has(p.timeframe))missing.push('Target timeframe or explicit flexibility');
  if(!Array.isArray(p.responsibilities)||p.responsibilities.filter(s=>has(s)).length<1)missing.push('Current or past responsibilities');
  if(!Array.isArray(p.achievements)||p.achievements.filter(looksLikeEvidence).length<2)missing.push('Two concrete achievements or equivalent examples');
  if(!Array.isArray(p.skills)||p.skills.filter(has).length<2)missing.push('At least two relevant skills');
  if(!Array.isArray(p.gaps)||p.gaps.filter(has).length<1)missing.push('A potential development gap or skill to validate');
  if(!has(p.constraints))missing.push('Time, learning budget or mobility constraints (including none)');
- return {ready:missing.length===0,missing,completed:8-missing.length,total:8};
+ return {ready:missing.length===0,missing,completed:7-missing.length,total:7};
 }
 export function creditWarning(n){if(n<=0)return 'Your test credits are exhausted. Your report and history remain available.';
  if(n<=1)return 'Final interaction: only 1 credit remains.';

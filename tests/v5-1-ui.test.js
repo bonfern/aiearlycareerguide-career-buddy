@@ -14,7 +14,7 @@ test('async state unlocks dynamically-rendered report button and chat controls',
 test('coaching is restricted until a free snapshot exists, then is available with either pack',()=>{
  assert.match(js,/function goCoach\(\).*?if\(!state\.freeReport&&!state\.reportGenerated\)/);
  assert.match(html,/id="chooseAssessment"/);
- assert.match(html,/id="choosePremium"/);
+ assert.doesNotMatch(html,/id="choosePremium"/);
  assert.match(html,/id="snapshotCoach"/);
  assert.doesNotMatch(html,/id="chooseCoach"/);
  assert.doesNotMatch(html,/No assessment required/);

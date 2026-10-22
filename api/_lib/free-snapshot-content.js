@@ -18,10 +18,10 @@ function validGroup(items,min,max){return Array.isArray(items)&&items.length>=mi
 export function validRoleGuidance(r){return validGroup(r?.targetCompetencies,4,5)&&validGroup(r?.nextSteps,5,5);}
 export function snapshotSummary(profile={}){
  const current=clipped(profile.currentRole||profile.employmentStatus||'professional',72),exp=clipped(profile.experience||'',45),target=clipped(profile.targetRole||'your next professional role',72);
- const skills=Array.isArray(profile.skills)?profile.skills.slice(0,2).map(x=>clipped(x,55)).filter(Boolean):[];
- const work=Array.isArray(profile.responsibilities)?clipped(profile.responsibilities[0]||'',85):'';
+ const skills=Array.isArray(profile.roleExperience)?profile.roleExperience.filter(x=>x!=='No hands-on experience yet').slice(0,2).map(x=>clipped(x,55)).filter(Boolean):Array.isArray(profile.skills)?profile.skills.slice(0,2).map(x=>clipped(x,55)).filter(Boolean):[];
+ const work=Array.isArray(profile.responsibilities)&&(!Array.isArray(profile.roleExperience)||profile.roleExperience.length===0)?clipped(profile.responsibilities[0]||'',85):'';
  const a=`Your reported background includes ${current}${exp?' ('+exp+')':''}${work?', with responsibilities such as '+work:''}.`;
- const b=`You are exploring ${target}${skills.length?', bringing experience or interest in '+skills.join(' and '):''}.`;
+ const b=`You are exploring ${target}${skills.length?', reporting experience or interest in '+skills.join(' and '):''}.`;
  return `${a} ${b}`.slice(0,540);
 }
 export function furtherAssessment(profile={}){

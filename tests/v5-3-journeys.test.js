@@ -5,11 +5,12 @@ import {checkPackEligibility} from '../api/_lib/domain.js';
 const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
 const app=fs.readFileSync(new URL('../app.js',import.meta.url),'utf8');
 const server=fs.readFileSync(new URL('../api/service.js',import.meta.url),'utf8');
-test('welcome contains exactly two assessment entry options, no coaching shortcut',()=>{
+test('welcome contains exactly one free discovery entry option, no coaching shortcut',()=>{
  const ids=[...html.matchAll(/<button id="(choose\w+)"/g)].map(m=>m[1]);
- assert.deepEqual(ids,['chooseAssessment','choosePremium']);
+ assert.deepEqual(ids,['chooseAssessment']);
  assert.match(html,/Free Career Discovery/);
  assert.match(html,/Premium Career Assessment/);
+ assert.match(html,/Get my free career snapshot/);
  assert.doesNotMatch(html,/id="chooseCoach"/);
 });
 test('snapshot offers two follow-up choices, both preserving prior answers',()=>{

@@ -1,4 +1,4 @@
-"""V5.3 assessment-first journey with mocked backend, tested in actual Chromium."""
+"""V5.4 free-discovery-first journey with mocked backend, tested in Chromium."""
 from pathlib import Path
 import base64
 from playwright.sync_api import sync_playwright
@@ -17,14 +17,14 @@ bootstrap='''() => {
  download=(kind,format='pdf')=>window.__downloads.push([kind,format]);
  state={tier:'free',journeyPreference:'free',email:'tester@example.com',credits:0,creditsGranted:0,
  expiresAt:new Date(Date.now()+86400000).toISOString(),
- guided:{completed:9,total:10,question:{id:'gaps',kind:'single',text:'What would you like to improve?',options:['Leadership','Interview confidence'],minSelections:1},finished:false},
+ guided:{completed:6,total:7,question:{id:'gaps',kind:'single',text:'What would you like to improve?',options:['Leadership','Interview confidence'],minSelections:1},finished:false},
  freeReadiness:{ready:false,missing:['Area to develop']},freeReportReady:false,freeReport:null,
  reportGenerated:false,reportReady:false,readiness:{ready:false,missing:[]},resumeDecision:'',warning:'',expired:false,
  messages:[{role:'assistant',content:'Welcome. Your career information is saved.'}]};
  api=async(action,data)=>{
    window.mockActions.push(action);
    if(action==='setJourney')return {state:{...state,journeyPreference:data.journey}};
-   if(action==='quick')return {state:{...state,guided:{completed:10,total:10,question:null,finished:true},freeReadiness:{ready:true,missing:[]},freeReportReady:true}};
+   if(action==='quick')return {state:{...state,guided:{completed:7,total:7,question:null,finished:true},freeReadiness:{ready:true,missing:[]},freeReportReady:true}};
    if(action==='freeReport')return {state:{...state,freeReport:{version:2,profileSummary:'Experienced professional exploring career growth.',targetCompetencies:[{title:'Leadership',bullets:['Lead teams','Manage goals']}],nextSteps:[{title:'Build a plan',bullets:['Review openings','Seek feedback']}],furtherAssessment:['Skill evidence','Behavioural competencies']}}};
    if(action==='mockPurchase')return {state:{...state,tier:data.packId==='starter'?'paid':'coach',credits:data.packId==='starter'?60:15,creditsGranted:15,expired:false,warning:'',resumeDecision:''},notice:'Test pack activated; no payment.'};
    if(action==='chat')return {state:{...state,credits:14,messages:[...state.messages,{role:'user',content:data.message,at:Date.now()},{role:'assistant',content:'Use examples that demonstrate your professional impact.',at:Date.now()}]}};
@@ -42,20 +42,20 @@ with sync_playwright() as p:
   page.set_content(html,wait_until='load')
   page.evaluate(bootstrap)
   assert page.locator('#chooseAssessment').is_visible()
-  assert page.locator('#choosePremium').is_visible()
+  assert page.locator('#choosePremium').count()==0
   assert page.locator('#chooseCoach').count()==0
   print(label,'welcome passed',flush=True)
-  page.screenshot(path=str(root.parent/f'Career_Buddy_V5_3_Welcome_{label}.png'),full_page=True)
+  page.screenshot(path=str(root.parent/f'Career_Buddy_V5_4_Welcome_{label}.png'),full_page=True)
   # Direct coaching is inaccessible without a saved assessment.
   print(label,'before direct coaching gate',flush=True)
   page.evaluate('goCoach()')
   assert page.locator('#screenFree').is_visible()
   assert page.locator('#screenCoachOffer').is_hidden()
   page.evaluate("() => {notice('');show('Choose');}")
-  print(label,'before premium click',flush=True)
-  page.locator('#choosePremium').click()
+  print(label,'before free discovery click',flush=True)
+  page.locator('#chooseAssessment').click()
   assert page.locator('#screenFree').is_visible()
-  assert page.evaluate('flow')=='premium'
+  assert page.evaluate('flow')=='free'
   print(label,'before free question',flush=True)
   page.locator('#freeQuestion input[type=radio]').first.check()
   page.locator('#freeQuestion button.primary').click()
@@ -66,7 +66,7 @@ with sync_playwright() as p:
   assert page.locator('#snapshotUpgrade').is_visible()
   assert page.locator('#snapshotCoach').is_visible()
   assert page.locator('#coachNavButton').is_visible()
-  page.screenshot(path=str(root.parent/f'Career_Buddy_V5_3_Snapshot_{label}.png'),full_page=True)
+  page.screenshot(path=str(root.parent/f'Career_Buddy_V5_4_Snapshot_{label}.png'),full_page=True)
   page.locator('#snapshotDownload').click()
   assert page.evaluate('window.__downloads[0][0]')=='free'
   print(label,'snapshot reached',flush=True)
@@ -83,9 +83,11 @@ with sync_playwright() as p:
   # Returning to premium option must not clear the free assessment.
   print(label,'chat done',flush=True)
   page.locator('#homeButton').click()
-  assert page.locator('#choosePremium').is_visible()
-  print(label,'before premium click',flush=True)
-  page.locator('#choosePremium').click()
+  assert page.locator('#choosePremium').count()==0
+  print(label,'before premium upgrade',flush=True)
+  page.locator('#chooseAssessment').click()
+  assert page.locator('#screenSnapshot').is_visible()
+  page.locator('#snapshotUpgrade').click()
   assert page.locator('#screenUpgrade').is_visible()
   page.locator('#activateStarter').click()
   page.wait_for_function("!document.querySelector('#screenResume').classList.contains('hidden')")
@@ -94,16 +96,16 @@ with sync_playwright() as p:
   assert page.locator('#reportsList').get_by_text('Free Career Snapshot').is_visible()
   assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth'), f'{label}: horizontal overflow'
   assert not errors,errors
-  # Independent first-login check: selected premium journey survives email verification.
+  # Independent first-login check: free discovery survives email verification.
   page.evaluate("""() => {
     const newUser={tier:'free',journeyPreference:'free',email:'fresh@example.com',credits:0,creditsGranted:0,
-      freeReport:null,freeReportReady:false,guided:{completed:0,total:10,question:{id:'employmentStatus',kind:'single',text:'What is your current situation?',options:['Working full-time','Studying']}},
+      freeReport:null,freeReportReady:false,guided:{completed:0,total:7,question:{id:'employmentStatus',kind:'single',text:'What is your current situation?',options:['Working full-time','Studying']}},
       freeReadiness:{missing:['Role'],ready:false},readiness:{missing:[],ready:false},messages:[],expiresAt:new Date(Date.now()+86400000).toISOString()};
     state=null;show('Choose');configured=true;
     window.authCalls=[];
     api=async(action,data)=>{window.authCalls.push(action);if(action==='requestCode')return {ok:true};if(action==='verifyCode')return {state:newUser};if(action==='setJourney')return {state:{...newUser,journeyPreference:data.journey}};throw Error('Unexpected '+action);};
   }""")
-  page.locator('#choosePremium').click()
+  page.locator('#chooseAssessment').click()
   assert page.locator('#screenLogin').is_visible()
   page.locator('#emailAddress').fill('fresh@example.com')
   page.locator('#accessCode').fill('ownerpreview')
@@ -112,8 +114,8 @@ with sync_playwright() as p:
   page.locator('#otpCode').fill('123456')
   page.locator('#verifyForm button[type=submit]').click()
   page.wait_for_function("!document.querySelector('#screenFree').classList.contains('hidden')")
-  assert page.evaluate('state.journeyPreference')=='premium'
+  assert page.evaluate('state.journeyPreference')=='free'
   assert page.evaluate('window.authCalls').count('setJourney')==1
-  print(f'{label}: premium-first discovery → snapshot → coaching → premium resume, carryover and responsive layout: PASS')
+  print(f'{label}: free discovery → snapshot → coaching → premium resume, carryover and responsive layout: PASS')
   page.close()
  browser.close()

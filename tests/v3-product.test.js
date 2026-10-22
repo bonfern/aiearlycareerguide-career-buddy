@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {PACKS,EMPTY_PROFILE,freeReadiness,reportReadiness,computeOffer,mergeProfile,creditWarning} from '../api/_lib/domain.js';
 import {guidedProgress,validateQuickAnswer,addQuickAnswer,FREE_QUESTION_IDS} from '../api/_lib/quickflow.js';
-const sample={employmentStatus:'Employed full-time',currentRole:'Process Excellence Manager',industry:'Manufacturing / FMCG',experience:'13+ years',goal:'Get promoted',targetRole:'Director of Process Excellence',timeframe:'6–12 months',responsibilities:['Leading projects'],skills:['Project planning','Process improvement'],gaps:['Strategic thinking']};
+const sample={employmentStatus:'Employed full-time',currentRole:'Process Excellence Manager',experience:'Over 20 years',goal:'Get promoted',targetRole:'Director of Process Excellence',roleExperience:['Lean Six Sigma and process improvement','Transformation programme delivery'],responsibilities:['Experience with Lean Six Sigma and process improvement'],skills:['Lean Six Sigma and process improvement','Transformation programme delivery'],gaps:['Strategic planning and benefits realisation']};
 test('V3 price and pack entitlements are indicative and correct',()=>{
  assert.deepEqual(Object.keys(PACKS),['intro','starter','standard','extended']);
  assert.deepEqual(Object.values(PACKS).map(p=>[p.priceInr,p.credits]),[[149,15],[499,60],[249,35],[399,75]]);
@@ -12,9 +12,9 @@ test('Free snapshot needs basic profile but never requires experience examples o
  assert.equal(freeReadiness(sample).ready,true);
  assert.equal(reportReadiness(sample).ready,false);
 });
-test('Free stage has 10 simple questions; paid stage only asks missing paid fields',()=>{
- assert.equal(FREE_QUESTION_IDS.length,10);
- const free=guidedProgress(EMPTY_PROFILE,{},[],'free');assert.equal(free.total,10);
+test('Free stage has 7 targeted questions; paid stage only asks missing paid fields',()=>{
+ assert.equal(FREE_QUESTION_IDS.length,7);
+ const free=guidedProgress(EMPTY_PROFILE,{},[],'free');assert.equal(free.total,7);
  assert.equal(free.question.id,'employmentStatus');
  const after=guidedProgress(sample,{},[],'paid');assert.equal(after.question.id,'constraints');
  assert.equal(guidedProgress(sample,{},[],'free').question,null);
@@ -38,7 +38,7 @@ test('Alerts include 10, 5, 1 and 0 remaining credits',()=>{
 });
 test('Free question answers do not need AI and carry over deterministically',()=>{
  let p={...EMPTY_PROFILE},ans={};
- const values={employmentStatus:'Employed full-time',currentRole:'Process Excellence Manager',industry:'Manufacturing / FMCG',experience:'13+ years',goal:'Get promoted',targetRole:'Director of Process Excellence',timeframe:'6–12 months',responsibilities:['Leading projects'],skills:['Project planning','Process improvement'],gaps:'Strategic thinking'};
+ const values={employmentStatus:'Employed full-time',currentRole:'Process Excellence Manager',experience:'Over 20 years',goal:'Get promoted',targetRole:'Director of Process Excellence',roleExperience:['Lean Six Sigma and process improvement','Transformation programme delivery'],gaps:'Strategic planning and benefits realisation'};
  for(const id of FREE_QUESTION_IDS){const q=guidedProgress(p,ans,[],'free').question;assert.equal(q.id,id);
   const a=validateQuickAnswer(q,{value:values[id]});p=addQuickAnswer(p,q,a);ans[id]=a.value;}
  assert.equal(guidedProgress(p,ans,[],'free').finished,true);
