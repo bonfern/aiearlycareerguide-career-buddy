@@ -64,10 +64,12 @@ export function freeReadiness(p={}){
 export function checkPackEligibility(session={},packId){
  const tier=session.tier||'free',hasCoaching=['coach','paid'].includes(tier)||Number(session.creditsGranted)>0;
  if(!Object.hasOwn(PACKS,packId))throw new Error('Invalid pack.');
+ if(packId==='intro'&&!session.freeReport)throw new Error('Complete your free career snapshot before starting Career Buddy coaching.');
  if(packId==='intro'&&hasCoaching)throw new Error('The introductory coaching pack is for new coaching users. Choose a refill.');
  if(packId==='starter'&&!session.freeReport)throw new Error('Complete the free snapshot before unlocking the detailed assessment.');
  if(packId==='starter'&&tier==='paid')throw new Error('Use a refill pack for additional coaching.');
  if(['standard','extended'].includes(packId)&&!hasCoaching)throw new Error('Start with a coaching intro or detailed assessment pack.');
+ if(['standard','extended'].includes(packId)&&!session.freeReport)throw new Error('Complete your free career snapshot before purchasing coaching refills.');
  return packId==='starter'?'paid':packId==='intro'?'coach':tier;
 }
 export function computeOffer({packId,couponCode='',coupons={}}){

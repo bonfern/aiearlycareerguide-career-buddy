@@ -9,11 +9,12 @@ test('direct coaching intro is a smaller, distinct indicative package',()=>{
  assert.equal(computeOffer({packId:'intro',couponCode:'EARLY30',coupons:{EARLY30:30}}).priceInr,104);
 });
 test('introductory coaching never grants detailed assessment access',()=>{
- assert.equal(checkPackEligibility({tier:'free'},'intro'),'coach');
- assert.throws(()=>checkPackEligibility({tier:'coach'},'intro'),/introductory/);
+ assert.throws(()=>checkPackEligibility({tier:'free'},'intro'),/free career snapshot/);
+ assert.equal(checkPackEligibility({tier:'free',freeReport:{profileSummary:'Saved'}},'intro'),'coach');
+ assert.throws(()=>checkPackEligibility({tier:'coach',freeReport:{profileSummary:'Saved'}},'intro'),/introductory/);
  assert.throws(()=>checkPackEligibility({tier:'coach'},'starter'),/free snapshot/);
  assert.equal(checkPackEligibility({tier:'coach',freeReport:{profileSummary:'Saved'}},'starter'),'paid');
- assert.equal(checkPackEligibility({tier:'paid'},'standard'),'paid');
+ assert.equal(checkPackEligibility({tier:'paid',freeReport:{profileSummary:'Saved'}},'standard'),'paid');
  assert.throws(()=>checkPackEligibility({tier:'free'},'extended'),/Start with/);
 });
 test('free PDF includes all four sections and supports long summaries',()=>{

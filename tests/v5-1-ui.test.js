@@ -11,10 +11,13 @@ test('async state unlocks dynamically-rendered report button and chat controls',
  assert.match(js,/b\.disabled=loading/);
  assert.match(js,/const blocked=loading\|\|Number\(state\.credits\|\|0\)<=0\|\|Boolean\(state\.expired\)/);
 });
-test('direct coaching route never requires a free report and preserves empty-credit history',()=>{
- assert.match(js,/function goCoach\(\).*?if\(isCoachActive\(\)\)\{show\('Coach'\);\}/);
- assert.match(html,/id="chooseCoach"/);
- assert.match(html,/No assessment required/);
+test('coaching is restricted until a free snapshot exists, then is available with either pack',()=>{
+ assert.match(js,/function goCoach\(\).*?if\(!state\.freeReport&&!state\.reportGenerated\)/);
+ assert.match(html,/id="chooseAssessment"/);
+ assert.match(html,/id="choosePremium"/);
+ assert.match(html,/id="snapshotCoach"/);
+ assert.doesNotMatch(html,/id="chooseCoach"/);
+ assert.doesNotMatch(html,/No assessment required/);
 });
 test('first-time coaching has compact suggested questions instead of blank fixed panel',()=>{
  assert.match(html,/id="coachPrompts"/);

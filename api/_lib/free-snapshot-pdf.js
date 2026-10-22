@@ -4,10 +4,20 @@ function lines(str,max=93){const out=[];let line='';for(const word of clean(str)
 export function buildFreeSnapshotPdf(snapshot={}){
  let y=780;let current=[],pages=[];
  const footer=()=>{current.push('0.84 0.88 0.92 RG 46 65 m 549 65 l S',`BT /R 8 Tf 0.42 0.46 0.56 rg 1 0 0 1 48 50 Tm (AI Early Career Guide | Preliminary career guidance - not a validated competency test) Tj ET`);};
- const newPage=()=>{if(current.length){footer();pages.push(current);}current=[];y=780;};
+ const newPage=()=>{if(current.length){footer();pages.push(current);}current=[];y=780;if(pages.length){current.push('BT /B 9 Tf 0.06 0.42 0.29 rg 1 0 0 1 48 783 Tm (AI EARLY CAREER GUIDE | Free Career Snapshot continued) Tj ET');y=752;}};
  const draw=(text,opts={})=>{const {size=10.5,bold=false,color='0.08 0.16 0.31',max=92}=opts;for(const line of lines(text,max)){if(y<92)newPage();current.push(`BT /${bold?'B':'R'} ${size} Tf ${color} rg 1 0 0 1 48 ${y} Tm (${line}) Tj ET`);y-=size+6;}};
  draw('AI EARLY CAREER GUIDE',{size:12,bold:true,color:'0.06 0.42 0.29'});y-=9;draw('Your Free Career Snapshot',{size:21,bold:true,max:55});y-=7;draw('A preliminary starting point for your professional journey',{size:10,color:'0.45 0.5 0.6'});y-=22;
- const section=(name,arr,list=false)=>{if(y<148)newPage();draw(name,{size:13,bold:true});y-=7;for(const item of arr){draw(list?'- '+item:item,{max:92});y-=6;}y-=12;};
+ const section=(name,arr,list=false)=>{
+  if(y<155)newPage();draw(name,{size:13,bold:true});y-=7;
+  for(const item of arr){
+   if(item&&typeof item==='object'&&Array.isArray(item.bullets)){
+    if(y<155)newPage();draw(item.title||item.name||'Career priority',{size:10.4,bold:true,max:88});y-=2;
+    for(const bullet of item.bullets.slice(0,2)){draw('    - '+bullet,{size:9.4,max:102});y-=2;}
+    y-=6;
+   }else{draw(list?'- '+item:item,{max:90,size:10});y-=5;}
+  }
+  y-=11;
+ };
  section('1. Your professional profile',[snapshot.profileSummary||'No profile summary was generated.']);
  section('2. Target role competencies',snapshot.targetCompetencies||[],true);
  section('3. Five general career actions',snapshot.nextSteps||[],true);
