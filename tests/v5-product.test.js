@@ -24,6 +24,6 @@ test('free PDF includes all four sections and supports long summaries',()=>{
 test('V5 interface exposes two independent routes and saved reports',()=>{
  const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8'),js=fs.readFileSync(new URL('../app.js',import.meta.url),'utf8');
  for(const s of ['screenChoose','screenFree','screenSnapshot','screenPaid','screenResume','screenCoach','screenReports','snapshotDownload','resumeLater'])assert.ok(html.includes(`id="${s}"`),s);
- assert.match(js,/window\.scrollTo\(\{top:0/);
+ assert.match(js,/function toPageStart\(/);assert.match(js,/window\.scrollTo\(0,0\)/);
  assert.match(js,/download\('free'/);
 });

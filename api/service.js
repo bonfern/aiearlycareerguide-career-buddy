@@ -300,7 +300,7 @@ async function freeReport(req,res){
  if(start.existing)return out(res,200,{state:safeState(start.existing)});
  try{
   const role=cacheRoleKey(start.profile.targetRole);
-  const roleRef=store.collection('buddyRoleSnapshotGuidanceV2').doc(role.id);
+  const roleRef=store.collection('buddyRoleSnapshotGuidanceV3').doc(role.id);
   const cached=await roleRef.get();
   let roleGuidance=cached.exists&&cached.data()?.expiresAt>now()&&validRoleGuidance(cached.data()?.guidance)?cached.data().guidance:null;
   const hit=!!roleGuidance;let usage=null;

@@ -27,7 +27,7 @@ test('role-only key normalises label and never includes personal profile context
 test('expanded snapshot includes exactly two distinct meaningful bullets per competency and per step',()=>{
  assert.ok(validRoleGuidance(guidance));
  const snap=buildSnapshotV2(profile,guidance);
- assert.equal(snap.version,2);
+ assert.equal(snap.version,3);
  assert.ok(isSnapshotV2(snap));
  assert.equal(snap.targetCompetencies.length,4);
  assert.equal(snap.nextSteps.length,5);
@@ -65,6 +65,6 @@ test('frontend renders structured free guidance and discloses credit rules',()=>
  const app=fs.readFileSync(new URL('../app.js',import.meta.url),'utf8');
  const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
  assert.match(app,/snapshot-bullets/);
- assert.match(app,/Update snapshot with more detail/);
+ assert.match(app,/Refresh snapshot with clearer guidance/);
  assert.match(html,/including off-topic or nonsensical questions/);
 });

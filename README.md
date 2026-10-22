@@ -1,61 +1,42 @@
-# Career Buddy V5.4 — Focused Free Career Discovery
+# Career Buddy V5.5 — final polish before private live-AI testing
 
-**Project:** AI Early Career Guide — Career Buddy  
-**Repository:** `aiearlycareerguide-career-buddy` (separate project)  
-**Release:** controlled testing only; no real payment processing.
+**Project:** `aiearlycareerguide-career-buddy` (independent of the existing Student, Professional Assessment and Recruiter applications)
 
-## What changed from V5.3
+**Release status:** source package for **controlled live-integrations testing**. **Not deployed by ChatGPT**. No Razorpay payment collection: purchase and top-up buttons are still simulated. Prices and credit allocations are indicative.
 
-- **One landing-page choice:** Free Career Discovery. The landing page explicitly explains the two options available *after* the free snapshot: **Premium Career Assessment** and **Career Buddy coaching**. Neither is an upfront entry choice.
-- **Seven free questions**, replacing ten. Removed the **industry** and **career move timeframe** questions. Removed the generic 'What do you spend most of your time doing?' question from free screening.
-- **Experience range:** the highest choice is now **Over 20 years**, immediately preceded by **13–20 years**.
-- **Role-aware competencies:** after the user enters their target role, the next multi-select question offers capabilities that match that role. A subsequent development-priority question uses the same role-relevant list. Supported role families include process excellence, project and product management, technology, analytics, HR, finance, sales, marketing, operations, education, healthcare, creative/design, legal, hospitality and senior general management. Unknown roles receive transferable options and **Other**.
-- **Cost protection:** role-aware question options use a deterministic curated catalogue; answering quick questions needs **no OpenAI call**. The existing snapshot guidance remains cached across users **by target role only**; private profile information is not cached across accounts.
-- **No unsupported competency scores:** selected strengths mean **self-reported practical experience**, not independently tested competence. Users may select **No hands-on experience yet**, as a sole answer, and still receive a preliminary snapshot.
-- **Seamless upgrade:** free answers, saved snapshot and verified email are carried into either subsequent paid route. The paid detailed assessment requires deeper project examples, learning constraints and any missing information; the optional resume step is still first.
-- Existing saved reports remain accessible. Removed questions are never re-asked. If a tester had not yet completed the old free flow, the new role-specific competency question may appear; users who already have a saved snapshot are not required to repeat intake.
+## What changed from V5.4
 
-## Free intake — 7 questions
+1. **Scroll and keyboard focus:** each new screen, question or verification step returns to the **top** after rendering, and the visible heading receives focus without changing the scroll position. This handles browser scroll restoration, buttons retaining focus, removed text inputs and narrow mobile screens. Chat-message history still scrolls *inside* its own message panel when appropriate.
+2. **Practical free snapshots:** target-role competencies and five next steps now use short everyday language, concrete role-relevant activities, and two helpful bullets under each heading. The four-section format is retained, including what requires deeper assessment. **Shared cache is keyed by target role only**. Personal profile summaries are computed separately and are never shared between users. The role-guidance cache is bumped to **V3** so older, vague V2 entries are not reused.
+3. **Contextual coaching entry:** when Career Buddy is first opened, suggested questions are derived *locally* from that verified user's saved **target role, current role, selected development area, practised competencies**, and whether a detailed report has been generated. The first suggested question reflects the most relevant development need; suggestions cost no AI tokens. Selecting a suggestion puts it into the chat input, but **does not send or charge** until the user submits.
+4. **Previously generated snapshots** remain saved and downloadable. To refresh an older V2 snapshot with the clearer V3 language, use **My reports → Refresh guidance** or the refresh button on the Snapshot screen. No previous questions have to be answered again.
 
-1. What best describes your current work situation?
-2. What is your current or most recent job title? (short text)
-3. How much relevant work experience do you have? (up to Over 20 years)
-4. What would you like help with most?
-5. Which role would you like to work towards? (short text)
-6. Which target-role competencies have you used in practice? (role-aware, choose up to four; Other/None supported)
-7. Which target-role competency would you most like to develop? (role-aware; includes Not sure yet)
+## Retained behaviour
 
-**After the free snapshot:** the user chooses Premium Career Assessment (indicative ₹499) or Career Buddy Coaching (indicative ₹149). Starter/refill prices and amounts are unchanged in this iteration. Real checkout is still disabled.
+- Landing page has **one** action: Free Career Discovery, **7 questions**.
+- After the free snapshot, the user can choose Premium Career Assessment (indicative ₹499) or Career Buddy coaching (indicative ₹149). The snapshot is required before coaching and is carried into the AI context.
+- Premium starts with an **optional pasted resume**, then additional questions, then detailed report/interview guidance and optional Word/PDF resume revision.
+- Verified email sessions retain the same answers, reports, coaching messages and credits. The starter and refill packs remain simulated; credited AI replies are logged.
+- Only the **role-only guidance** is cached across accounts; private career profiles, interview responses and resumes never enter the shared cache.
 
-## Deployment steps
+## Running tests locally
 
-1. Extract `AI_Early_Career_Guide_Career_Buddy_V5_4.zip` and upload **the contents of the enclosing V5.4 folder** to the root of the existing private GitHub repository `aiearlycareerguide-career-buddy`, replacing V5.3 files.
-2. Let the independent Career Buddy Vercel project redeploy, then hard-refresh the preview URL. Do not modify Student, existing Professional Assessment or Recruiter projects.
-3. Use the **existing** Career Buddy configuration and verified-email setup; no new environment variables or Firebase project are necessary.
-4. Test with a new owner-test email or use the existing **Owner test tools → Reset test session** to experience all seven questions. Do not reset a real customer's account.
-5. Test at least two target roles, such as Director of Process Excellence and Product Manager, and verify the competency choices differ. Check the free PDF, both paid follow-up choices, return/resume by email and the optional resume step.
-6. Run `npm test` with Node 20+. For a mocked UI-only browser run (Chromium/Playwright installed), use `python tests/browser_flow.py`.
+With Node.js 20+: `npm test`.
 
-**Validation:** 59 Node tests pass; mock desktop/mobile browser journeys pass. This package is not yet tested against your deployed Vercel/Firebase/Resend/OpenAI account. Pricing remains indicative, and test purchases do not collect funds.
+For mock browser tests (requires Python Playwright and Chromium): `python tests/browser_flow.py`.
 
----
+The automated browser tests explicitly check the page returning to the top after navigation, contextual first coaching suggestion, assessment gate, snapshot, upgrade, progress carryover and no horizontal overflow at desktop/mobile widths.
 
-## Key implementation rules
+## Deploy for controlled LIVE integrations testing, **not public launch**
 
-- Server-side `intro`, `starter` and refill pack entitlement checks require the free snapshot. Chat requests also enforce the assessment gateway, even if someone bypasses client navigation. Legacy test sessions holding credits but missing a snapshot must complete discovery before they can chat.
-- Journey choice is saved per **verified email** in Firestore (`journeyPreference: 'free' | 'premium'`). Reloads and re-verification resume the saved journey, subject to what has been completed.
-- A user who selects Premium from the first screen **still completes free discovery**; a paid order is not offered prematurely. The free report remains downloadable under **My reports** at every later stage.
-- After completing the free snapshot, both paid options appear together. Users can navigate via Home or My reports without losing answers, history, credits or reports.
-- During coaching, the saved career profile, free snapshot summary and any generated premium report summary are passed to the AI as labelled user-provided context. The assistant does not repeat the structured intake.
-- Nonsensical/off-topic successful responses use **one credit**; obvious junk can receive a low-cost local redirect. Errors, blocked duplicates and invalid messages remain free.
-- Free role guidance retains the existing cross-user **role-only** cache. Do not cache identifiable user profiles or resume contents. One free report per verified email in owner testing remains controlled by daily free-report caps.
-- Previous snapshots, paid reports, optional resume exports, discount coupon **test** calculations, download history, credit warnings and mobile-first layout remain intact.
+1. Upload the **contents** of the V5.5 project folder to the existing private GitHub repository `aiearlycareerguide-career-buddy`. Ideally create a branch named `live-test-v55` to produce a Vercel **Preview Deployment**; do not publish the main Career Buddy production URL or add a public custom domain yet.
+2. In the **separate Career Buddy Vercel project**, open **Settings → Deployment Protection** and enable **Vercel Authentication** for preview URLs. For testing with external invited users, grant authorised access/share protected preview links as allowed by your plan. Test in an incognito window that a person without access cannot open the URL. If your desired access method is unavailable, restrict testing to the account's authorised members instead of opening the deployment to everyone.
+3. Under **Settings → Environment Variables**, ensure the **Preview** environment has the existing values: `PREVIEW_ACCESS_CODE`, `PREVIEW_SESSION_SECRET`, `OWNER_RESET_CODE`, `FIREBASE_SERVICE_ACCOUNT_JSON`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`. The Firebase account must belong to the **separate Career Buddy Firebase project**. Do not copy live Professional, Student or Recruiter secrets into the new application. Don't paste keys or passwords into chat or commit `.env` files.
+4. Set `FREE_REPORT_DAILY_LIMIT=5` initially in Preview. Set real nonzero `OPENAI_INPUT_USD_PER_MILLION`, `OPENAI_OUTPUT_USD_PER_MILLION` and `OPENAI_USD_INR` values for **cost measurement**, matching the deployed model and current USD/INR rate; otherwise estimated-cost analytics can be zero/misleading. Review monthly usage and provider spending caps separately. OpenAI API calls are real in this protected preview.
+5. Deploy, verify email via Resend, and do a new-account free discovery. Generate the free snapshot, download the PDF, then select Career Buddy coaching and verify the **first suggestion** mentions the saved role/development focus. Ask a genuine question and confirm the AI reply incorporates that context without restarting intake. Run both desktop and mobile tests.
+6. With an existing account holding a V2 snapshot, use **My reports → Refresh guidance**, then download and inspect the revised PDF. Test remaining credits and access via the same verified email. Log any failure messages and the test URL (not secret values).
+7. **Stop before public launch.** Real payments, public registration/abuse controls, production spending safeguards and customer acceptance testing are separate launch gates.
 
+### Validation limitations
 
-## Release blockers (unchanged)
-
-- **Real Razorpay checkout is NOT enabled**. Implement verified payment orders and webhooks, idempotent entitlement and credit grants, refund paths and coupon/invoice/tax handling before enabling paid traffic.
-- Keep preview access protected; complete production authentication hardening, abuse/IP throttling, user privacy/deletion, data retention, monitoring, cost budgets and load testing before public access.
-- The **separate Professional Assessment import** remains planned, not yet connected. Only Career Buddy's own free/paid context is transferred in this build. A future consent-based signed import can be added without modifying live applications until explicitly approved.
-- Prices and credit allocations are provisional until measured AI usage and customer conversion tests validate contribution margins.
-
+Tests here use mocked session and API responses, plus rendered PDF samples. They **do not** prove the separate Vercel Preview, Firebase, Resend or OpenAI keys are correctly configured. ChatGPT has **not** accessed or changed the user's Vercel, GitHub or Firebase accounts.

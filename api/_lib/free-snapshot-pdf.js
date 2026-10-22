@@ -19,9 +19,9 @@ export function buildFreeSnapshotPdf(snapshot={}){
   y-=11;
  };
  section('1. Your professional profile',[snapshot.profileSummary||'No profile summary was generated.']);
- section('2. Target role competencies',snapshot.targetCompetencies||[],true);
- section('3. Five general career actions',snapshot.nextSteps||[],true);
- section('4. Areas for deeper assessment',snapshot.furtherAssessment||[],true);footer();pages.push(current);
+ section('2. Skills the target role needs',snapshot.targetCompetencies||[],true);
+ section('3. Five practical next steps',snapshot.nextSteps||[],true);
+ section('4. What needs checking in the full assessment',snapshot.furtherAssessment||[],true);footer();pages.push(current);
  const objects=[null],add=s=>(objects.push(s),objects.length-1),root=add(''),kidsRoot=add('');const regular=add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');const bold=add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');const kids=[];
  for(const cmds of pages){const stream=cmds.join('\n');const content=add(`<< /Length ${Buffer.byteLength(stream,'latin1')} >>\nstream\n${stream}\nendstream`);kids.push(add(`<< /Type /Page /Parent ${kidsRoot} 0 R /MediaBox [0 0 595 842] /Resources << /Font << /R ${regular} 0 R /B ${bold} 0 R >> >> /Contents ${content} 0 R >>`));}
  objects[kidsRoot]=`<< /Type /Pages /Kids [${kids.map(k=>k+' 0 R').join(' ')}] /Count ${kids.length} >>`;objects[root]=`<< /Type /Catalog /Pages ${kidsRoot} 0 R >>`;

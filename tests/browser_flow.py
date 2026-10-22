@@ -1,11 +1,12 @@
-"""V5.4 free-discovery-first journey with mocked backend, tested in Chromium."""
+"""V5.5 regression: assessment-first journey, screen scroll and contextual coaching."""
 from pathlib import Path
 import base64
+import re
 from playwright.sync_api import sync_playwright
 root=Path(__file__).resolve().parents[1]
 html=(root/'index.html').read_text(encoding='utf-8')
-html=html.replace('<link rel="stylesheet" href="/style.css"/>','<style>'+(root/'style.css').read_text()+'</style>')
-html=html.replace('<script defer src="/app.js"></script>','')
+html=re.sub(r'<link rel="stylesheet" href="/style\.css(?:\?[^"]*)?"/>','<style>'+(root/'style.css').read_text()+'</style>',html)
+html=re.sub(r'<script defer src="/app\.js(?:\?[^"]*)?"></script>','',html)
 for name in ['brand-logo.webp','career-welcome.webp','career-coaching.webp']:
  html=html.replace('/'+name,'data:image/webp;base64,'+base64.b64encode((root/name).read_bytes()).decode())
 html=html.replace('</body>','<script>'+(root/'app.js').read_text()+'</script></body>')
@@ -19,13 +20,14 @@ bootstrap='''() => {
  expiresAt:new Date(Date.now()+86400000).toISOString(),
  guided:{completed:6,total:7,question:{id:'gaps',kind:'single',text:'What would you like to improve?',options:['Leadership','Interview confidence'],minSelections:1},finished:false},
  freeReadiness:{ready:false,missing:['Area to develop']},freeReportReady:false,freeReport:null,
+ profile:{currentRole:'Process Excellence Manager',targetRole:'Director of Process Excellence',experience:'Over 20 years',goal:'Get promoted',gaps:['Strategic planning'],roleExperience:['Lean Six Sigma and process improvement']},
  reportGenerated:false,reportReady:false,readiness:{ready:false,missing:[]},resumeDecision:'',warning:'',expired:false,
  messages:[{role:'assistant',content:'Welcome. Your career information is saved.'}]};
  api=async(action,data)=>{
    window.mockActions.push(action);
    if(action==='setJourney')return {state:{...state,journeyPreference:data.journey}};
    if(action==='quick')return {state:{...state,guided:{completed:7,total:7,question:null,finished:true},freeReadiness:{ready:true,missing:[]},freeReportReady:true}};
-   if(action==='freeReport')return {state:{...state,freeReport:{version:2,profileSummary:'Experienced professional exploring career growth.',targetCompetencies:[{title:'Leadership',bullets:['Lead teams','Manage goals']}],nextSteps:[{title:'Build a plan',bullets:['Review openings','Seek feedback']}],furtherAssessment:['Skill evidence','Behavioural competencies']}}};
+   if(action==='freeReport')return {state:{...state,freeReport:{version:3,profileSummary:'Experienced professional exploring career growth.',targetCompetencies:[{title:'Leadership',bullets:['Lead teams','Manage goals']}],nextSteps:[{title:'Build a plan',bullets:['Review openings','Seek feedback']}],furtherAssessment:['Skill evidence','Behavioural competencies']}}};
    if(action==='mockPurchase')return {state:{...state,tier:data.packId==='starter'?'paid':'coach',credits:data.packId==='starter'?60:15,creditsGranted:15,expired:false,warning:'',resumeDecision:''},notice:'Test pack activated; no payment.'};
    if(action==='chat')return {state:{...state,credits:14,messages:[...state.messages,{role:'user',content:data.message,at:Date.now()},{role:'assistant',content:'Use examples that demonstrate your professional impact.',at:Date.now()}]}};
    throw Error('Unmocked action '+action);
@@ -45,7 +47,7 @@ with sync_playwright() as p:
   assert page.locator('#choosePremium').count()==0
   assert page.locator('#chooseCoach').count()==0
   print(label,'welcome passed',flush=True)
-  page.screenshot(path=str(root.parent/f'Career_Buddy_V5_4_Welcome_{label}.png'),full_page=True)
+  page.screenshot(path=str(root.parent/f'Career_Buddy_V5_5_Welcome_{label}.png'),full_page=True)
   # Direct coaching is inaccessible without a saved assessment.
   print(label,'before direct coaching gate',flush=True)
   page.evaluate('goCoach()')
@@ -56,17 +58,26 @@ with sync_playwright() as p:
   page.locator('#chooseAssessment').click()
   assert page.locator('#screenFree').is_visible()
   assert page.evaluate('flow')=='free'
+  # Simulate a screen that was left scrolled halfway down on mobile.
+  page.evaluate('''() => {const spacer=document.createElement('div');spacer.id='scrollTestSpacer';spacer.style.height='1600px';document.querySelector('#screenFree').append(spacer);window.scrollTo(0,950);}''')
+  page.wait_for_function('window.scrollY > 400')
+  page.evaluate("show('Free')")
+  page.wait_for_function('window.scrollY === 0')
+  page.evaluate("document.querySelector('#scrollTestSpacer').remove()")
   print(label,'before free question',flush=True)
   page.locator('#freeQuestion input[type=radio]').first.check()
   page.locator('#freeQuestion button.primary').click()
   page.wait_for_function("document.querySelector('#freeQuestion button.primary')?.textContent.includes('Generate free snapshot')")
+  # Updating a question inside the same screen must restore page position.
+  page.wait_for_timeout(150)
+  assert page.evaluate('window.scrollY')==0, f'{label}: page did not scroll to top after quick answer'
   assert page.locator('#freeQuestion button.primary').is_enabled()
   page.locator('#freeQuestion button.primary').click()
   page.wait_for_function("!document.querySelector('#screenSnapshot').classList.contains('hidden')")
   assert page.locator('#snapshotUpgrade').is_visible()
   assert page.locator('#snapshotCoach').is_visible()
   assert page.locator('#coachNavButton').is_visible()
-  page.screenshot(path=str(root.parent/f'Career_Buddy_V5_4_Snapshot_{label}.png'),full_page=True)
+  page.screenshot(path=str(root.parent/f'Career_Buddy_V5_5_Snapshot_{label}.png'),full_page=True)
   page.locator('#snapshotDownload').click()
   assert page.evaluate('window.__downloads[0][0]')=='free'
   print(label,'snapshot reached',flush=True)
@@ -76,6 +87,9 @@ with sync_playwright() as p:
   page.locator('#activateIntro').click()
   page.wait_for_function("!document.querySelector('#screenCoach').classList.contains('hidden')")
   assert page.locator('#chatSend').is_enabled()
+  assert 'Director of Process Excellence' in page.locator('#coachContextNote').inner_text()
+  assert 'Strategic planning' in page.locator('[data-coach-prompt]').first.get_attribute('data-coach-prompt')
+  page.screenshot(path=str(root.parent/f'Career_Buddy_V5_5_Coach_{label}.png'),full_page=True)
   page.locator('[data-coach-prompt]').first.click()
   page.locator('#chatSend').click()
   page.wait_for_function("document.querySelector('#chatMessages').textContent.includes('Use examples')")

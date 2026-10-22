@@ -1,4 +1,4 @@
-/* Career Buddy V5.3: assessment-first entry, with assessment-context coaching. */
+/* Career Buddy V5.5: assessment-first entry, contextual coaching and accessible scroll management. */
 const $=id=>document.getElementById(id);
 const screens=['Choose','Login','Free','Snapshot','Upgrade','Resume','Paid','Toolkit','CoachOffer','Coach','Refills','Reports'];
 let state=null,configured=false,flow='free',current='Choose',loading=false,reportKind='free';
@@ -6,8 +6,36 @@ const uuid=()=>crypto.randomUUID();
 const money=n=>`₹${Number(n||0).toLocaleString('en-IN')}`;
 const el=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=String(text);return node;};
 async function api(action,data){const r=await fetch(`/api/service?action=${encodeURIComponent(action)}`,{method:data?'POST':'GET',credentials:'same-origin',headers:data?{'Content-Type':'application/json'}:{},body:data?JSON.stringify(data):undefined});let out={};try{out=await r.json();}catch{}if(!r.ok)throw Error(out.error||`Request failed (${r.status})`);return out;}
-function notice(text='',isError=false){$('notice').textContent=text;$('notice').className=text?`notice${isError?' error':''}`:'notice hidden';if(text)window.scrollTo(0,0);}
-function show(screen){current=screen;for(const name of screens)$('screen'+name).classList.toggle('hidden',name!==screen);$('topnav').classList.toggle('hidden',!state);$('coachNavButton').classList.toggle('hidden',!state?.freeReport&&!state?.reportGenerated);$('testerTools').classList.toggle('hidden',!state);$('signedEmail').textContent=state?.email?`Verified as ${state.email}`:'';window.scrollTo({top:0,behavior:'instant'});}
+// Prevent browsers from restoring an old vertical position when a stage is replaced.
+try{if('scrollRestoration' in history)history.scrollRestoration='manual';}catch{}
+let navigationSequence=0;
+function toPageStart(stage=current,{focusHeading=true}={}){
+ const sequence=++navigationSequence;
+ const reset=()=>{
+  if(current!==stage||sequence!==navigationSequence)return;
+  const scroller=document.scrollingElement||document.documentElement;
+  if(scroller)scroller.scrollTop=0;
+  document.body.scrollTop=0;
+  window.scrollTo(0,0);
+ };
+ reset();
+ // The first scroll happens before DOM reflow. Repeat after repaint so mobile
+ // virtual keyboards, removed answer fields and focused buttons cannot pull us down.
+ requestAnimationFrame(()=>{
+  if(current!==stage||sequence!==navigationSequence)return;
+  if(focusHeading){const h=$('screen'+stage)?.querySelector('.question-shell h2, h1, h2');
+   if(h){h.tabIndex=-1;try{h.focus({preventScroll:true});}catch{}}}
+  reset();
+ });
+}
+function notice(text='',isError=false){$('notice').textContent=text;$('notice').className=text?`notice${isError?' error':''}`:'notice hidden';}
+function show(screen){
+ if(document.activeElement instanceof HTMLElement)document.activeElement.blur();
+ current=screen;for(const name of screens)$('screen'+name).classList.toggle('hidden',name!==screen);
+ $('topnav').classList.toggle('hidden',!state);$('coachNavButton').classList.toggle('hidden',!state?.freeReport&&!state?.reportGenerated);
+ $('testerTools').classList.toggle('hidden',!state);$('signedEmail').textContent=state?.email?`Verified as ${state.email}`:'';
+ toPageStart(screen);
+}
 function setFlow(next){flow=next;try{sessionStorage.setItem('buddy-v53-intent',next);}catch{}}
 function isAssessmentPaid(){return state?.tier==='paid';}
 function isCoachActive(){return Boolean(state?.freeReport||state?.reportGenerated)&&(state?.tier==='paid'||state?.tier==='coach');}
@@ -72,16 +100,54 @@ function paintQuestion(free){const name=free?'free':'paid',host=$(name+'Question
  if(q.optional){const skip=el('button','secondary','Skip');skip.onclick=()=>sendQuick(q,true);row.append(skip);}else row.append(el('span','micro','Your answer is saved automatically.'));
  const submit=el('button','primary','Continue →');submit.onclick=()=>{let value=q.kind==='text'?txt.value.trim():q.kind==='multi'?inputs.filter(x=>x.checked).map(x=>x.value):(inputs.find(x=>x.checked)?.value||'');if(!value||Array.isArray(value)&&!value.length){error.textContent='Choose an answer to continue.';return;}if(q.kind==='multi'&&value.length<(q.minSelections||1)){error.textContent=`Choose at least ${q.minSelections||1} options.`;return;}sendQuick(q,false,value,other?.value?.trim()||'');};row.append(submit);host.append(row,error);
 }
-async function sendQuick(q,skip,value,other=''){await run(async()=>{const v=await api('quick',{questionId:q.id,skip,value,other,requestId:uuid()});state=v.state;notice('');paint();});}
-function paintSnapshot(){const r=state.freeReport||{},view=$('snapshotSummary');view.replaceChildren();if(!state.freeReport){view.append(el('p','','Finish the free assessment first.'));return;}view.append(el('h3','','Your professional profile'),el('p','',r.profileSummary||''));addList(view,'Target role competencies',(r.targetCompetencies||[]));addList(view,'Five next steps',(r.nextSteps||[]));addList(view,'Areas needing further assessment',(r.furtherAssessment||[]));if((r.version||0)<2){const b=el('button','secondary','Update snapshot with more detail →');b.onclick=generateFree;view.append(b);}}
+async function sendQuick(q,skip,value,other=''){await run(async()=>{const v=await api('quick',{questionId:q.id,skip,value,other,requestId:uuid()});state=v.state;notice('');paint();toPageStart(current);});}
+function paintSnapshot(){const r=state.freeReport||{},view=$('snapshotSummary');view.replaceChildren();if(!state.freeReport){view.append(el('p','','Finish the free assessment first.'));return;}view.append(el('h3','','Your professional profile'),el('p','',r.profileSummary||''));addList(view,'Skills your target role needs',(r.targetCompetencies||[]));addList(view,'Five practical next steps',(r.nextSteps||[]));addList(view,'What we need to check next',(r.furtherAssessment||[]));if((r.version||0)<3){const b=el('button','secondary','Refresh snapshot with clearer guidance →');b.onclick=generateFree;view.append(b);}}
 function paintResume(){const box=$('resumePaste');box.value=state?.resumeDecision==='provided'?'':box.value||'';$('resumeCount').textContent=`${box.value.length.toLocaleString()} / 12,000 characters`;}
 function paintToolkit(){const provided=state.resumeSubmitted,revised=!!state.resumeRevision;$('resumeKitText').textContent=revised?'Your revised resume is ready. Review the facts before using it.':provided?'Your pasted resume can now be revised into an editable Word document and PDF.':'Resume review is optional. You can paste one later without repeating the detailed assessment.';$('buildResume').classList.toggle('hidden',!provided||revised);$('resumeDownloadRow').classList.toggle('hidden',!revised);$('resumeLater').classList.toggle('hidden',provided);$('remainingNote').textContent=`${state.credits||0} interactions remaining. Your reports will stay in My reports.`;}
+// These are drafted locally from THIS USER'S saved career data. They consume no
+// tokens and are never stored in the shared role-guidance cache.
+function coachOpeningQuestions(s){
+ const p=s?.profile||{};
+ const short=v=>String(v||'').replace(/\s+/g,' ').trim().slice(0,85).replace(/[.!?]+$/,'');
+ const target=short(p.targetRole);
+ const exploring=!target||/^(?:still exploring|not sure|unsure|undecided|exploring)$/i.test(target);
+ const role=exploring?'your next career direction':target;
+ const focus=Array.isArray(p.gaps)?short(p.gaps.find(x=>x&&!/not sure/i.test(x))):'';
+ const practised=Array.isArray(p.roleExperience)?short(p.roleExperience.find(x=>x&&!/no hands-on experience/i.test(x))):'';
+ const currentRole=short(p.currentRole);
+ const hasReport=!!s?.reportGenerated;
+ const first=hasReport?
+  (focus?`What is one practical way to improve ${focus} for ${role}?`:`What should I do first from my 30/60/90-day plan for ${role}?`):
+  (exploring?`Based on my ${currentRole||'work'} experience, which three roles should I explore?`:
+   focus?`How can I develop ${focus} to prepare for ${role}?`:
+   `What should I do first to prepare for ${role}?`);
+ return [
+  {label:focus?`Build ${focus}`:'My next practical step',question:first},
+  {label:'Prepare for interviews',question:exploring?'How should I prepare for interviews while exploring new career options?':`What interview questions should I practise for ${role}?`},
+  {label:practised?'Show my experience':'Skills to build',question:practised?`How can I show my experience in ${practised} when applying for ${role}?`:`Which skills should I build first for ${role}?`},
+  {label:'Create a 30-day plan',question:exploring?'What can I do over the next 30 days to choose a suitable career direction?':`Give me three practical actions for the next 30 days towards ${role}.`}
+ ];
+}
+function paintCoachPrompts(){
+ const items=coachOpeningQuestions(state);
+ const p=state?.profile||{};
+ const target=String(p.targetRole||'').trim();
+ $('coachContextNote').textContent=target&&!/^(?:still exploring|not sure|unsure|exploring)$/i.test(target)
+  ?`Based on your saved assessment: ${target.slice(0,85)}.`
+  :'Based on your saved career discovery answers.';
+ for(const [i,b] of document.querySelectorAll('[data-coach-prompt]').entries()){
+  const suggestion=items[i];if(!suggestion)continue;
+  b.dataset.coachPrompt=suggestion.question;
+  b.replaceChildren(document.createTextNode(suggestion.label+' '),el('span','','↗'));
+ }
+}
 function paintCoach(){
  const rem=Number(state.credits||0);
  $('coachCreditPill').textContent=`${rem} interaction${rem===1?'':'s'} left · Refill`;
  const warn=state.warning||((rem<=0)?'Your coaching credits are exhausted. Refill to continue; previous messages remain visible.':state.expired?'Your pack has expired. Refill to continue; previous messages remain visible.':'');
  $('creditWarning').classList.toggle('hidden',rem>10&&!state.expired&&!warn.trim());
  $('creditWarning').textContent=warn;
+ paintCoachPrompts();
  const msgs=state.messages||[];
  const hasConversation=msgs.some(m=>m.role==='user');
  $('coachPrompts').classList.toggle('hidden',hasConversation);
@@ -97,7 +163,7 @@ function paintCoach(){
  syncBusyControls();
 }
 function paintReports(){const host=$('reportsList');host.replaceChildren();function item(title,desc,buttons){const card=el('div','report-item');card.append(el('h2','',title),el('p','',desc));for(const [label,fn] of buttons){const b=el('button','secondary',label);b.onclick=fn;card.append(b);}host.append(card);}
- if(state.freeReport)item('Free Career Snapshot','Your saved preliminary four-section assessment.',[['View',()=>openFree()],['Download PDF',()=>download('free','pdf')],...((state.freeReport.version||0)<2?[['Expand snapshot',()=>generateFree()]]:[])]);
+ if(state.freeReport)item('Free Career Snapshot','Your saved preliminary four-section assessment.',[['View',()=>openFree()],['Download PDF',()=>download('free','pdf')],...((state.freeReport.version||0)<3?[['Refresh guidance',()=>generateFree()]]:[])]);
  if(state.reportGenerated)item('Detailed Career Report','Role expectations, technical and behavioural skills, evidence-based development actions, 30/60/90 plan and 10 interview questions.',[['View',()=>openDetailed()],['Download PDF',()=>download('report','pdf')]]);
  if(state.resumeRevision)item('Revised Resume','Review the editable draft and confirm all facts before applying.',[['View',()=>openResume()],['Download Word',()=>download('resume','docx')],['Download PDF',()=>download('resume','pdf')]]);
  if(state.freeReport){const b=el('button','secondary','Continue with Career Buddy →');b.onclick=goCoach;host.append(b);}
@@ -112,8 +178,8 @@ async function submitChat(event){event.preventDefault();const input=$('chatInput
  $('chatMessages').append(el('div','message','Career Buddy is thinking…'));try{state=(await req).state;notice('');paintCoach();}catch(e){input.value=message;paintCoach();throw e;}
  });}
 function download(kind,format='pdf'){window.location.assign(`/api/service?action=download&kind=${encodeURIComponent(kind)}&format=${encodeURIComponent(format)}`);}
-function openDialog(title){$('dialogTitle').textContent=title;$('reportContent').replaceChildren();$('reportDialog').showModal();return $('reportContent');}
-function openFree(){if(!state.freeReport)return;reportKind='free';const r=state.freeReport,host=openDialog('Your Free Career Snapshot');host.append(el('h3','','1. Your professional profile'),el('p','',r.profileSummary||''));addList(host,'2. Target role competencies',r.targetCompetencies);addList(host,'3. Five general career actions',r.nextSteps);addList(host,'4. What we should assess next',r.furtherAssessment);if((r.version||0)<2)host.append(el('p','micro','An expanded snapshot is available on your Snapshot page.'));}
+function openDialog(title){$('dialogTitle').textContent=title;$('reportContent').replaceChildren();$('reportDialog').showModal();$('reportDialog').scrollTop=0;$('reportContent').scrollTop=0;return $('reportContent');}
+function openFree(){if(!state.freeReport)return;reportKind='free';const r=state.freeReport,host=openDialog('Your Free Career Snapshot');host.append(el('h3','','1. Your professional profile'),el('p','',r.profileSummary||''));addList(host,'2. Skills your target role needs',r.targetCompetencies);addList(host,'3. Five practical next steps',r.nextSteps);addList(host,'4. What we should check next',r.furtherAssessment);if((r.version||0)<3)host.append(el('p','micro','You can refresh this snapshot for simpler, more practical guidance.'));}
 function openDetailed(){if(!state.report)return;reportKind='report';const r=state.report,host=openDialog('Career Action & Skill Development Report');host.append(el('h3','','Your career objective'),el('p','',r.goalPath?.headline||''),el('h3','','Career summary'),el('p','',r.summary||''));
  for(const [title,items] of [['Technical capability priorities',r.capabilityFocus?.technical],['Leadership and soft-skill priorities',r.capabilityFocus?.behavioural]]){host.append(el('h3','',title));for(const x of items||[])host.append(el('h4','',x.name),el('p','',`${x.currentCompetency} | ${x.priority}. ${x.firstAction}`));}
  host.append(el('h3','','Career actions'));for(const a of r.goalPath?.careerActions||[])host.append(el('h4','',a.title),el('p','',a.action),el('p','',`Expected outcome: ${a.outcome}`));
@@ -129,13 +195,13 @@ function openDetailed(){if(!state.report)return;reportKind='report';const r=stat
 function openResume(){if(!state.resumeRevision)return;reportKind='resume';const r=state.resumeRevision,host=openDialog('Revised Resume – review before use');host.append(el('h3','',r.headline),el('p','',r.summary));addList(host,'Core skills',r.coreSkills);for(const x of r.experience||[])addList(host,[x.role,x.employer,x.period].filter(Boolean).join(' · '),x.bullets);addList(host,'Education',r.education);addList(host,'Certifications',r.certifications);addList(host,'Facts to confirm',r.missingEvidence);}
 async function init(){try{const config=await api('config');configured=!!config.configured;if(!configured)notice('The preview is not configured. Check the Vercel environment variables.',true);try{state=(await api('state')).state;}catch{} }catch(e){notice(e.message,true);}if(state){flow=state.journeyPreference||'free';goAssessment();}else show('Choose');}
 $('chooseAssessment').onclick=()=>choose('free');$('backToChoice').onclick=()=>show('Choose');$('homeButton').onclick=()=>show('Choose');$('myReportsButton').onclick=()=>{show('Reports');paint();};$('coachNavButton').onclick=goCoach;$('signOutButton').onclick=async()=>{await run(async()=>{await api('logout',{});state=null;notice('Signed out. Verify your email to resume later.');show('Choose');});};
-$('loginForm').onsubmit=async e=>{e.preventDefault();await run(async()=>{if(!configured)throw Error('The preview services are not configured.');await api('requestCode',{email:$('emailAddress').value.trim(),previewCode:$('accessCode').value});$('loginForm').classList.add('hidden');$('verifyForm').classList.remove('hidden');$('authHelp').textContent='Code sent. Check your email and enter the six digits below.';});};
+$('loginForm').onsubmit=async e=>{e.preventDefault();await run(async()=>{if(!configured)throw Error('The preview services are not configured.');await api('requestCode',{email:$('emailAddress').value.trim(),previewCode:$('accessCode').value});$('loginForm').classList.add('hidden');$('verifyForm').classList.remove('hidden');$('authHelp').textContent='Code sent. Check your email and enter the six digits below.';toPageStart('Login');});};
 $('verifyForm').onsubmit=async e=>{e.preventDefault();await run(async()=>{state=(await api('verifyCode',{email:$('emailAddress').value.trim(),previewCode:$('accessCode').value,code:$('otpCode').value.trim()})).state;notice('Email verified. Your progress is saved.');state=(await api('setJourney',{journey:flow==='premium'?'premium':'free'})).state;goAssessment();});};
 $('snapshotDownload').onclick=()=>download('free');$('snapshotView').onclick=openFree;$('snapshotUpgrade').onclick=async()=>{await choose('premium');};$('snapshotCoach').onclick=goCoach;$('backSnapshot').onclick=()=>{show('Snapshot');paint();};$('activateStarter').onclick=()=>activate('starter','starterCoupon');$('activateIntro').onclick=()=>activate('intro','introCoupon');$('saveResume').onclick=()=>saveResume(false);$('skipResume').onclick=()=>saveResume(true);$('resumePaste').oninput=()=>{$('resumeCount').textContent=`${$('resumePaste').value.length.toLocaleString()} / 12,000 characters`;};
 $('viewDetailed').onclick=openDetailed;$('downloadDetailed').onclick=()=>download('report');$('buildResume').onclick=buildResume;$('downloadDocx').onclick=()=>download('resume','docx');$('downloadResumePdf').onclick=()=>download('resume');$('resumeLater').onclick=()=>{show('Resume');paint();};$('toolkitCoach').onclick=goCoach;
 $('coachCreditPill').onclick=()=>{show('Refills');paint();};
 for(const button of document.querySelectorAll('[data-coach-prompt]')){
- button.onclick=()=>{const input=$('chatInput');if(input.disabled)return;input.value=button.dataset.coachPrompt;input.dispatchEvent(new Event('input'));input.focus();input.scrollIntoView({block:'center',behavior:'smooth'});};
+ button.onclick=()=>{const input=$('chatInput');if(input.disabled)return;input.value=button.dataset.coachPrompt;input.dispatchEvent(new Event('input'));input.focus({preventScroll:true});};
 }
 $('chatForm').onsubmit=submitChat;$('chatInput').oninput=()=>{$('chatCount').textContent=`${$('chatInput').value.length.toLocaleString()} / 1,200 characters`;};$('chatInput').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('chatForm').requestSubmit();}};
 $('buyStandard').onclick=()=>activate('standard','refillCoupon');$('buyExtended').onclick=()=>activate('extended','refillCoupon');$('refillBack').onclick=goCoach;
