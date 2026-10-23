@@ -43,6 +43,7 @@ test('verified email can save chosen premium/free intent and restore it',()=>{
 test('paid route has same free foundation, without repeated screening',()=>{
  assert.match(app,/if\(!state\.freeReport\)\{show\('Free'\)/);
  assert.match(app,/flow==='premium'\)show\('Upgrade'\)/);
- assert.match(server,/paid&&s\.freeReport\?'paid':'free'/);
- assert.match(html,/Your free answers are already saved/);
+ assert.match(server,/assessmentProgress\(s\.assessmentBank,s\.assessmentAnswers/);
+ assert.match(server,/Use the role-based assessment questions/);
+ assert.match(html,/Your free answers are saved/);
 });

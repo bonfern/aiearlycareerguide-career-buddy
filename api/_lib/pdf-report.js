@@ -35,7 +35,7 @@ export function buildReportPdf(report){
  const priorityItems=(items,limit=3)=>{const meaningful=(items||[]).filter(item=>item.priority!=='Maintain and stretch');const source=meaningful.length?meaningful:(items||[]);return source.slice(0,limit).map(item=>`${item.name} - ${item.status||friendlyPriority(item.priority)}`);};
  const quickGroups=[['TECHNICAL PRIORITIES',priorityItems(report.capabilityFocus?.technical||[])],['LEADERSHIP & SOFT SKILLS',priorityItems(report.capabilityFocus?.behavioural||[])],['CAREER ACTIONS TO TAKE',(report.goalPath?.careerActions||[]).slice(0,3).map(step=>step.title)]];
  for(const [heading,items] of quickGroups){lines(heading,{size:9,bold:true,color:C.purple});bulletList(items.length?items:['See the detailed plan below.']);gap(3);}
- gap(4);ensure(54);rect(43,y-28,509,44,C.lavender);textAt(`${report.coverage?.total??0} essential capabilities explored (self-reported)`,58,y-2,11,true,C.navy);textAt(`${report.priorities?.length??0} priority areas to build further`,58,y-20,10,false,C.purple);y-=57;
+ gap(4);ensure(54);rect(43,y-28,509,44,C.lavender);textAt(`${report.coverage?.total??0} essential competencies assessed (scenario questions)`,58,y-2,11,true,C.navy);textAt(`${report.priorities?.length??0} priority areas to build further`,58,y-20,10,false,C.purple);y-=57;
 
  title(`1. What you need to build for ${report.targetRole||'your goal'}`);
  const capabilityGroups=[['TECHNICAL CAPABILITIES',report.capabilityFocus?.technical||[]],['LEADERSHIP & SOFT-SKILL CAPABILITIES',report.capabilityFocus?.behavioural||[]]];
@@ -54,7 +54,7 @@ export function buildReportPdf(report){
  for(const s of report.skillAssessments||[]){
   ensure(72);title(s.name||'Essential skill');
   labelled('WHAT THE TARGET ROLE NEEDS',s.targetBenchmark);
-  labelled('YOUR CURRENT SELF-REPORTED CAPABILITY',s.currentCompetency);
+  labelled(s.tested?'YOUR SCENARIO ASSESSMENT RESULT':'CURRENT SELF-REPORTED EXPERIENCE',s.currentCompetency);
   labelled('WHAT TO BUILD FURTHER',s.gap);
   if(s.subskillsNeedingWork?.length)labelled('SPECIFIC TOPICS TO PRACTISE',s.subskillsNeedingWork.join('; '));
   if(s.subskillsNotTested?.length)labelled('AREAS REQUIRING FURTHER VERIFICATION',s.subskillsNotTested.join('; '));
@@ -88,7 +88,7 @@ export function buildReportPdf(report){
   bulletList(report.resumeReview.changes||[]);
   if(report.resumeReview.missingEvidence?.length){lines('DETAILS TO CONFIRM BEFORE FINALISING',{bold:true,color:C.purple,size:9});bulletList(report.resumeReview.missingEvidence);}
  }else lines('No resume was provided. Your full career report is complete; you can return later to paste resume text and prepare an improved resume.');
- gap(8);lines('Important: this report is guidance based on your self-reported career information and examples. Skills have not been independently tested or verified. Interview questions are illustrative, not employer-specific guarantees. Confirm course suitability and costs before enrolling.',{size:9,color:C.muted,max:105,leading:13});
+ gap(8);lines('Important: this report is guidance based on your self-reported career information and examples. Multiple-choice questions assessed professional judgement, not on-the-job performance; self-reported experience remains unverified. Interview questions are illustrative, not employer-specific guarantees. Confirm course suitability and costs before enrolling.',{size:9,color:C.muted,max:105,leading:13});
  flush();
  // Build a complete binary PDF with an embedded logo, brand-coloured page headers,
  // clickable resource links and correct byte offsets for JPEG streams.

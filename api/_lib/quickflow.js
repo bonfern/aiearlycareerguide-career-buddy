@@ -37,7 +37,7 @@ export const QUESTIONS=Object.freeze([
  {id:'experience',kind:'single',text:'How much relevant work experience do you have?',options:['Less than 1 year','1–3 years','4–7 years','8–12 years','13–20 years','Over 20 years']},
  {id:'goal',kind:'single',text:'What would you like help with most?',options:['Get promoted','Move to another company','Change careers','Return to work','Explore career options']},
  {id:'targetRole',kind:'text',text:'Which role would you like to work towards?',placeholder:'e.g. Director of Process Excellence (or Still exploring)',maxLength:120,minLength:3},
- {id:'roleExperience',kind:'multi',text:'Which target-role competencies have you used in practice?',options:[],maxSelections:4,minSelections:1},
+ {id:'roleExperience',kind:'multi',text:'Which target-role competencies have you used in practice? Select up to 4.',options:[],maxSelections:4,minSelections:1},
  {id:'gaps',kind:'single',text:'Which target-role competency would you most like to develop?',options:[]},
  // Deeper details only, after a purchase. Skip items answered in free discovery.
  {id:'responsibilities',kind:'multi',text:'Which responsibilities have you handled?',options:['Managing people','Improving processes','Leading projects','Analysing data','Working with customers','Other'],maxSelections:4,minSelections:1},

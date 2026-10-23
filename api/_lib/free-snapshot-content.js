@@ -1,7 +1,7 @@
 /* Free Career Snapshot V3: public, role-only guidance may be cached across accounts.
    User-specific information MUST NEVER enter the shared role-guidance cache. */
 import crypto from 'node:crypto';
-export const FREE_SNAPSHOT_VERSION=3;
+export const FREE_SNAPSHOT_VERSION=4;
 const normalise=v=>String(v||'').replace(/\s+/g,' ').trim();
 const clipped=(v,n=110)=>normalise(v).slice(0,n).replace(/[.!?\s]+$/,'');
 export function cacheRoleKey(value){
@@ -18,14 +18,21 @@ const isText=(v,min=8,max=185)=>typeof v==='string'&&normalise(v).length>=min&&v
 function validGroup(items,min,max){return Array.isArray(items)&&items.length>=min&&items.length<=max&&items.every(x=>x&&typeof x==='object'&&isText(x.title,3,90)&&Array.isArray(x.bullets)&&x.bullets.length===2&&x.bullets.every(s=>isText(s,15,185))&&normalise(x.bullets[0]).toLowerCase()!==normalise(x.bullets[1]).toLowerCase());}
 export function validRoleGuidance(r){return validGroup(r?.targetCompetencies,4,5)&&validGroup(r?.nextSteps,5,5);}
 export function snapshotSummary(profile={}){
- const role=clipped(profile.currentRole||profile.employmentStatus||'a professional role',68);
- const experience=clipped(profile.experience||'',36);
- const target=clipped(profile.targetRole||'a new career direction',68);
- const skills=Array.isArray(profile.roleExperience)?profile.roleExperience.filter(x=>x!=='No hands-on experience yet').slice(0,2).map(x=>clipped(x,60)).filter(Boolean):[];
- const a=`Your current or most recent role is ${role}${experience?'. You report '+experience+' of relevant experience':''}.`;
- const b=`You want to work towards ${target}.`;
- const c=skills.length?`In your free answers, you selected ${skills.join(' and ')} as areas you have practised.`:'We still need practical examples of your skills.';
- return `${a} ${b} ${c}`.slice(0,540);
+ const present=clipped(profile.currentRole||'your present work',65),target=clipped(profile.targetRole||'your preferred next role',68);
+ const goal=normalise(profile.goal||'').toLowerCase();
+ const experienced=(profile.roleExperience||[]).filter(x=>x!=='No hands-on experience yet').slice(0,2).map(x=>clipped(x,65));
+ const gap=clipped((profile.gaps||[])[0]||'',63);
+ const moreSenior=/director|vp|vice president|head|chief|general manager|leadership/i.test(target);
+ const nextRole=moreSenior?'leading larger decisions, people and business results':'solving the role’s everyday problems independently';
+ const path=goal.includes('change career')?'a career switch':goal.includes('promot')?'a promotion':goal.includes('another company')?'a move to another employer':'your next career move';
+ const start=`For ${path} into ${target}, the important question is how ready you are for ${nextRole}.`;
+ const middle=experienced.length
+   ?`Your work as ${present} and the areas you selected (${experienced.join(' and ')}) give us a useful starting point to explore, but these are not yet tested strengths.`
+   :`Your background as ${present} provides some context, but we still need examples showing how your experience matches that role.`;
+ const finish=gap&&gap!=='Not sure yet'
+   ?`The next useful step is to assess your decisions in realistic job situations, especially around ${gap}, before identifying exact gaps.`
+   :'A short, role-specific scenario assessment is needed before we can say which skills are strong and which need improvement.';
+ return `${start} ${middle} ${finish}`.slice(0,540);
 }
 export function furtherAssessment(profile={}){
  const target=clipped(profile.targetRole||'the role you want',65);

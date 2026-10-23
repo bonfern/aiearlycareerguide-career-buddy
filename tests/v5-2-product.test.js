@@ -27,7 +27,7 @@ test('role-only key normalises label and never includes personal profile context
 test('expanded snapshot includes exactly two distinct meaningful bullets per competency and per step',()=>{
  assert.ok(validRoleGuidance(guidance));
  const snap=buildSnapshotV2(profile,guidance);
- assert.equal(snap.version,3);
+ assert.equal(snap.version,4);
  assert.ok(isSnapshotV2(snap));
  assert.equal(snap.targetCompetencies.length,4);
  assert.equal(snap.nextSteps.length,5);

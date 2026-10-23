@@ -7,7 +7,7 @@ export const PROFESSIONAL_SECTIONS=Object.freeze([
  'Other essential capabilities not assessed', '30 / 60 / 90-day action plan',
  'Progress and evidence checklist', 'Interview preparation', 'Resume analysis (optional)'
 ]);
-export const DETAILED_PROMPT=`You are the report writer for Career Buddy by AI Early Career Guide. Produce ONE detailed professional Career Action & Skill Development report in JSON. Use the owner-provided Professional Assessment report STRUCTURE, but DO NOT claim an MCQ assessment took place. Coaching profile is SELF-REPORTED and does not validate competence. Stay evidence-aligned; distinguish demonstrated examples, self-reported skills and unassessed requirements. Avoid proctoring, scores, assessment confidence and fabricated evidence.
+export const DETAILED_PROMPT=`You are the report writer for Career Buddy by AI Early Career Guide. Produce ONE detailed professional Career Action & Skill Development report in JSON. Use the owner-provided Professional Assessment report STRUCTURE, and include the results from the scenario-based competency assessment when supplied. A multiple-choice assessment tests applied judgment, not proven on-the-job competence. Coaching profile and achievements are SELF-REPORTED. Stay evidence-aligned; distinguish demonstrated examples, self-reported skills and unassessed requirements. Avoid proctoring, evidence confidence and fabricated work experience. Interpret the three assessed questions per skill, but never claim a certification or verified on-job ability.
 CRITICAL STYLE: Address the reader directly using 'you'/'your' in report narrative. Do not use the person's name in prose and never narrate their story as 'Firstname Lastname is...', 'he', 'she', or 'the candidate'. The report is for the reader. Treat soft skills (communication, stakeholder influence, collaboration, emotional intelligence, coaching, negotiation) as distinct role-specific behavioural competencies, not generic labels.
 Return JSON with these REQUIRED keys:
 summary: 60-100 words;
@@ -36,17 +36,26 @@ export function validateDetailedReport(r,{hasResume=false}={}){
  if(Boolean(hasResume)!==(r.resumeReview.status==='provided'))throw Error('Resume analysis did not match the submitted resume state.');
  return true;
 }
-export function asProfessionalReport(r,profile){
+export function asProfessionalReport(r,profile,evidence=null){
  validateDetailedReport(r,{hasResume:r.resumeReview.status==='provided'});
- const skills=r.skillAssessments.map((s,i)=>({id:`s${i}`,name:s.name,type:s.type,importance:'essential',targetBenchmark:s.targetBenchmark,
-  currentCompetency:s.currentCompetency,priority:s.priority,gap:s.gap,actions:s.actions,practiceTask:s.practiceTask,successIndicator:s.successIndicator,
-  learning:{free:[],paid:[],certifications:[]},tested:0,correct:0,subskillsNeedingWork:[],subskillsNotTested:[]}));
+ const scores=new Map((evidence?.skills||[]).map(x=>[x.name.toLowerCase(),x]));
+ const skills=r.skillAssessments.map((s,i)=>{
+  const score=scores.get(s.name.toLowerCase());
+  const priority=score?(score.correct<=1?'Build this first':score.correct===2?'Build further':'Build on this strength'):s.priority;
+  const weaker=score?score.responses.filter(x=>!x.correct).map(x=>x.subskill):[];
+  const judgment=score?`${score.correct} of ${score.answered} scenario decisions aligned with the preferred response. ${score.category}. This evaluates decision-making, not verified job performance.`:s.currentCompetency;
+  const gap=score?(weaker.length?`Practise the assessed topics: ${[...new Set(weaker)].join(', ')}. Use a real work example to check and apply the skill.`:'No immediate concern indicated by these three scenarios; validate the skill with a real project or workplace example.'):s.gap;
+  return {id:score?.id||`s${i+1}`,name:s.name,type:score?.type||s.type,importance:'essential',targetBenchmark:score?.benchmark||s.targetBenchmark,
+   currentCompetency:judgment,priority,gap,actions:s.actions,practiceTask:s.practiceTask,successIndicator:s.successIndicator,
+   learning:{free:[],paid:[],certifications:[]},tested:score?.answered||0,correct:score?.correct||0,
+   assessmentCategory:score?.category||'Not assessed',subskillsNeedingWork:[...new Set(weaker)],subskillsNotTested:[]};
+ });
  const group=t=>skills.filter(s=>s.type===t).map(s=>({name:s.name,currentCompetency:s.currentCompetency,priority:s.priority,status:s.priority,firstAction:s.actions[0]}));
  const additional=(r.additionalSkills||[]).map(s=>({...s,assessmentStatus:'Not assessed'}));
- return {reportVersion:'buddy-5',targetRole:profile?.targetRole||'',summary:r.summary,goalPath:r.goalPath,
+ return {reportVersion:'buddy-5.6',targetRole:profile?.targetRole||'',summary:r.summary,goalPath:r.goalPath,
   capabilityFocus:{technical:group('technical'),behavioural:group('behavioural')},skillAssessments:skills,
   additionalSkills:additional,actionPlan:r.actionPlan,learningPreferences:null,
-  coverage:{assessed:0,total:skills.length,answered:0},
+  coverage:{assessed:skills.filter(x=>x.tested===3).length,total:skills.length,answered:skills.reduce((n,x)=>n+x.tested,0)},
   priorities:skills.filter(s=>s.priority!=='Build on this strength').slice(0,3).map(s=>({name:s.name,priority:s.priority,firstAction:s.actions[0]})),
   progressChecklist:skills.map(s=>({skill:s.name,deliverable:s.practiceTask,evidence:s.successIndicator})),
   interviewPreparation:r.interviewPreparation,learningGuidance:r.learningGuidance,resumeReview:r.resumeReview};

@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "functions": { "api/service.js": { "maxDuration": 120 } },
+  "functions": { "api/service.js": { "maxDuration": 240 } },
   "headers": [
     {"source":"/(.*)","headers":[
       {"key":"X-Content-Type-Options","value":"nosniff"},

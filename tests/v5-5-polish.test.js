@@ -21,7 +21,7 @@ test('stage navigation resets scroll after layout, focuses heading and handles s
 });
 
 test('plain-English snapshot guidance uses a separate v3 shared ROLE cache, with no personal information',()=>{
- assert.equal(FREE_SNAPSHOT_VERSION,3);
+ assert.equal(FREE_SNAPSHOT_VERSION,4);
  assert.match(roleGuidancePrompt,/everyday English/);
  assert.match(roleGuidancePrompt,/actual work artefacts/);
  assert.match(roleGuidancePrompt,/EXACTLY 5 nextSteps/);
@@ -55,7 +55,7 @@ test('exploratory roles and paid reports receive sensible first coaching suggest
 });
 
 test('legacy reports stay readable, but must be refreshed to access updated simpler wording',()=>{
- assert.match(app,/\(state\.freeReport\.version\|\|0\)<3/);
- assert.match(app,/\(r\.version\|\|0\)<3/);
+ assert.match(app,/\(state\.freeReport\.version\|\|0\)<4/);
+ assert.match(app,/\(r\.version\|\|0\)<4/);
  assert.match(backend,/isSnapshotV2\(s\.freeReport\)/);
 });

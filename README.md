@@ -1,42 +1,67 @@
-# Career Buddy V5.5 — final polish before private live-AI testing
+# Career Buddy V5.6 — Focused Competency Assessment
 
-**Project:** `aiearlycareerguide-career-buddy` (independent of the existing Student, Professional Assessment and Recruiter applications)
+**Private preview build.** This remains a separate GitHub repository, Firebase project and Vercel deployment from the Student, Professional Assessment and Recruiter products. No existing live application is modified. **Razorpay is not activated; all packs are simulated.**
 
-**Release status:** source package for **controlled live-integrations testing**. **Not deployed by ChatGPT**. No Razorpay payment collection: purchase and top-up buttons are still simulated. Prices and credit allocations are indicative.
+## V5.6 — What changed
 
-## What changed from V5.4
+### 1. Free Career Discovery (seven questions)
 
-1. **Scroll and keyboard focus:** each new screen, question or verification step returns to the **top** after rendering, and the visible heading receives focus without changing the scroll position. This handles browser scroll restoration, buttons retaining focus, removed text inputs and narrow mobile screens. Chat-message history still scrolls *inside* its own message panel when appropriate.
-2. **Practical free snapshots:** target-role competencies and five next steps now use short everyday language, concrete role-relevant activities, and two helpful bullets under each heading. The four-section format is retained, including what requires deeper assessment. **Shared cache is keyed by target role only**. Personal profile summaries are computed separately and are never shared between users. The role-guidance cache is bumped to **V3** so older, vague V2 entries are not reused.
-3. **Contextual coaching entry:** when Career Buddy is first opened, suggested questions are derived *locally* from that verified user's saved **target role, current role, selected development area, practised competencies**, and whether a detailed report has been generated. The first suggested question reflects the most relevant development need; suggestions cost no AI tokens. Selecting a suggestion puts it into the chat input, but **does not send or charge** until the user submits.
-4. **Previously generated snapshots** remain saved and downloadable. To refresh an older V2 snapshot with the clearer V3 language, use **My reports → Refresh guidance** or the refresh button on the Snapshot screen. No previous questions have to be answered again.
+- The target-role competency question now explicitly says **“Select up to 4.”**
+- A live `0 of 4 selected` counter and frontend selection guard prevent a fifth choice from being selected; the backend also validates the same maximum. “No hands-on experience yet” is exclusive.
+- The free snapshot profile summary now gives a brief interpretation of the target role and existing experience, and explains which assumption still needs assessment. It no longer merely strings together submitted answers.
+- Older V5.5 reports remain available. Open **My reports → Refresh guidance** to regenerate the free snapshot with V5.6 wording without repeating questions. Shared generic role guidance is cached; personally identifying profile summaries are never placed into the shared cache.
 
-## Retained behaviour
+### 2. Premium assessment (after free snapshot + simulated ₹499 starter)
 
-- Landing page has **one** action: Free Career Discovery, **7 questions**.
-- After the free snapshot, the user can choose Premium Career Assessment (indicative ₹499) or Career Buddy coaching (indicative ₹149). The snapshot is required before coaching and is carried into the AI context.
-- Premium starts with an **optional pasted resume**, then additional questions, then detailed report/interview guidance and optional Word/PDF resume revision.
-- Verified email sessions retain the same answers, reports, coaching messages and credits. The starter and refill packs remain simulated; credited AI replies are logged.
-- Only the **role-only guidance** is cached across accounts; private career profiles, interview responses and resumes never enter the shared cache.
+1. The first paid step remains **paste or skip your resume**.
+2. Select **Prepare my competency assessment**. The AI creates a role-specific bank the first time a target role is assessed, with **4–5 essential competencies** (at least two technical and two soft/behavioural).
+3. Each competency has **three distinct multiple-choice questions** (12–15 in total): applied knowledge when relevant, plus workplace scenarios of differing difficulty. Answers have **four plausible options plus “Not sure.”** No lengthy typing is required.
+4. Each selection is saved against the verified email account, and the next question resumes where the user stopped. Quick selections do **not** deduct coaching credits.
+5. The full detailed career report is locked until **all** 12–15 essential questions have been answered. It retains all the existing Professional Assessment-style sections, including skill-level development actions, unassessed skills, 30/60/90-day milestones, interview preparation and optional resume analysis.
+6. The report now uses **server-calculated performance** for each competency and identifies topics to practise from incorrect scenario responses. It distinguishes *judgement shown on scenarios* from *verified job performance* and *self-reported career history*.
+7. Remaining coaching interactions can still be used after generating the report. Pricing and number of credits are unchanged and indicative.
 
-## Running tests locally
+### 3. Security, privacy, costs and caching
 
-With Node.js 20+: `npm test`.
+- The server stores question banks, private answer keys, grading explanations and submitted choices. Browser API responses expose only the current question and available choices; answer keys, correctness and grading rationales are not sent to the browser before the report.
+- Shared question-bank cache: Firestore collection `buddyCompetencyBanksV1`, keyed by **normalised target role only**. No name, email, resume text, chat history or answers are included. Banks are labelled with a version and 90-day expiry metadata.
+- Bank generation follows the approach of the existing Professional Assessment: precise role/skill map, 3 challenging questions per skill, distinct subskills, strict validation, credible distractors, and server-owned scoring. It is not a copy of that app's database or runtime.
+- A first-time target role generally requires **three OpenAI calls** (skill map + two parallel question batches); subsequent users of the same target role reuse the bank. API token usage from successful bank creation is logged against preview usage and cost summary. The detailed report call and coaching remain independently logged.
+- Configure `OPENAI_INPUT_USD_PER_MILLION`, `OPENAI_OUTPUT_USD_PER_MILLION`, `OPENAI_USD_INR` with rates and exchange assumptions applicable to your chosen model; leaving them zero yields *unpriced* calls, not meaningful cost estimates.
+- Failed calls or responses that fail validation may still incur API charges. For accurate profitability before public launch, compare the OpenAI dashboard invoices with the application's successful-call logs.
 
-For mock browser tests (requires Python Playwright and Chromium): `python tests/browser_flow.py`.
+## Local tests (no account needed)
 
-The automated browser tests explicitly check the page returning to the top after navigation, contextual first coaching suggestion, assessment gate, snapshot, upgrade, progress carryover and no horizontal overflow at desktop/mobile widths.
+With Node.js 20+:
 
-## Deploy for controlled LIVE integrations testing, **not public launch**
+```bash
+npm test
+```
 
-1. Upload the **contents** of the V5.5 project folder to the existing private GitHub repository `aiearlycareerguide-career-buddy`. Ideally create a branch named `live-test-v55` to produce a Vercel **Preview Deployment**; do not publish the main Career Buddy production URL or add a public custom domain yet.
-2. In the **separate Career Buddy Vercel project**, open **Settings → Deployment Protection** and enable **Vercel Authentication** for preview URLs. For testing with external invited users, grant authorised access/share protected preview links as allowed by your plan. Test in an incognito window that a person without access cannot open the URL. If your desired access method is unavailable, restrict testing to the account's authorised members instead of opening the deployment to everyone.
-3. Under **Settings → Environment Variables**, ensure the **Preview** environment has the existing values: `PREVIEW_ACCESS_CODE`, `PREVIEW_SESSION_SECRET`, `OWNER_RESET_CODE`, `FIREBASE_SERVICE_ACCOUNT_JSON`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`. The Firebase account must belong to the **separate Career Buddy Firebase project**. Do not copy live Professional, Student or Recruiter secrets into the new application. Don't paste keys or passwords into chat or commit `.env` files.
-4. Set `FREE_REPORT_DAILY_LIMIT=5` initially in Preview. Set real nonzero `OPENAI_INPUT_USD_PER_MILLION`, `OPENAI_OUTPUT_USD_PER_MILLION` and `OPENAI_USD_INR` values for **cost measurement**, matching the deployed model and current USD/INR rate; otherwise estimated-cost analytics can be zero/misleading. Review monthly usage and provider spending caps separately. OpenAI API calls are real in this protected preview.
-5. Deploy, verify email via Resend, and do a new-account free discovery. Generate the free snapshot, download the PDF, then select Career Buddy coaching and verify the **first suggestion** mentions the saved role/development focus. Ask a genuine question and confirm the AI reply incorporates that context without restarting intake. Run both desktop and mobile tests.
-6. With an existing account holding a V2 snapshot, use **My reports → Refresh guidance**, then download and inspect the revised PDF. Test remaining credits and access via the same verified email. Log any failure messages and the test URL (not secret values).
-7. **Stop before public launch.** Real payments, public registration/abuse controls, production spending safeguards and customer acceptance testing are separate launch gates.
+This suite includes 72 automated tests, covering the original user journeys plus new assessment-bank validation, free snapshot language, four-option selection cap, question-bank reuse model, server-only keys, scoring, report readiness, and a graded report PDF.
 
-### Validation limitations
+If Python Playwright and a Chromium binary are installed:
 
-Tests here use mocked session and API responses, plus rendered PDF samples. They **do not** prove the separate Vercel Preview, Firebase, Resend or OpenAI keys are correctly configured. ChatGPT has **not** accessed or changed the user's Vercel, GitHub or Firebase accounts.
+```bash
+python tests/v5-6-browser.py
+```
+
+This isolated browser test mocks paid question banks and API responses; it verifies 12 scenario selections, progress, report gating, the selection cap and mobile/desktop overflow. **It does not prove that the live OpenAI service will always generate a valid assessment.**
+
+## Controlled private deployment and acceptance test
+
+1. **Do not merge into any other application.** Replace the V5.5 files in the separate `aiearlycareerguide-career-buddy` repository or push this to a preview branch.
+2. Deploy to the **protected Career Buddy Vercel Preview deployment**, using the dedicated Career Buddy Firebase, Resend and OpenAI services. `vercel.json` permits up to 240 seconds for the bank-generation endpoint; check your Vercel plan supports that function limit.
+3. Keep preview authentication enabled and payments simulated. Do not add the public custom domain or publish the site.
+4. To retest from scratch, use **Owner test tools → Reset test session**, not a new email to repeatedly claim free assessments.
+5. Test target roles from different families (e.g. Director of Process Excellence, Product Manager, HR Business Partner) and a four- vs five-competency bank.
+6. Check that 12–15 *different* scenario questions appear, the distractors are plausible, “Not sure” is available, and the report remains locked until all are answered.
+7. Check the detailed PDF reflects the exact assessed competencies, including technical and behavioural skill development, and does not claim demonstrated workplace competence based solely on MCQs.
+8. Check optional resume skip and paste, downloading both report and resume, preserved credits after the report, re-login by the same verified email, and the user's free snapshot under My reports.
+9. Inspect `buddyPreviewUsage`, session `usageSummary`, and the provider's actual invoice before revising indicative prices.
+
+## Existing preview credentials
+
+Keep the current `PREVIEW_ACCESS_CODE`, `PREVIEW_SESSION_SECRET`, `FIREBASE_SERVICE_ACCOUNT_JSON`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `OPENAI_API_KEY`, `OPENAI_MODEL` and owner reset settings in the **separate** Vercel project. Never commit secrets. See `.env.example` for placeholder names. No new Firebase collection needs to be provisioned manually; the server will create the assessment bank collection when first used.
+
+**Release limitations:** V5.6 has passed automated and isolated UI tests, but authenticated, real OpenAI + Firebase end-to-end assessment generation and production payment verification have not been tested here. Keep the app in protected private preview until those checks pass. Generated questions, grading rationales, report content and actual AI spending need human quality review prior to launch.
