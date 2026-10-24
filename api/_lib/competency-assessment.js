@@ -125,10 +125,15 @@ export async function createAssessmentStage(role,draft={},callAI,{maxAttempts=3}
    {role:'system',content:BANK_PROMPT},
    {role:'user',content:JSON.stringify({targetRole:role,competencies:skills})}
   ],4300,result=>validateQuestionBatch(result,skills));
-  const batches=[...(draft.batches||[]),batch];
+  // Firestore rejects arrays directly nested inside other arrays. Each batch
+  // is therefore saved as an OBJECT containing a questions array, not as an
+  // array of question arrays. This is the V5.8 stage-2 persistence fix.
+  const batches=[...(draft.batches||[]),{questions:batch}];
   if(stage===1)return {draft:{stage:2,skillMap:map,batches},usages,attempts};
   if(batches.length!==2)throw Error('Missing previously prepared questions');
-  const bank={version:ASSESSMENT_BANK_VERSION,role,competencies:map.competencies,untestedSkills:map.untestedSkills,questions:shuffleAnswers(batches.flat())};
+  // Also accept the earlier in-memory representation for compatibility.
+  const allQuestions=batches.flatMap(item=>Array.isArray(item)?item:item?.questions||[]);
+  const bank={version:ASSESSMENT_BANK_VERSION,role,competencies:map.competencies,untestedSkills:map.untestedSkills,questions:shuffleAnswers(allQuestions)};
   if(!validBank(bank))throw Error('Final assessment bank failed comprehensive validation');
   return {draft:null,bank,usages,attempts};
  }catch(e){

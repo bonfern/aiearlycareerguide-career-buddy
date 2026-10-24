@@ -1,6 +1,18 @@
-# Career Buddy V5.8 — Competency Preparation Recovery + Razorpay Test Mode
+# Career Buddy V5.8.1 — Firestore Stage-2 Persistence Hotfix + Razorpay Test Mode
 
 **A separate application for private testing.** This package modifies only the `aiearlycareerguide-career-buddy` repository. It does not modify the Student, Recruiter or legacy Professional applications, nor does it migrate any legacy Professional data. **Do not redirect the public `/professionals` route yet.**
+
+## V5.8.1 hotfix — “Unexpected error” after 1 of 3 stages
+
+**Confirmed source-code defect:** V5.8 stored generated question batches as `batches: [[question,...]]` in `assessmentDraft`. Google Cloud Firestore forbids directly nested arrays in document fields. Stage 1 persisted its competency map, but stage 2 failed while saving the first question batch; the frontend consequently displayed the generic `An unexpected error occurred. No chat credit was deducted.`
+
+**Change:** The stored representation is now `batches: [{ questions: [...] }]` (array of maps, each containing an array). The final bank builder reads this representation and supports the old in-memory shape when present. No scoring, purchased entitlements, payment state, user identity, free answers, pricing or report rules were changed.
+
+**Existing affected test user:** Deploy the new ZIP, hard-refresh, sign in with the **same verified email**, open the paid assessment, and press **Retry / resume preparation**. A saved `1 of 3` stage should remain saved. **Do not reset the session or make another ₹499 test payment.** The app should finish stages 2 and 3, then show 12–15 questions.
+
+**Verification:** `npm test` passes 86 tests, including a new save/reload simulation that rejects Firestore-forbidden nested arrays and completes all three stages. Desktop/mobile browser recovery tests pass locally. This cannot replace a real deployed Firestore/OpenAI integration test.
+
+If another error appears after redeployment, open the failed `/api/service?action=assessmentStart` invocation in Vercel logs and share the **error type and message only** (remove any emails, resume details, API keys, payment references or tokens). Do not repeat the checkout.
 
 ## V5.8 critical fix — premium competency questions not loading
 
