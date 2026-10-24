@@ -44,7 +44,7 @@ function isAssessmentPaid(s){return s.tier==='paid';}
 function safeState(s){
  const paid=isAssessmentPaid(s),coaching=isPaid(s),free=freeReadiness(s.profile||{});const rem=Math.max(0,s.credits||0);
  const assessment=paid?assessmentProgress(s.assessmentBank,s.assessmentAnswers||[]):{total:0,answered:0,finished:false,question:null};
- return {id:s.id,email:s.email||'',mode:'preview',version:'5.8',journeyPreference:s.journeyPreference||'free',coachingEligible:Boolean(s.freeReport||s.report),tier:paid?'paid':coaching?'coach':'free',paymentsEnabled:testPaymentEnabled(),paymentMode:testPaymentEnabled()?'razorpay_test':'simulation',
+ return {id:s.id,email:s.email||'',mode:'preview',version:'5.8.2',journeyPreference:s.journeyPreference||'free',coachingEligible:Boolean(s.freeReport||s.report),tier:paid?'paid':coaching?'coach':'free',paymentsEnabled:testPaymentEnabled(),paymentMode:testPaymentEnabled()?'razorpay_test':'simulation',
   guided:guidedProgress(s.profile||{},s.quickAnswers||{},s.quickSkipped||[],'free'),
   assessment:{...assessment,started:Boolean(s.assessmentBank),preparationStep:s.assessmentDraft?.stage||0,competencies:s.assessmentBank?.competencies?.map(c=>({name:c.name,type:c.type}))||[]},
   quickHistory:(s.quickHistory||[]).slice(-3),credits:rem,creditsGranted:s.creditsGranted||0,
@@ -271,8 +271,8 @@ async function startAssessment(req,res){
      for(const usage of failedUsage){totals=updatedUsage(totals,usage);tx.set(store.collection('buddyPreviewUsage').doc(usage.id),{...usage,sessionId:ref.id,charged:false,validationFailed:true});}
      tx.update(ref,{busy:null,usageSummary:totals});
     }).catch(err=>console.error('Could not record failed bank usage:',err?.message));
-    console.warn('Career Buddy competency generation rejected:',JSON.stringify({roleKey:start.role.key,stage:start.draft?.stage||0,errors:e.attempts||[],calls:chargedResponses.length}));
-    fail(502,'Your assessment questions could not be prepared. Your earlier progress is saved. Select Retry preparation to continue.');
+    console.warn('Career Buddy competency generation rejected:',JSON.stringify({roleKey:start.role.key,stage:start.draft?.stage||0,errors:e.attempts||[],calls:chargedResponses.length,kind:e.name||'Error'}));
+    fail(502,'The next question batch did not pass quality checks. Earlier stages are saved. Select Retry preparation to continue.');
    }
    bank=stageResult.bank||null;
    usageItems=stageResult.usages.map((u,i)=>usageRecord(`${key}-prepare-${i}`,'competency-bank-generation',u));

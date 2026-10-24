@@ -33,6 +33,31 @@ export function validateSkillMap(raw){
  if(!Array.isArray(other)||other.length<1||other.length>3||other.some(s=>clean(s?.name).length<4||clean(s?.expectation).length<15||seen.has(clean(s.name).toLowerCase())))throw Error('Invalid remaining competency list.');
  return {competencies:result,untestedSkills:other.map(s=>({name:clean(s.name),expectation:clean(s.expectation)}))};
 }
+// Tolerate harmless provider schema drift, without weakening any of the
+// semantic/length/quality checks in validateQuestionBatch. These fields are
+// assessment metadata or equivalent JSON spellings, not fabricated evidence.
+export function normalizeQuestionBatch(raw,skills){
+ if(!raw||!Array.isArray(raw.questions))return raw;
+ const value=x=>typeof x==='string'?x.trim():'';
+ const optionsOf=q=>Array.isArray(q?.options)?q.options.map(o=>value(o)||value(o?.text)||value(o?.label)):q?.options;
+ return {...raw,questions:raw.questions.map((q,i)=>{
+  const skill=skills[Math.floor(i/QUESTIONS_PER_SKILL)];
+  const ordinal=i%QUESTIONS_PER_SKILL;
+  const opts=optionsOf(q);
+  const choices=Array.isArray(opts)?[...opts]:opts;
+  if(Array.isArray(choices)&&choices.length===4)choices.push('Not sure');
+  if(Array.isArray(choices)&&choices.length===5&&/^(not sure|i(?:'m| am) not sure|i don(?:'t| not) know)$/i.test(choices[4]))choices[4]='Not sure';
+  let key=q?.answerKey??q?.correctIndex??q?.correctOption;
+  if(typeof key==='string'&&/^[A-Da-d]$/.test(key.trim()))key=key.trim().toUpperCase().charCodeAt(0)-65;
+  else if(typeof key==='string'&&/^[0-3]$/.test(key.trim()))key=Number(key.trim());
+  return {...q,competencyId:q?.competencyId||skill?.id,
+   questionKind:skill?.type==='technical'&&ordinal===0?'knowledge':'scenario',
+   difficulty:ordinal===1?'advanced':'applied',
+   text:value(q?.text)||value(q?.question),options:choices,answerKey:key,
+   rationale:value(q?.rationale)||value(q?.explanation)||value(q?.reason),
+   subskill:value(q?.subskill)||value(q?.testedSubskill)};
+ })};
+}
 export function validateQuestionBatch(raw,skills){
  const questions=raw?.questions;
  if(!Array.isArray(questions)||questions.length!==skills.length*QUESTIONS_PER_SKILL)throw Error('Each competency needs three questions.');
@@ -121,10 +146,24 @@ export async function createAssessmentStage(role,draft={},callAI,{maxAttempts=3}
   const map=validateSkillMap(normalizeSkillMap(draft.skillMap));
   const split=Math.ceil(map.competencies.length/2);
   const skills=stage===1?map.competencies.slice(0,split):map.competencies.slice(split);
+  // The last batch must be checked *with* the already saved questions.
+  // Previously it could pass its own validation, then fail the final whole-bank
+  // check OUTSIDE the repair loop, leaving users stranded at 2 of 3.
+  const previous=(draft.batches||[]).flatMap(item=>Array.isArray(item)?item:item?.questions||[]);
   const batch=await validated(`questions-${stage}`,[
    {role:'system',content:BANK_PROMPT},
-   {role:'user',content:JSON.stringify({targetRole:role,competencies:skills})}
-  ],4300,result=>validateQuestionBatch(result,skills));
+   {role:'user',content:JSON.stringify({targetRole:role,competencies:skills,...(stage===2?{previousQuestionTexts:previous.map(q=>q.text)}:{})})}
+  ],4300,result=>{
+   const questions=validateQuestionBatch(normalizeQuestionBatch(result,skills),skills);
+   if(stage===2){
+    const candidate={version:ASSESSMENT_BANK_VERSION,role,competencies:map.competencies,untestedSkills:map.untestedSkills,questions:[...previous,...questions]};
+    // Test the merged bank before accepting the final generation attempt.
+    // A duplicated scenario or invalid combined distribution now triggers
+    // targeted model feedback and a replacement batch, not a dead-end error.
+    if(!validBank(candidate))throw Error('Final questions overlap with previously prepared scenarios or fail whole-bank validation. Produce different, non-overlapping workplace scenarios for these competencies.');
+   }
+   return questions;
+  });
   // Firestore rejects arrays directly nested inside other arrays. Each batch
   // is therefore saved as an OBJECT containing a questions array, not as an
   // array of question arrays. This is the V5.8 stage-2 persistence fix.

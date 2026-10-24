@@ -1,4 +1,39 @@
-# Career Buddy V5.8.1 — Firestore Stage-2 Persistence Hotfix + Razorpay Test Mode
+# Career Buddy V5.8.2 — Final-stage Question Preparation Hotfix
+
+**Private test build only.** Do not redirect the existing Professional Assessment route or enable real Razorpay payments yet.
+
+## What the new screenshot tells us
+
+- **2 of 3 preparation stages completed** means the competency map and the first validated question batch were saved successfully. The previous Firestore nested-array problem has been bypassed.
+- The third stage is failing to produce a usable **final question bank**. The screenshot does not show the underlying server-side validation reason. Find it in Vercel logs under `Career Buddy competency generation rejected` (look for `stage:2` and `errors`). Do **not** share keys, emails, raw model responses, resume text or payment details.
+
+## Changes in V5.8.2
+
+1. **Validate the final combined bank inside the repair/retry loop.** In V5.8.1, the last batch could pass its own quality checks and later fail when merged with the earlier batch. This error could not trigger a model retry. Now overlapping or duplicated scenarios across both batches are rejected *during* model validation and are eligible for a corrected retry.
+2. **Keep earlier questions:** Saved stage 1 and stage 2 data remain untouched; retry only the final batch.
+3. **Send prior question wording to the model for duplicate avoidance.** Only question texts are used, never answer keys or personal assessment answers.
+4. **Safely normalise minor AI schema differences:** A question field named `question`, answer index expressed as `A`–`D`, four answer options lacking the required `Not sure`, and equivalent reason field labels can be accepted. This does not relax the mandatory question quality checks, target competencies, answer correctness or scenario uniqueness.
+5. **Keep server-side diagnostics:** Rejected attempts are logged by stage and validation category, while the customer sees a short retry instruction.
+
+## Deployment and continuation
+
+1. Download and extract **Career Buddy V5.8.2**. Upload its content into the separate `aiearlycareerguide-career-buddy` GitHub repository, replacing V5.8.1, and deploy to the **protected Vercel Preview** environment.
+2. Keep the same Firebase, Resend, OpenAI and **Razorpay Test Mode** settings; **no environment variable changes are required**.
+3. Hard-refresh, sign in with the **same verified email**, open Premium Assessment and click **Retry / resume preparation**.
+4. It should continue from **2 of 3 completed**, without repeating the paid test transaction or the first batch. Confirm that 12–15 questions load and the paid assessment can finish.
+5. If it fails again, copy **only** the sanitized `stage`, `errors[].reason`, and any API/provider error status from that failed Vercel function invocation. Those details are required to identify whether the actual remaining blocker is provider availability, output quality or another persistence error.
+
+## Tests
+
+- `npm test` — 89 automated tests, including a reproduction of duplicated cross-batch scenarios and successful final-stage self-repair.
+- `python tests/v5-8-browser.py` — desktop and mobile interrupted-stage recovery with mocked backend.
+- `python tests/v5-7-browser.py` and `python tests/v5-6-browser.py` — existing payment/assessment UX flows (mocked).
+
+These are **local tests**; live Vercel, OpenAI, Firebase and Razorpay transaction testing still needs confirmation in the private Preview environment.
+
+---
+
+## Prior release: V5.8.1 — Firestore Stage-2 Persistence Hotfix + Razorpay Test Mode
 
 **A separate application for private testing.** This package modifies only the `aiearlycareerguide-career-buddy` repository. It does not modify the Student, Recruiter or legacy Professional applications, nor does it migrate any legacy Professional data. **Do not redirect the public `/professionals` route yet.**
 
