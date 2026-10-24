@@ -6,7 +6,7 @@ import {DETAILED_PROMPT,validateDetailedReport,asProfessionalReport} from './_li
 import {buildReportPdf} from './_lib/pdf-report.js';
 import {buildResumeDocx,buildResumePdf} from './_lib/resume-documents.js';
 import {buildFreeSnapshotPdf} from './_lib/free-snapshot-pdf.js';
-import {bankIdentity,validBank as validCompetencyBank,createAssessmentBank,assessmentProgress,submitAnswer,assessmentEvidence} from './_lib/competency-assessment.js';
+import {bankIdentity,validBank as validCompetencyBank,createAssessmentBank,createAssessmentStage,assessmentProgress,submitAnswer,assessmentEvidence} from './_lib/competency-assessment.js';
 import {assertTestKeys,testPaymentEnabled,testPaymentSignature,validateCapturedPayment,offerAmountPaise,razorpayTestAPI} from './_lib/razorpay-test.js';
 import {FREE_SNAPSHOT_VERSION,cacheRoleKey,roleGuidancePrompt,validRoleGuidance,buildSnapshotV2,isSnapshotV2,cheapRedirect} from './_lib/free-snapshot-content.js';
 
@@ -44,9 +44,9 @@ function isAssessmentPaid(s){return s.tier==='paid';}
 function safeState(s){
  const paid=isAssessmentPaid(s),coaching=isPaid(s),free=freeReadiness(s.profile||{});const rem=Math.max(0,s.credits||0);
  const assessment=paid?assessmentProgress(s.assessmentBank,s.assessmentAnswers||[]):{total:0,answered:0,finished:false,question:null};
- return {id:s.id,email:s.email||'',mode:'preview',version:'5.7',journeyPreference:s.journeyPreference||'free',coachingEligible:Boolean(s.freeReport||s.report),tier:paid?'paid':coaching?'coach':'free',paymentsEnabled:testPaymentEnabled(),paymentMode:testPaymentEnabled()?'razorpay_test':'simulation',
+ return {id:s.id,email:s.email||'',mode:'preview',version:'5.8',journeyPreference:s.journeyPreference||'free',coachingEligible:Boolean(s.freeReport||s.report),tier:paid?'paid':coaching?'coach':'free',paymentsEnabled:testPaymentEnabled(),paymentMode:testPaymentEnabled()?'razorpay_test':'simulation',
   guided:guidedProgress(s.profile||{},s.quickAnswers||{},s.quickSkipped||[],'free'),
-  assessment:{...assessment,started:Boolean(s.assessmentBank),competencies:s.assessmentBank?.competencies?.map(c=>({name:c.name,type:c.type}))||[]},
+  assessment:{...assessment,started:Boolean(s.assessmentBank),preparationStep:s.assessmentDraft?.stage||0,competencies:s.assessmentBank?.competencies?.map(c=>({name:c.name,type:c.type}))||[]},
   quickHistory:(s.quickHistory||[]).slice(-3),credits:rem,creditsGranted:s.creditsGranted||0,
   expiresAt:new Date(s.expiresAt).toISOString(),warning:coaching?creditWarning(rem):'',expired:coaching&&now()>s.expiresAt,
   freeReportReady:free.ready,freeReadiness:free,freeReport:s.freeReport||null,reportReady:paid&&assessment.finished&&Boolean(s.resumeDecision),readiness:paid?{ready:assessment.finished,completed:assessment.answered,total:assessment.total,missing:assessment.finished?[]:['Complete the role-specific competency assessment']}:{ready:false,missing:[]},resumeDecision:s.resumeDecision||'',resumeSubmitted:s.resumeDecision==='provided',
@@ -242,43 +242,54 @@ async function startAssessment(req,res){
  const {store,ref}=await getSession(req);
  const start=await store.runTransaction(async tx=>{
   const snap=await tx.get(ref),s=snap.data();
+  if(!s)fail(401,'Your verified session is unavailable. Sign in again.');
   if(!isAssessmentPaid(s)||!s.freeReport)fail(403,'Finish free discovery and unlock premium assessment first.');
   if(!s.resumeDecision)fail(409,'Choose to paste or skip your resume first.');
   if(now()>s.expiresAt)fail(403,'Assessment access has expired.');
   if(s.assessmentBank)return {existing:s};
-  if(s.busy?.until>now())fail(409,'Another request is processing.');
+  if(s.busy?.until>now())fail(409,'An assessment preparation step is already running. Try again after it finishes.');
   const role=bankIdentity(s.profile?.targetRole);
-  tx.update(ref,{busy:{id:key,until:now()+260000}});return {role};
+  const draft=s.assessmentDraft?.roleKey===role.key?s.assessmentDraft:null;
+  // One stage per request; avoids multi-model-call serverless timeouts.
+  tx.update(ref,{busy:{id:key,until:now()+100000}});return {role,draft};
  });
- if(start.existing)return out(res,200,{state:safeState(start.existing)});
+ if(start.existing)return out(res,200,{state:safeState(start.existing),completed:true});
  try{
   const bankRef=store.collection('buddyCompetencyBanksV1').doc(start.role.key),cached=await bankRef.get();
-  let bank=(Number(cached.data()?.expiresAt||0)>now()&&validCompetencyBank(cached.data()?.bank))?cached.data().bank:null,usageItems=[];
+  let bank=(Number(cached.data()?.expiresAt||0)>now()&&validCompetencyBank(cached.data()?.bank))?cached.data().bank:null;
+  let stageResult=null,usageItems=[];
   if(!bank){
-   let created;
-   try{created=await createAssessmentBank(start.role.role,(messages,tokens)=>aiJson(messages,tokens,30000));}
-   catch(e){
-    // Log EVERY successful provider response, including rejected generations.
+   try{
+    stageResult=await createAssessmentStage(start.role.role,start.draft||{stage:0},(messages,tokens)=>aiJson(messages,tokens,22000),{maxAttempts:2});
+   }catch(e){
     const chargedResponses=Array.isArray(e.usages)?e.usages:[];
-    await Promise.all(chargedResponses.map(async(u,i)=>{
-     const usage=usageRecord(`${key}-failed-${i}`,'competency-bank-rejected',u);
-     await store.collection('buddyPreviewUsage').doc(usage.id).set({...usage,sessionId:ref.id,charged:false,validationFailed:true}).catch(()=>{});
-    }));
-    console.warn('Career Buddy bank validation failed:',JSON.stringify({roleKey:start.role.key,errors:e.attempts||[],calls:chargedResponses.length}));
-    fail(502,'We could not prepare a reliable assessment for this role. Please try again. Your progress is saved and no coaching credits were used.');
+    // Log rejected provider calls and account for their costs; preserve earlier valid stages.
+    const failedUsage=chargedResponses.map((u,i)=>usageRecord(`${key}-failed-${i}`,'competency-bank-rejected',u));
+    await store.runTransaction(async tx=>{
+     const snap=await tx.get(ref),s=snap.data();if(!s||s.busy?.id!==key)return;
+     let totals=s.usageSummary;
+     for(const usage of failedUsage){totals=updatedUsage(totals,usage);tx.set(store.collection('buddyPreviewUsage').doc(usage.id),{...usage,sessionId:ref.id,charged:false,validationFailed:true});}
+     tx.update(ref,{busy:null,usageSummary:totals});
+    }).catch(err=>console.error('Could not record failed bank usage:',err?.message));
+    console.warn('Career Buddy competency generation rejected:',JSON.stringify({roleKey:start.role.key,stage:start.draft?.stage||0,errors:e.attempts||[],calls:chargedResponses.length}));
+    fail(502,'Your assessment questions could not be prepared. Your earlier progress is saved. Select Retry preparation to continue.');
    }
-   bank=created.bank;usageItems=created.usages.map((u,i)=>usageRecord(`${key}-prepare-${i}`,'competency-bank-generation',u));
-   await bankRef.create({role:start.role.role,bank,createdAt:now(),expiresAt:now()+90*86400000}).catch(()=>{});
+   bank=stageResult.bank||null;
+   usageItems=stageResult.usages.map((u,i)=>usageRecord(`${key}-prepare-${i}`,'competency-bank-generation',u));
+   if(bank)await bankRef.create({role:start.role.role,bank,createdAt:now(),expiresAt:now()+90*86400000}).catch(()=>{});
   }
   const result=await store.runTransaction(async tx=>{
-   const snap=await tx.get(ref),s=snap.data();if(s.assessmentBank)return safeState(s);
-   if(s.busy?.id!==key)fail(409,'This preparation expired. Refresh and retry.');
+   const snap=await tx.get(ref),s=snap.data();if(!s)fail(401,'Session unavailable.');
+   if(s.assessmentBank)return safeState(s);
+   if(s.busy?.id!==key)fail(409,'This preparation attempt expired. Retry safely; prior progress is saved.');
    let totals=s.usageSummary;
    for(const usage of usageItems){totals=updatedUsage(totals,usage);tx.set(store.collection('buddyPreviewUsage').doc(usage.id),{...usage,sessionId:s.id,charged:false,cacheHit:false});}
-   const next={...s,assessmentBank:bank,assessmentAnswers:[],busy:null,usageSummary:totals};
-   tx.update(ref,{assessmentBank:bank,assessmentAnswers:[],busy:null,usageSummary:totals});return safeState(next);
+   const change=bank?{assessmentBank:bank,assessmentDraft:null,assessmentAnswers:[],busy:null,usageSummary:totals}: {
+    assessmentDraft:{...stageResult.draft,roleKey:start.role.key,role:start.role.role},busy:null,usageSummary:totals
+   };
+   const next={...s,...change};tx.update(ref,change);return safeState(next);
   });
-  return out(res,200,{state:result,notice:usageItems.length?'Prepared and cached 12–15 role-specific questions.':'Reused a cached role-specific question bank.'});
+  return out(res,200,{state:result,completed:!!result.assessment?.started,notice:bank?'Your role-specific competency assessment is ready.':`Preparing assessment: step ${result.assessment.preparationStep} of 3 completed.`});
  }catch(e){await release(ref,key);throw e;}
 }
 async function answerAssessment(req,res){

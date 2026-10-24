@@ -1,7 +1,7 @@
 /* Career Buddy V5.7: assessment-first entry, contextual coaching and accessible scroll management. */
 const $=id=>document.getElementById(id);
 const screens=['Choose','Login','Free','Snapshot','Upgrade','Resume','Paid','Toolkit','CoachOffer','Coach','Refills','Reports'];
-let state=null,configured=false,flow='free',current='Choose',loading=false,reportKind='free';
+let state=null,configured=false,flow='free',current='Choose',loading=false,reportKind='free',preparationError='';
 const uuid=()=>crypto.randomUUID();
 const money=n=>`₹${Number(n||0).toLocaleString('en-IN')}`;
 const el=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=String(text);return node;};
@@ -66,7 +66,7 @@ async function run(work){
  if(loading)return;
  loading=true;syncBusyControls();
  try{await work();}
- catch(e){notice(e.message,true);}
+ catch(e){if(current==='Paid'){preparationError=e.message;paintPaidAssessment();}notice(e.message,true);}
  finally{loading=false;syncBusyControls();}
 }
 function addList(root,heading,items){
@@ -87,14 +87,16 @@ function addList(root,heading,items){
 function paintPaidAssessment(){
  const host=$('paidQuestion'),a=state?.assessment||{},answered=a.answered||0,total=a.total||0;
  $('paidProgress').style.width=`${total?Math.round(answered/total*100):0}%`;
- $('paidCounter').textContent=total?`${answered} of ${total} scenario questions completed`:'Preparing role-specific questions';
+ $('paidCounter').textContent=total?`${answered} of ${total} scenario questions completed`:(a.preparationStep?`Question preparation ${a.preparationStep} of 3 complete`:'Questions not prepared yet');
  host.replaceChildren();
  if(!state.resumeDecision){host.append(el('h2','','Your optional resume step comes first.'));
   const b=el('button','primary','Continue to resume step →');b.onclick=()=>show('Resume');host.append(b);return;}
  if(!a.started){
   host.append(el('h2','','Assess your most important role skills'),el('p','muted','You will answer 12–15 realistic multiple-choice questions covering 4–5 essential technical and soft skills. Three questions will test each skill. No typing or self-rating required.'));
-  host.append(el('p','micro','Questions are tailored to your target role. Preparing a new role-specific bank can take an AI call; saved question banks are reused.'));
-  const b=el('button','primary','Prepare my competency assessment →');b.dataset.asyncAction='1';b.disabled=loading;b.onclick=prepareAssessment;host.append(b);return;
+  host.append(el('p','micro','Questions are tailored to your target role. Preparation has three short stages; successfully completed stages are saved.'));
+  if(a.preparationStep){host.append(el('p','muted',`${a.preparationStep} of 3 preparation stages complete. Your previous results are saved.`));}
+  if(preparationError){host.append(el('p','question-error',preparationError));}
+  const b=el('button','primary',a.preparationStep?'Retry / resume preparation →':'Prepare my competency assessment →');b.dataset.asyncAction='1';b.disabled=loading;b.onclick=prepareAssessment;host.append(b);return;
  }
  if(a.finished){
   host.append(el('h2','','Your competency assessment is complete.'),el('p','muted',`You answered ${total} scenario questions across ${a.competencies.length} essential skills. The report will use your answers to identify priorities, along with your free discovery profile and optional resume.`));
@@ -115,7 +117,19 @@ function paintPaidAssessment(){
  actions.append(el('span','micro',`Question ${q.number} of ${q.total} · No credit deducted for assessment answers`),b);host.append(actions,error);
 }
 async function prepareAssessment(){await run(async()=>{
- notice('Preparing your role-specific competency questions…');state=(await api('assessmentStart',{requestId:uuid()})).state;
+ preparationError='';
+ // Each call generates at most one stage, avoiding long serverless timeouts.
+ // If interrupted, the server persists the completed stages for resumption.
+ for(let step=0;step<3;step++){
+  if(state?.assessment?.started)break;
+  const progress=Number(state?.assessment?.preparationStep||0);
+  notice(`Preparing questions: stage ${Math.min(progress+1,3)} of 3…`);
+  const response=await api('assessmentStart',{requestId:uuid()});
+  state=response.state;
+  paintPaidAssessment();
+  if(state.assessment?.started)break;
+ }
+ if(!state?.assessment?.started)throw Error('Preparation is paused. Select Retry / resume preparation to continue.');
  notice('');paintPaidAssessment();toPageStart('Paid');
 });}
 async function answerPaid(questionId,choice){await run(async()=>{

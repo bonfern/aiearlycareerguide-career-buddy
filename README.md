@@ -1,8 +1,29 @@
-# Career Buddy V5.7 — Private Live-Service + Razorpay Test Mode
+# Career Buddy V5.8 — Competency Preparation Recovery + Razorpay Test Mode
 
 **A separate application for private testing.** This package modifies only the `aiearlycareerguide-career-buddy` repository. It does not modify the Student, Recruiter or legacy Professional applications, nor does it migrate any legacy Professional data. **Do not redirect the public `/professionals` route yet.**
 
-## What's fixed
+## V5.8 critical fix — premium competency questions not loading
+
+Some V5.7 sessions were blocked on competency-map errors (`Invalid role competency 3`) and lengthy question-bank generation requests. **This update fixes the flow without changing the billing or scoring rules.**
+
+1. **More precise validation:** Strict field-level diagnostics identify a missing name, type, benchmark or subskills field. Safe normalization accepts harmless alternate field labels and subskill string/object formats. The app still requires four or five valid target-role competencies, including at least two technical and two behavioural skills, and three scored questions per competency. No unsupported data is fabricated.
+2. **Staged, resumable preparation:** The skill map and each of the two question batches are prepared in **three separate requests**. Each successful stage is stored under the verified user's session. If step two or three fails, the next attempt resumes from the last valid stage; it does not regenerate or re-bill prior stages.
+3. **Bounded backend processing:** Each stage allows two model attempts with a 22-second individual timeout. This reduces the risk of a single long-running serverless request timing out without returning a response.
+4. **Visible error and retry:** During preparation the UI shows `stage 1 of 3`, etc. Failures show a message inside the assessment card and a **Retry / resume preparation** button.
+5. **Cost and privacy safeguards:** Model responses rejected by validation are recorded in the private usage log and charged against cost reporting; only validated complete banks are cached for other users. Role-specific banks contain no user email or resume. No coaching credits are deducted by preparation.
+
+### Step-by-step private test
+
+1. Download and extract the complete V5.8 ZIP. Replace files in the **separate** `aiearlycareerguide-career-buddy` GitHub repository, then deploy to the **protected Vercel Preview** project (not the public `/professionals` route).
+2. Keep the existing private Firebase, OpenAI, Resend and Razorpay **test-mode** environment settings. No new secrets are necessary. **Do not reset the test account or repeat the ₹499 checkout** if the same verified email already has premium access.
+3. Log in with the same verified email, open the Premium Career Assessment, and select **Prepare my competency assessment**. Confirm each stage moves forward, then 12–15 scenario questions appear.
+4. If an error occurs, select **Retry / resume preparation**. The earlier completed stages should remain. If a previous V5.7 request still holds an active lock, the API may initially return "another request is processing"; do not repurchase the pack.
+5. Answer all questions, generate the scored detailed report, and inspect technical/soft-skill gaps. Separately verify Razorpay Test Mode success, failure, coupon and refill flows using the existing private testing guide below.
+6. Review Vercel function logs for `Career Buddy competency generation rejected`; new logs specify the failed stage and field, but do not print sensitive resume contents. Never share secret keys or raw personal data in logs.
+
+**Testing:** `npm test` passes 85 tests. `python tests/v5-8-browser.py` passes desktop/mobile mocked interrupted-stage recovery. The V5.6 and V5.7 browser checks continue to pass. These are local checks only; the deployed OpenAI/Firebase and Razorpay endpoints remain to be verified by you. All prices are indicative, public deployment and real payments remain disabled.
+
+## Previous V5.7 fixes
 
 The V5.6 bank generator stopped at errors such as `Invalid role competency 3`. V5.7:
 - Normalises harmless AI schema variations (nonsequential competency identifiers and behavioural/behavioral/soft-skill synonyms), without inventing skills or loosening substantive validation.
