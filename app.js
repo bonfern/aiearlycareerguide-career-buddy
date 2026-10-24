@@ -33,7 +33,7 @@ function show(screen){
  if(document.activeElement instanceof HTMLElement)document.activeElement.blur();
  current=screen;for(const name of screens)$('screen'+name).classList.toggle('hidden',name!==screen);
  $('topnav').classList.toggle('hidden',!state);$('coachNavButton').classList.toggle('hidden',!state?.freeReport&&!state?.reportGenerated);
- $('testerTools').classList.toggle('hidden',!state);$('signedEmail').textContent=state?.email?`Verified as ${state.email}`:'';
+ $('testerTools').classList.toggle('hidden',!state||state.mode==='private-live');$('signedEmail').textContent=state?.email?`Verified as ${state.email}`:'';
  toPageStart(screen);
 }
 function setFlow(next){flow=next;try{sessionStorage.setItem('buddy-v53-intent',next);}catch{}}
@@ -246,7 +246,7 @@ function loadRazorpayCheckout(){
   const script=document.createElement('script');
   script.src='https://checkout.razorpay.com/v1/checkout.js';
   script.onload=()=>window.Razorpay?resolve():reject(Error('Razorpay checkout could not be loaded.'));
-  script.onerror=()=>reject(Error('Could not load Razorpay Test Mode checkout.'));
+  script.onerror=()=>reject(Error('Could not load the secure Razorpay checkout.'));
   document.head.append(script);
  });
  return razorpayLibraryPromise;
@@ -259,7 +259,7 @@ async function openTestCheckout(checkout){
    name:checkout.name,description:checkout.description,prefill:{email:checkout.email},
    theme:{color:'#15294e'},
    handler:data=>resolve({orderId:data.razorpay_order_id,paymentId:data.razorpay_payment_id,signature:data.razorpay_signature}),
-   modal:{ondismiss:()=>reject(Error('Test checkout closed. No credits were added. You can check payment status or try again.'))}
+   modal:{ondismiss:()=>reject(Error('Checkout closed. No credits were added. You can check payment status before trying again.'))}
   });
   rzp.on('payment.failed',()=>{ /* Keep the checkout open for retry. No credits granted. */ });
   rzp.open();
@@ -273,7 +273,18 @@ function afterPurchase(packId){
 async function activate(packId,couponId){
  await run(async()=>{
   const couponCode=$(couponId)?.value?.trim()||'';
-  if(state?.paymentMode==='razorpay_test'){
+  if(state?.paymentMode==='razorpay_live'){
+   notice('Validating your private testing coupon or preparing secure checkout…');
+   const result=await api('liveCheckout',{packId,couponCode,requestId:uuid()});
+   if(result.kind==='complimentary'){state=result.state;notice(result.notice);afterPurchase(packId);}
+   else{
+    state.pendingLiveCheckout={orderId:result.checkout.orderId};syncPaymentLabels();
+    notice('Razorpay LIVE checkout: this would charge real money. Only proceed if you intend to pay.');
+    const payment=await openTestCheckout(result.checkout);
+    const verified=await api('livePaymentVerify',payment);
+    state=verified.state;notice(verified.notice);afterPurchase(packId);
+   }
+  }else if(state?.paymentMode==='razorpay_test'){
    notice('Opening Razorpay Test Mode checkout. No real money will be charged.');
    const order=await api('testCheckout',{packId,couponCode,requestId:uuid()});
    state.pendingTestCheckout={orderId:order.checkout.orderId};syncPaymentLabels();
@@ -288,22 +299,20 @@ async function activate(packId,couponId){
 }
 async function reconcileTestPayment(){
  await run(async()=>{
-  const reply=await api('testPaymentStatus',{});state=reply.state;notice(reply.notice);
+  const reply=await api(state?.paymentMode==='razorpay_live'?'livePaymentStatus':'testPaymentStatus',{});state=reply.state;notice(reply.notice);
   if(state?.tier==='paid'&&!state.resumeDecision)show('Resume');
   else if(state?.tier==='coach')show('Coach');
   paint();
  });
 }
 function syncPaymentLabels(){
- const live=state?.paymentMode==='razorpay_test';
- for(const [id,text] of [['activateStarter',live?'Pay using Razorpay TEST Mode →':'Activate test starter (no charge) →'],['activateIntro',live?'Pay using Razorpay TEST Mode →':'Activate test coaching (no charge) →']]){
+ const test=state?.paymentMode==='razorpay_test',live=state?.paymentMode==='razorpay_live',external=test||live;
+ for(const [id,text] of [['activateStarter',live?'Apply coupon / Continue →':test?'Pay using Razorpay TEST Mode →':'Activate test starter (no charge) →'],['activateIntro',live?'Apply coupon / Continue →':test?'Pay using Razorpay TEST Mode →':'Activate test coaching (no charge) →']]){
   const node=$(id);if(node)node.textContent=text;
  }
- const notice=$('paymentModeNote');if(notice)notice.textContent=live?
- 'Razorpay TEST MODE: checkout processes simulated transactions. No real money is charged.':
- 'Owner simulation mode: credits activate without a payment.';
+ const notice=$('paymentModeNote');if(notice)notice.textContent=live?'Private LIVE mode: 100% approved coupon is free; other prices charge real money only when enabled.':test?'Razorpay TEST MODE: simulated transactions with no real charges.':'Owner simulation mode: credits activate without a payment.';
  const recover=$('paymentRecovery');
- if(recover)recover.classList.toggle('hidden',!live||!state?.pendingTestCheckout);
+ if(recover)recover.classList.toggle('hidden',!external||!(live?state?.pendingLiveCheckout:state?.pendingTestCheckout));
 }
 async function saveResume(skip){await run(async()=>{state=(await api('chooseResume',{skip,resumeText:skip?'':$('resumePaste').value})).state;notice(skip?'Resume skipped. You can return to it later.':'Resume saved securely for the detailed report.');if(state.reportGenerated)show('Toolkit');else show('Paid');paint();});}
 async function generateDetailed(){await run(async()=>{notice('Generating your detailed career report and tailored interview questions…');state=(await api('report',{requestId:uuid()})).state;notice('Your report is saved. Unused coaching credits remain available.');show('Toolkit');paint();});}
@@ -327,7 +336,7 @@ function openDetailed(){if(!state.report)return;reportKind='report';const r=stat
  host.append(el('p','micro','The scenario assessment measures professional judgement, not verified work performance. Career history is self-reported.'));
 }
 function openResume(){if(!state.resumeRevision)return;reportKind='resume';const r=state.resumeRevision,host=openDialog('Revised Resume – review before use');host.append(el('h3','',r.headline),el('p','',r.summary));addList(host,'Core skills',r.coreSkills);for(const x of r.experience||[])addList(host,[x.role,x.employer,x.period].filter(Boolean).join(' · '),x.bullets);addList(host,'Education',r.education);addList(host,'Certifications',r.certifications);addList(host,'Facts to confirm',r.missingEvidence);}
-async function init(){try{const config=await api('config');configured=!!config.configured;if(!configured)notice('The preview is not configured. Check the Vercel environment variables.',true);if(config.paymentConfigurationError)notice('Razorpay Test Mode was selected but the test keys are missing or invalid. Check Vercel settings.',true);try{state=(await api('state')).state;}catch{} }catch(e){notice(e.message,true);}if(state){flow=state.journeyPreference||'free';goAssessment();}else show('Choose');}
+async function init(){try{const config=await api('config');configured=!!config.configured;if(!configured)notice('The preview is not configured. Check the Vercel environment variables.',true);if(config.paymentConfigurationError)notice('Payment mode is configured but the required Razorpay keys are missing or invalid. Check Vercel settings.',true);try{state=(await api('state')).state;}catch{} }catch(e){notice(e.message,true);}if(state){flow=state.journeyPreference||'free';goAssessment();}else show('Choose');}
 $('chooseAssessment').onclick=()=>choose('free');$('backToChoice').onclick=()=>show('Choose');$('homeButton').onclick=()=>show('Choose');$('myReportsButton').onclick=()=>{show('Reports');paint();};$('coachNavButton').onclick=goCoach;$('signOutButton').onclick=async()=>{await run(async()=>{await api('logout',{});state=null;notice('Signed out. Verify your email to resume later.');show('Choose');});};
 $('loginForm').onsubmit=async e=>{e.preventDefault();await run(async()=>{if(!configured)throw Error('The preview services are not configured.');await api('requestCode',{email:$('emailAddress').value.trim(),previewCode:$('accessCode').value});$('loginForm').classList.add('hidden');$('verifyForm').classList.remove('hidden');$('authHelp').textContent='Code sent. Check your email and enter the six digits below.';toPageStart('Login');});};
 $('verifyForm').onsubmit=async e=>{e.preventDefault();await run(async()=>{state=(await api('verifyCode',{email:$('emailAddress').value.trim(),previewCode:$('accessCode').value,code:$('otpCode').value.trim()})).state;notice('Email verified. Your progress is saved.');state=(await api('setJourney',{journey:flow==='premium'?'premium':'free'})).state;goAssessment();});};

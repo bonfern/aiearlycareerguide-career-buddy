@@ -8,10 +8,13 @@ import {buildResumeDocx,buildResumePdf} from './_lib/resume-documents.js';
 import {buildFreeSnapshotPdf} from './_lib/free-snapshot-pdf.js';
 import {bankIdentity,validBank as validCompetencyBank,createAssessmentBank,createAssessmentStage,assessmentProgress,submitAnswer,assessmentEvidence} from './_lib/competency-assessment.js';
 import {assertTestKeys,testPaymentEnabled,testPaymentSignature,validateCapturedPayment,offerAmountPaise,razorpayTestAPI} from './_lib/razorpay-test.js';
+import {grantCapturedLivePayment} from './_lib/live-grants.js';
+import {paymentMode,assertLiveKeys,liveConfigured,approvedLiveTester,requirePrivateLiveSettings,liveCoupons,canUseFullDiscount,livePaymentSignature,razorpayLiveAPI} from './_lib/razorpay-live.js';
 import {FREE_SNAPSHOT_VERSION,cacheRoleKey,roleGuidancePrompt,validRoleGuidance,buildSnapshotV2,isSnapshotV2,cheapRedirect} from './_lib/free-snapshot-content.js';
 
-/* OWNER PREVIEW ONLY: not a production authentication or payment implementation. */
+/* Private live pilot: verified-email access and strict live tester allowlist. Never publish this build without a security review. */
 const COOKIE='buddy_identity';
+const sessionCollection=()=>paymentMode()==='razorpay_live'?'buddyLiveEmailSessions':'buddyEmailSessions';
 const now=()=>Date.now();
 const clean=(s,n=1500)=>String(s||'').trim().slice(0,n);
 class HttpError extends Error {constructor(status,message){super(message);this.status=status;}}
@@ -44,7 +47,7 @@ function isAssessmentPaid(s){return s.tier==='paid';}
 function safeState(s){
  const paid=isAssessmentPaid(s),coaching=isPaid(s),free=freeReadiness(s.profile||{});const rem=Math.max(0,s.credits||0);
  const assessment=paid?assessmentProgress(s.assessmentBank,s.assessmentAnswers||[]):{total:0,answered:0,finished:false,question:null};
- return {id:s.id,email:s.email||'',mode:'preview',version:'5.8.2',journeyPreference:s.journeyPreference||'free',coachingEligible:Boolean(s.freeReport||s.report),tier:paid?'paid':coaching?'coach':'free',paymentsEnabled:testPaymentEnabled(),paymentMode:testPaymentEnabled()?'razorpay_test':'simulation',
+ return {id:s.id,email:s.email||'',mode:paymentMode()==='razorpay_live'?'private-live':'preview',version:'5.9',journeyPreference:s.journeyPreference||'free',coachingEligible:Boolean(s.freeReport||s.report),tier:paid?'paid':coaching?'coach':'free',paymentsEnabled:paymentMode()==='razorpay_live'?liveConfigured():testPaymentEnabled(),paymentMode:paymentMode(),
   guided:guidedProgress(s.profile||{},s.quickAnswers||{},s.quickSkipped||[],'free'),
   assessment:{...assessment,started:Boolean(s.assessmentBank),preparationStep:s.assessmentDraft?.stage||0,competencies:s.assessmentBank?.competencies?.map(c=>({name:c.name,type:c.type}))||[]},
   quickHistory:(s.quickHistory||[]).slice(-3),credits:rem,creditsGranted:s.creditsGranted||0,
@@ -52,7 +55,7 @@ function safeState(s){
   freeReportReady:free.ready,freeReadiness:free,freeReport:s.freeReport||null,reportReady:paid&&assessment.finished&&Boolean(s.resumeDecision),readiness:paid?{ready:assessment.finished,completed:assessment.answered,total:assessment.total,missing:assessment.finished?[]:['Complete the role-specific competency assessment']}:{ready:false,missing:[]},resumeDecision:s.resumeDecision||'',resumeSubmitted:s.resumeDecision==='provided',
   reportGenerated:Boolean(s.report),report:s.report||null,resumeGuidance:s.resumeGuidance||null,resumeRevision:s.resumeRevision||null,interviewBank:s.interviewBank||null,
   messages:(s.messages||[]).slice(-100),usageSummary:s.usageSummary||{calls:0,inputTokens:0,outputTokens:0,inrCost:0,unpricedCalls:0},
-  packs:PACKS,pendingTestCheckout:s.pendingTestCheckout||null,previewOrders:(s.previewOrders||[]).map(o=>({id:o.id,packId:o.packId,credits:o.credits,priceInr:o.priceInr,discountPercent:o.discountPercent,at:o.at}))};
+  packs:PACKS,pendingLiveCheckout:s.pendingLiveCheckout||null,pendingTestCheckout:s.pendingTestCheckout||null,previewOrders:(s.previewOrders||[]).map(o=>({id:o.id,packId:o.packId,credits:o.credits,priceInr:o.priceInr,discountPercent:o.discountPercent,at:o.at}))};
 }
 function jsonBody(req){if(!req.body||typeof req.body!=='object'||Array.isArray(req.body))fail(400,'Invalid JSON body.');return req.body;}
 // Access is bound to an email address after a one-time verification code.
@@ -61,6 +64,7 @@ async function requestEmailCode(req,res){
  const body=jsonBody(req);
  if(!equal(body.previewCode,process.env.PREVIEW_ACCESS_CODE))fail(403,'Incorrect preview access code.');
  let email;try{email=normalizeEmail(body.email);}catch(e){fail(400,e.message);}
+ if(paymentMode()==='razorpay_live'&&!approvedLiveTester(email))fail(403,'Private pilot access is restricted to approved email addresses.');
  const store=await db(),id=emailKey(email),ref=store.collection('buddyLoginChallenges').doc(id);
  const challenge=await store.runTransaction(async tx=>{
   const snap=await tx.get(ref),before=snap.data()||{},t=now();
@@ -81,6 +85,7 @@ async function requestEmailCode(req,res){
 async function verifyEmailCode(req,res){
  const body=jsonBody(req);if(!equal(body.previewCode,process.env.PREVIEW_ACCESS_CODE))fail(403,'Incorrect preview access code.');
  let email;try{email=normalizeEmail(body.email);}catch(e){fail(400,e.message);}
+ if(paymentMode()==='razorpay_live'&&!approvedLiveTester(email))fail(403,'Private pilot access is restricted to approved email addresses.');
  const code=String(body.code||''),store=await db(),id=emailKey(email),ref=store.collection('buddyLoginChallenges').doc(id);
  const result=await store.runTransaction(async tx=>{
   const snap=await tx.get(ref),challenge=snap.data();
@@ -91,7 +96,7 @@ async function verifyEmailCode(req,res){
   tx.delete(ref);return true;
  });
  if(!result)fail(401,'Verification failed.');
- const sessionRef=store.collection('buddyEmailSessions').doc(id),existing=await sessionRef.get();let s;
+ const sessionRef=store.collection(sessionCollection()).doc(id),existing=await sessionRef.get();let s;
  if(existing.exists){s=existing.data();}
  else{
   const t=now();s={id,email,createdAt:t,expiresAt:t+30*86400000,tier:'free',journeyPreference:'free',credits:0,creditsGranted:0,previewOrders:[],freeReport:null,assessmentBank:null,assessmentAnswers:[],resumeGuidance:null,interviewBank:null,resumeDecision:'',resumeText:'',resumeRevision:null,
@@ -105,14 +110,17 @@ async function verifyEmailCode(req,res){
 }
 async function signOut(req,res){const isHttps=String(req.headers['x-forwarded-proto']||'https').split(',')[0].trim()==='https';res.setHeader('Set-Cookie',`${COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${isHttps?'; Secure':''}`);out(res,200,{ok:true});}
 async function resetTestSession(req,res){
+ if(paymentMode()==='razorpay_live')fail(403,'Session reset is disabled in the private live pilot to protect purchases and coupon limits.');
  const body=jsonBody(req);if(!process.env.OWNER_RESET_CODE||!equal(body.ownerCode,process.env.OWNER_RESET_CODE))fail(403,'Owner reset is not configured or code is incorrect.');
  const {ref,s}=await getSession(req),t=now();
  await ref.update({createdAt:t,expiresAt:t+30*86400000,tier:'free',journeyPreference:'free',credits:0,creditsGranted:0,previewOrders:[],freeReport:null,report:null,assessmentBank:null,assessmentAnswers:[],resumeDecision:'',resumeText:'',resumeRevision:null,resumeGuidance:null,interviewBank:null,
   profile:{...EMPTY_PROFILE},quickAnswers:{},quickSkipped:[],quickHistory:[],messages:[],offtopicCount:0,lastAttemptAt:0,lastRequest:null,usageSummary:{calls:0,inputTokens:0,outputTokens:0,inrCost:0,unpricedCalls:0},busy:null});
  const snap=await ref.get();out(res,200,{state:safeState(snap.data()),notice:'Owner test data reset for this verified email. Previous cost logs remain stored.'});
 }
-async function getSession(req){const store=await db(),id=authId(req),ref=store.collection('buddyEmailSessions').doc(id),snap=await ref.get();
- if(!snap.exists)fail(401,'Preview session not found.');return {store,ref,s:snap.data()};}
+async function getSession(req){const store=await db(),id=authId(req),ref=store.collection(sessionCollection()).doc(id),snap=await ref.get();
+ if(!snap.exists)fail(401,'Preview session not found.');
+ if(paymentMode()==='razorpay_live'&&!approvedLiveTester(snap.data()?.email))fail(403,'Private pilot access is restricted to approved email addresses.');
+ return {store,ref,s:snap.data()};}
 async function ownerState(req,res){const {s}=await getSession(req);out(res,200,{state:safeState(s)});}
 async function setJourney(req,res){
  const body=jsonBody(req);
@@ -418,6 +426,7 @@ function previewCoupons(){
 // Replace with server-verified Razorpay orders/webhooks and real authentication BEFORE release.
 async function mockPurchase(req,res){
  if(process.env.PAYMENT_FLOW_MODE==='razorpay_test')fail(403,'Simulated purchase is disabled while Razorpay Test Mode is selected.');
+ if(process.env.PAYMENT_FLOW_MODE==='razorpay_live')fail(403,'Simulated purchase is disabled in live mode.');
  const body=jsonBody(req),id=body.requestId;
  if(!validId(id))fail(400,'Request ID missing.');
  let offer;try{offer=computeOffer({packId:body.packId,couponCode:body.couponCode,coupons:previewCoupons()});}
@@ -446,6 +455,7 @@ async function mockPurchase(req,res){
 // captured-payment verification. No live money, no mock credit grant.
 const TEST_ORDER_MS=30*60*1000;
 function requireTestPayments(){
+ if(paymentMode()==='razorpay_live')fail(403,'Use the production checkout action.');
  if(!testPaymentEnabled())fail(503,'Razorpay test checkout has not been configured.');
 }
 async function createTestCheckout(req,res){
@@ -525,6 +535,99 @@ async function checkTestCheckout(req,res){
  if(!captured)return out(res,200,{state:safeState(s),notice:'No captured test payment found for this order. No credits granted.'});
  const state=await grantVerifiedTestPayment(store,order,captured);
  return out(res,200,{state,notice:'Recovered verified Razorpay TEST payment and applied the pack once.'});
+}
+
+// PRIVATE LIVE PILOT: only verified allowlisted testers; signed captured payments
+// or limited 100% coupons can grant a pack. Never grant credits in the browser.
+const LIVE_ORDER_MS=30*60*1000;
+function requireLive(){try{return requirePrivateLiveSettings();}catch(e){fail(503,e.message);}}
+function liveOffer(packId,couponCode){
+ try{return computeOffer({packId,couponCode,coupons:liveCoupons()});}catch(e){fail(400,e.message);}
+}
+export async function grantFullCoupon(store,ref,offer,requestId){
+ const code=offer.coupon,hash=crypto.createHash('sha256').update(code).digest('hex').slice(0,32);
+ const counterRef=store.collection('buddyLiveCouponCounters').doc(hash);
+ return store.runTransaction(async tx=>{
+  const snap=await tx.get(ref),s=snap.data();if(!s)fail(401,'Verified session unavailable.');
+  if(!canUseFullDiscount({email:s.email,code}))fail(403,'This complimentary code is not available for your account.');
+  if(s.busy?.until>now())fail(409,'Please wait for the previous request to finish.');
+  if(Number(s.credits||0)+offer.credits>1000)fail(409,'Credit safety limit reached.');
+  // Read all dependent documents before any write.
+  const userRef=store.collection('buddyLiveCouponUsers').doc(s.id),userSnap=await tx.get(userRef),user=userSnap.data()||{};
+  const counterSnap=await tx.get(counterRef),counter=counterSnap.data()||{};
+  const existing=user.redemptions||[];
+  if(existing.some(x=>x.code===code&&x.packId===offer.packId&&x.requestId===requestId))return {state:s,replayed:true};
+  if(existing.some(x=>x.code===code&&x.packId===offer.packId))fail(409,'This complimentary pack has already been redeemed for your email.');
+  const userMax=Math.max(1,Math.min(10,Number(process.env.LIVE_FREE_COUPON_MAX_PER_EMAIL||2)));
+  const globalMax=Math.max(1,Math.min(500,Number(process.env.LIVE_FREE_COUPON_GLOBAL_LIMIT||20)));
+  if(existing.filter(x=>x.code===code).length>=userMax)fail(409,'This email has reached its complimentary test-pack limit.');
+  if((counter.count||0)>=globalMax)fail(409,'This private testing coupon has reached its usage limit.');
+  let tier;try{tier=checkPackEligibility(s,offer.packId);}catch(e){fail(409,e.message);}
+  const t=now(),expiry=Math.max(t,isPaid(s)?Number(s.expiresAt)||0:0)+offer.days*86400000;
+  const record={code,packId:offer.packId,requestId,at:t};
+  const grant={id:requestId,packId:offer.packId,credits:offer.credits,priceInr:0,discountPercent:100,kind:'approved-private-complimentary',at:t};
+  const next={...s,tier,credits:(s.credits||0)+offer.credits,creditsGranted:(s.creditsGranted||0)+offer.credits,
+   expiresAt:expiry,paidStartedAt:s.paidStartedAt||t,previewOrders:[...(s.previewOrders||[]),grant].slice(-30)};
+  tx.set(userRef,{emailHash:s.id,redemptions:[...existing,record]});
+  tx.set(counterRef,{codeHash:hash,count:(counter.count||0)+1,updatedAt:t});
+  tx.create(store.collection('buddyLiveComplimentaryGrants').doc(requestId),{...grant,sessionId:s.id,couponCode:code});
+  tx.update(ref,{tier:next.tier,paidStartedAt:next.paidStartedAt,credits:next.credits,creditsGranted:next.creditsGranted,expiresAt:next.expiresAt,previewOrders:next.previewOrders});
+  return {state:next,replayed:false};
+ });
+}
+async function createLiveCheckout(req,res){
+ requireLive();const body=jsonBody(req),requestId=body.requestId;
+ if(!validId(requestId))fail(400,'Request ID missing.');
+ const offer=liveOffer(body.packId,body.couponCode);
+ const {store,ref,s}=await getSession(req);
+ if(s.busy?.until>now())fail(409,'Please finish the previous request.');
+ try{checkPackEligibility(s,offer.packId);}catch(e){fail(409,e.message);}
+ if(offer.priceInr===0){
+  const granted=await grantFullCoupon(store,ref,offer,requestId);
+  return out(res,200,{kind:'complimentary',state:safeState(granted.state),notice:granted.replayed?'Complimentary entitlement already activated.':'Your approved private-testing coupon was applied. No Razorpay charge was created.'});
+ }
+ if(process.env.LIVE_PAID_CHECKOUT_ENABLED!=='1')fail(403,'Real-money checkout is not enabled for this private pilot. Use an approved 100% testing coupon.');
+ if(!process.env.RAZORPAY_LIVE_WEBHOOK_SECRET||process.env.RAZORPAY_LIVE_WEBHOOK_SECRET.length<16)fail(503,'Live payment webhooks must be configured before real-money checkout is enabled.');
+ if(Number(s.credits||0)+offer.credits>1000)fail(409,'Credit safety limit reached.');
+ const pending=s.pendingLiveCheckout;
+ if(pending&&now()-pending.at<LIVE_ORDER_MS){
+  if(pending.packId!==offer.packId||pending.coupon!==offer.coupon)fail(409,'Finish your existing checkout or check its status before changing packs.');
+  return out(res,200,{kind:'checkout',checkout:{keyId:assertLiveKeys().id,orderId:pending.orderId,amountPaise:pending.amountPaise,currency:'INR',name:'AI Early Career Guide – Career Buddy',description:`${offer.label} (LIVE)`,email:s.email},notice:'Resuming your pending live checkout. Actual payment methods may charge real money.'});
+ }
+ let order;
+ try{order=await razorpayLiveAPI('POST','/v1/orders',{amount:offerAmountPaise(offer),currency:'INR',receipt:requestId.replaceAll('-','').slice(0,32),notes:{product:'career-buddy-live',pack:offer.packId,session:ref.id.slice(0,24)}});}catch(e){fail(502,e.message);}
+ if(!/^order_[A-Za-z0-9]+$/.test(order.id||'')||Number(order.amount)!==offerAmountPaise(offer)||order.currency!=='INR')fail(502,'Payment provider returned an unexpected order.');
+ const record={...offer,orderId:order.id,sessionId:ref.id,amountPaise:order.amount,currency:'INR',at:now(),status:'created',granted:false,kind:'razorpay-live'};
+ await store.runTransaction(async tx=>{
+  const snap=await tx.get(ref),cur=snap.data();if(!cur)fail(401,'Session unavailable.');
+  if(cur.pendingLiveCheckout&&now()-cur.pendingLiveCheckout.at<LIVE_ORDER_MS)fail(409,'A checkout is already active. Check status before retrying.');
+  checkPackEligibility(cur,offer.packId);
+  tx.create(store.collection('buddyLivePayments').doc(order.id),record);
+  tx.update(ref,{pendingLiveCheckout:{orderId:order.id,packId:offer.packId,coupon:offer.coupon,at:record.at,amountPaise:order.amount}});
+ });
+ return out(res,200,{kind:'checkout',checkout:{keyId:assertLiveKeys().id,orderId:order.id,amountPaise:order.amount,currency:'INR',name:'AI Early Career Guide – Career Buddy',description:`${offer.label} (LIVE payment)`,email:s.email},notice:'Razorpay LIVE order created. Only proceed if you intend a real payment.'});
+}
+async function verifyLiveCheckout(req,res){
+ requireLive();const body=jsonBody(req),{store,ref}=await getSession(req),orderId=String(body.orderId||''),paymentId=String(body.paymentId||'');
+ if(!/^order_[A-Za-z0-9]+$/.test(orderId)||!/^pay_[A-Za-z0-9]+$/.test(paymentId))fail(400,'Invalid payment reference.');
+ const record=(await store.collection('buddyLivePayments').doc(orderId).get()).data();
+ if(!record||record.sessionId!==ref.id)fail(403,'This order is not linked to your account.');
+ if(!livePaymentSignature(orderId,paymentId,String(body.signature||'')))fail(403,'Payment signature rejected. No credits granted.');
+ let confirmed;try{confirmed=await razorpayLiveAPI('GET',`/v1/payments/${paymentId}`);}catch(e){fail(502,e.message);}
+ if(!validateCapturedPayment(confirmed,record))fail(409,'Payment is not yet captured. No credits granted. Use Check payment status shortly.');
+ const result=await grantCapturedLivePayment(store,record,confirmed);
+ return out(res,200,{state:safeState(result),notice:'Verified captured live payment. Your credits have been added once.'});
+}
+async function checkLiveCheckout(req,res){
+ requireLive();const {store,ref,s}=await getSession(req),pending=s.pendingLiveCheckout;
+ if(!pending)return out(res,200,{state:safeState(s),notice:'No pending live checkout.'});
+ const record=(await store.collection('buddyLivePayments').doc(pending.orderId).get()).data();
+ if(!record||record.sessionId!==ref.id)fail(403,'Order not linked to your account.');
+ let data;try{data=await razorpayLiveAPI('GET',`/v1/orders/${record.orderId}/payments`);}catch(e){fail(502,e.message);}
+ const captured=(data.items||[]).find(p=>validateCapturedPayment(p,record));
+ if(!captured)return out(res,200,{state:safeState(s),notice:'No captured payment found. No credits granted.'});
+ const next=await grantCapturedLivePayment(store,record,captured);
+ return out(res,200,{state:safeState(next),notice:'Recovered captured live payment. Credits were applied only once.'});
 }
 
 // Included no-upload resume suggestions from known career context; user can also paste
@@ -683,7 +786,7 @@ export default async function handler(req,res){
  try{
   guardOrigin(req);
   const action=String(req.query?.action||'');
-  if(action==='config'&&req.method==='GET')return out(res,200,{configured:configured(),mode:'verified-email-owner-preview',paymentsEnabled:testPaymentEnabled(),paymentMode:testPaymentEnabled()?'razorpay_test':'simulation',paymentConfigurationError:process.env.PAYMENT_FLOW_MODE==='razorpay_test'&&!testPaymentEnabled(),freeReportsDailyCap:Number(process.env.FREE_REPORT_DAILY_LIMIT||25)});
+  if(action==='config'&&req.method==='GET')return out(res,200,{configured:configured()&&(paymentMode()!=='razorpay_live'||(liveConfigured()&&process.env.LIVE_PRIVATE_MODE==='1')),mode:paymentMode()==='razorpay_live'?'verified-email-private-live':'verified-email-owner-preview',paymentsEnabled:paymentMode()==='razorpay_live'?liveConfigured():testPaymentEnabled(),paymentMode:paymentMode(),paymentConfigurationError:(paymentMode()==='razorpay_test'&&!testPaymentEnabled())||(paymentMode()==='razorpay_live'&&!liveConfigured()),freeReportsDailyCap:Number(process.env.FREE_REPORT_DAILY_LIMIT||25)});
   if(!configured())fail(503,'Preview not configured: see README setup instructions.');
   if(action==='requestCode'&&req.method==='POST')return await requestEmailCode(req,res);
   if(action==='verifyCode'&&req.method==='POST')return await verifyEmailCode(req,res);
@@ -696,6 +799,9 @@ export default async function handler(req,res){
   if(action==='setJourney'&&req.method==='POST')return await setJourney(req,res);
   if(action==='chat'&&req.method==='POST')return await chat(req,res);
   if(action==='freeReport'&&req.method==='POST')return await freeReport(req,res);
+  if(action==='liveCheckout'&&req.method==='POST')return await createLiveCheckout(req,res);
+  if(action==='livePaymentVerify'&&req.method==='POST')return await verifyLiveCheckout(req,res);
+  if(action==='livePaymentStatus'&&req.method==='POST')return await checkLiveCheckout(req,res);
   if(action==='mockPurchase'&&req.method==='POST')return await mockPurchase(req,res);
   if(action==='testCheckout'&&req.method==='POST')return await createTestCheckout(req,res);
   if(action==='testPaymentVerify'&&req.method==='POST')return await verifyTestCheckout(req,res);

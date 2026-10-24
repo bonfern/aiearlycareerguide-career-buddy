@@ -1,174 +1,114 @@
-# Career Buddy V5.8.2 — Final-stage Question Preparation Hotfix
+# Career Buddy V5.9 — Restricted Live Pilot + 100% Coupon
 
-**Private test build only.** Do not redirect the existing Professional Assessment route or enable real Razorpay payments yet.
+**Pilot status:** The application is ready to *configure* for real OpenAI/Firebase/Resend and Razorpay **live credentials**, with a privately limited **100% coupon**. This ZIP has **not** been deployed to the owner's Vercel account or connected to their live Razorpay/Firebase services. Public customer access remains out of scope. **Do not modify the Student, Recruiter or old Professional deployment.**
 
-## What the new screenshot tells us
+## What V5.9 adds
 
-- **2 of 3 preparation stages completed** means the competency map and the first validated question batch were saved successfully. The previous Firestore nested-array problem has been bypassed.
-- The third stage is failing to produce a usable **final question bank**. The screenshot does not show the underlying server-side validation reason. Find it in Vercel logs under `Career Buddy competency generation rejected` (look for `stage:2` and `errors`). Do **not** share keys, emails, raw model responses, resume text or payment details.
+- Razorpay **live-mode** gateway integration with server-owned prices and actual captured-payment verification. Test-mode code is retained but cannot run in live mode.
+- Safe zero-price entitlement: approved testers may redeem an **owner-controlled 100% coupon** without opening checkout; the server checks the verified email and transactionally grants the pack once.
+- Separate database collection `buddyLiveEmailSessions` for private live accounts. Old mock/test paid balances in `buddyEmailSessions` **do not transfer** or grant live access. New free discovery is required for these live pilot accounts.
+- Global and per-email coupon-redemption caps, one use per email/pack, persistent Firestore audit records and no reset endpoint in private live mode.
+- Default `LIVE_PAID_CHECKOUT_ENABLED=0`. **Real-money transactions are blocked** until explicitly enabled by the owner after live-readiness testing.
+- Captured-payment-only, idempotent fulfilment plus status recovery. A signed Razorpay webhook endpoint `api/razorpay-webhook.js` is available when a reachable callback URL is configured; it is unnecessary for zero-value coupons.
+- Preview owner-access passcode **and** verified email **and** explicit approved-tester allowlist required for live pilot entry.
 
-## Changes in V5.8.2
+## Critical distinction
 
-1. **Validate the final combined bank inside the repair/retry loop.** In V5.8.1, the last batch could pass its own quality checks and later fail when merged with the earlier batch. This error could not trigger a model retry. Now overlapping or duplicated scenarios across both batches are rejected *during* model validation and are eligible for a corrected retry.
-2. **Keep earlier questions:** Saved stage 1 and stage 2 data remain untouched; retry only the final batch.
-3. **Send prior question wording to the model for duplicate avoidance.** Only question texts are used, never answer keys or personal assessment answers.
-4. **Safely normalise minor AI schema differences:** A question field named `question`, answer index expressed as `A`–`D`, four answer options lacking the required `Not sure`, and equivalent reason field labels can be accepted. This does not relax the mandatory question quality checks, target competencies, answer correctness or scenario uniqueness.
-5. **Keep server-side diagnostics:** Rejected attempts are logged by stage and validation category, while the customer sees a short retry instruction.
+A 100% coupon **does not test Razorpay checkout, payment capture, settlement, refunds or bank authentication**. It tests server-side promo validation, the paid entitlement and the assessment after upgrade. Actual live charge testing requires enabling `LIVE_PAID_CHECKOUT_ENABLED=1`, an externally reachable verified webhook URL, and using a non-100% coupon or full-price transaction. Do this only after approval and initial pilot checks. Razorpay does not accept an INR 0 order; no order is sent for a free coupon.
 
-## Deployment and continuation
+## Step-by-step deployment
 
-1. Download and extract **Career Buddy V5.8.2**. Upload its content into the separate `aiearlycareerguide-career-buddy` GitHub repository, replacing V5.8.1, and deploy to the **protected Vercel Preview** environment.
-2. Keep the same Firebase, Resend, OpenAI and **Razorpay Test Mode** settings; **no environment variable changes are required**.
-3. Hard-refresh, sign in with the **same verified email**, open Premium Assessment and click **Retry / resume preparation**.
-4. It should continue from **2 of 3 completed**, without repeating the paid test transaction or the first batch. Confirm that 12–15 questions load and the paid assessment can finish.
-5. If it fails again, copy **only** the sanitized `stage`, `errors[].reason`, and any API/provider error status from that failed Vercel function invocation. Those details are required to identify whether the actual remaining blocker is provider availability, output quality or another persistence error.
+### 1. Keep the existing applications safe
 
-## Tests
+1. Back up the current `aiearlycareerguide-career-buddy` GitHub main branch and record its current deployment URL. Do not change website routing.
+2. Download/extract the V5.9 ZIP; commit it to a new `v5-9-private-live` branch in the **separate Career Buddy repository**.
+3. In **Vercel → Career Buddy project → Deployments**, deploy that branch as a new **Preview** deployment. Do not connect the public `aiearlycareerguide.com/professionals` route.
+4. In the project's Deployment Protection settings, keep Vercel Authentication on for the preview. This restricts access by Vercel login; the app also requires an access passcode and approved email.
 
-- `npm test` — 89 automated tests, including a reproduction of duplicated cross-batch scenarios and successful final-stage self-repair.
-- `python tests/v5-8-browser.py` — desktop and mobile interrupted-stage recovery with mocked backend.
-- `python tests/v5-7-browser.py` and `python tests/v5-6-browser.py` — existing payment/assessment UX flows (mocked).
+### 2. Configure the Career Buddy private-live environment
 
-These are **local tests**; live Vercel, OpenAI, Firebase and Razorpay transaction testing still needs confirmation in the private Preview environment.
-
----
-
-## Prior release: V5.8.1 — Firestore Stage-2 Persistence Hotfix + Razorpay Test Mode
-
-**A separate application for private testing.** This package modifies only the `aiearlycareerguide-career-buddy` repository. It does not modify the Student, Recruiter or legacy Professional applications, nor does it migrate any legacy Professional data. **Do not redirect the public `/professionals` route yet.**
-
-## V5.8.1 hotfix — “Unexpected error” after 1 of 3 stages
-
-**Confirmed source-code defect:** V5.8 stored generated question batches as `batches: [[question,...]]` in `assessmentDraft`. Google Cloud Firestore forbids directly nested arrays in document fields. Stage 1 persisted its competency map, but stage 2 failed while saving the first question batch; the frontend consequently displayed the generic `An unexpected error occurred. No chat credit was deducted.`
-
-**Change:** The stored representation is now `batches: [{ questions: [...] }]` (array of maps, each containing an array). The final bank builder reads this representation and supports the old in-memory shape when present. No scoring, purchased entitlements, payment state, user identity, free answers, pricing or report rules were changed.
-
-**Existing affected test user:** Deploy the new ZIP, hard-refresh, sign in with the **same verified email**, open the paid assessment, and press **Retry / resume preparation**. A saved `1 of 3` stage should remain saved. **Do not reset the session or make another ₹499 test payment.** The app should finish stages 2 and 3, then show 12–15 questions.
-
-**Verification:** `npm test` passes 86 tests, including a new save/reload simulation that rejects Firestore-forbidden nested arrays and completes all three stages. Desktop/mobile browser recovery tests pass locally. This cannot replace a real deployed Firestore/OpenAI integration test.
-
-If another error appears after redeployment, open the failed `/api/service?action=assessmentStart` invocation in Vercel logs and share the **error type and message only** (remove any emails, resume details, API keys, payment references or tokens). Do not repeat the checkout.
-
-## V5.8 critical fix — premium competency questions not loading
-
-Some V5.7 sessions were blocked on competency-map errors (`Invalid role competency 3`) and lengthy question-bank generation requests. **This update fixes the flow without changing the billing or scoring rules.**
-
-1. **More precise validation:** Strict field-level diagnostics identify a missing name, type, benchmark or subskills field. Safe normalization accepts harmless alternate field labels and subskill string/object formats. The app still requires four or five valid target-role competencies, including at least two technical and two behavioural skills, and three scored questions per competency. No unsupported data is fabricated.
-2. **Staged, resumable preparation:** The skill map and each of the two question batches are prepared in **three separate requests**. Each successful stage is stored under the verified user's session. If step two or three fails, the next attempt resumes from the last valid stage; it does not regenerate or re-bill prior stages.
-3. **Bounded backend processing:** Each stage allows two model attempts with a 22-second individual timeout. This reduces the risk of a single long-running serverless request timing out without returning a response.
-4. **Visible error and retry:** During preparation the UI shows `stage 1 of 3`, etc. Failures show a message inside the assessment card and a **Retry / resume preparation** button.
-5. **Cost and privacy safeguards:** Model responses rejected by validation are recorded in the private usage log and charged against cost reporting; only validated complete banks are cached for other users. Role-specific banks contain no user email or resume. No coaching credits are deducted by preparation.
-
-### Step-by-step private test
-
-1. Download and extract the complete V5.8 ZIP. Replace files in the **separate** `aiearlycareerguide-career-buddy` GitHub repository, then deploy to the **protected Vercel Preview** project (not the public `/professionals` route).
-2. Keep the existing private Firebase, OpenAI, Resend and Razorpay **test-mode** environment settings. No new secrets are necessary. **Do not reset the test account or repeat the ₹499 checkout** if the same verified email already has premium access.
-3. Log in with the same verified email, open the Premium Career Assessment, and select **Prepare my competency assessment**. Confirm each stage moves forward, then 12–15 scenario questions appear.
-4. If an error occurs, select **Retry / resume preparation**. The earlier completed stages should remain. If a previous V5.7 request still holds an active lock, the API may initially return "another request is processing"; do not repurchase the pack.
-5. Answer all questions, generate the scored detailed report, and inspect technical/soft-skill gaps. Separately verify Razorpay Test Mode success, failure, coupon and refill flows using the existing private testing guide below.
-6. Review Vercel function logs for `Career Buddy competency generation rejected`; new logs specify the failed stage and field, but do not print sensitive resume contents. Never share secret keys or raw personal data in logs.
-
-**Testing:** `npm test` passes 85 tests. `python tests/v5-8-browser.py` passes desktop/mobile mocked interrupted-stage recovery. The V5.6 and V5.7 browser checks continue to pass. These are local checks only; the deployed OpenAI/Firebase and Razorpay endpoints remain to be verified by you. All prices are indicative, public deployment and real payments remain disabled.
-
-## Previous V5.7 fixes
-
-The V5.6 bank generator stopped at errors such as `Invalid role competency 3`. V5.7:
-- Normalises harmless AI schema variations (nonsequential competency identifiers and behavioural/behavioral/soft-skill synonyms), without inventing skills or loosening substantive validation.
-- Performs up to **three attempts per stage** (role skill-map and each of the two question batches), with targeted correction feedback. Only valid complete banks are saved for reuse. A failed stage does not erase the assessment or consume coaching credits.
-- Preserves **4–5 competencies, at least two technical and two behavioural**, three distinct questions per competency (12–15). Report unlocking still requires every question answered. Answer keys stay server-only.
-- Separately records successful but *rejected* AI calls in `buddyPreviewUsage`; these can cost real API money even though the bank could not be used. When the provider fails without reporting usage, reconcile against the OpenAI dashboard.
-- Ignores expired cached question banks and shows a plain-English retry error rather than `Invalid role competency 3`.
-
-## Payment testing implementation
-
-The package adds a **genuine Razorpay Test Mode checkout**, not real-money checkout:
-- Server creates an INR order from the *server-owned* pack price and approved coupon. Browser never supplies the payable amount or credit entitlement.
-- Razorpay Checkout popup, including success/failure simulation.
-- Server validates the checkout HMAC signature against the **stored** order ID, then independently fetches the payment and confirms `captured`, INR currency, exact amount and matching order ID.
-- A Firestore transaction grants a pack **only once**, on a captured payment. Repeating verification or status recovery cannot double-credit the session.
-- A **Check test payment status** action can reconcile a captured transaction when the browser closed before the success callback.
-- 100% discount coupons are not processed by the gateway. Use a smaller discount (e.g. `EARLY30`) for testing.
-- If `PAYMENT_FLOW_MODE=razorpay_test`, the old simulation endpoint is disabled. A misconfigured test key does not silently turn this mode into mock credit purchases.
-
-Razorpay Test Mode uses **mock bank payments without deducting real funds**. `rzp_live_` keys are rejected by the backend. This code is **not enabled for production payments**.
-
-## Step-by-step: private deployment
-
-### Step 1 — update only the separate Career Buddy repository
-
-1. Extract this ZIP and upload/commit its contents to `aiearlycareerguide-career-buddy`, preferably to a new `v5-7-private-test` branch.
-2. Deploy the branch using **Vercel Preview** for the Career Buddy project. Enable Vercel deployment protection / authentication. Do not assign the public custom domain.
-3. Keep the existing separate Career Buddy Firebase project, OpenAI API configuration, verified Resend sender and access code. Do **not** copy secrets from an uploaded ZIP or from live Student/Recruiter apps.
-
-### Step 2 — configure true-to-life services
-
-In the **Career Buddy Vercel Preview environment**, set or confirm:
+In **Vercel → Career Buddy → Settings → Environment Variables → Preview** (preferably scoped to `v5-9-private-live` only), keep or set these previously used application keys:
 
 ```text
-PREVIEW_ACCESS_CODE=(private tester code)
-PREVIEW_SESSION_SECRET=(random 32+ character secret)
-FIREBASE_SERVICE_ACCOUNT_JSON=(separate Career Buddy service-account JSON)
-RESEND_API_KEY=(private Resend key)
-RESEND_FROM_EMAIL=(verified sender)
-OPENAI_API_KEY=(OpenAI API key)
-OPENAI_MODEL=(model you've selected for quality and cost testing)
-OWNER_RESET_CODE=(separate private testing reset code)
+PREVIEW_ACCESS_CODE=(strong pilot access passcode)
+PREVIEW_SESSION_SECRET=(random secret of at least 32 characters; preserve only if needed)
+FIREBASE_SERVICE_ACCOUNT_JSON=(existing separate Career Buddy Firebase service account JSON)
+OPENAI_API_KEY=(your API key)
+OPENAI_MODEL=(tested working model)
+RESEND_API_KEY=(your Resend key)
+RESEND_FROM_EMAIL=(verified sending identity)
 FREE_REPORT_DAILY_LIMIT=5
 OPENAI_INPUT_USD_PER_MILLION=(current model input rate)
 OPENAI_OUTPUT_USD_PER_MILLION=(current model output rate)
-OPENAI_USD_INR=(appropriate assumed INR/USD rate)
-PREVIEW_COUPONS_JSON={"EARLY30":30}
+OPENAI_USD_INR=(cost-estimate FX rate)
 ```
 
-For a **real Razorpay Test Mode checkout**, additionally configure:
+Also configure the NEW pilot/payment variables:
 
 ```text
-PAYMENT_FLOW_MODE=razorpay_test
-RAZORPAY_TEST_KEY_ID=rzp_test_... (from Razorpay Test Dashboard)
-RAZORPAY_TEST_KEY_SECRET=(matching secret from Razorpay Test Dashboard)
+PAYMENT_FLOW_MODE=razorpay_live
+LIVE_PRIVATE_MODE=1
+LIVE_TESTER_EMAILS=(comma-separated verified test addresses)
+LIVE_FREE_COUPON_EMAILS=(comma-separated subset allowed to redeem the 100% coupon)
+LIVE_FREE_COUPON_CODE=(private code you create; 3–24 capital letters/numbers/-/_)
+LIVE_FREE_COUPON_MAX_PER_EMAIL=2
+LIVE_FREE_COUPON_GLOBAL_LIMIT=20
+LIVE_COUPONS_JSON={"EARLY30":30}
+RAZORPAY_LIVE_KEY_ID=(rzp_live_... key from Razorpay LIVE dashboard)
+RAZORPAY_LIVE_KEY_SECRET=(matching LIVE secret)
+LIVE_PAID_CHECKOUT_ENABLED=0
 ```
 
-**Never enter keys into this chat, GitHub source files or screenshots.** Use Vercel Settings → Environment Variables → Preview and redeploy to apply changes. Only Test Mode keys are accepted. If you prefer to validate the competency flow before entering payment keys, omit `PAYMENT_FLOW_MODE` to retain owner-simulation mode temporarily.
+The two email lists are mandatory. The 100% code is not hard-coded and is **not** shipped in this ZIP. Set the code and all secrets **only in Vercel**, never in GitHub, chat messages, screenshots or query strings. Redeploy after updating variables.
 
-### Step 3 — test assessment-generation reliability
+`RAZORPAY_LIVE_KEY_ID` must begin `rzp_live_` and a test key is rejected. `PAYMENT_FLOW_MODE=razorpay_live` never silently falls back to mock credits. The backend blocks real-money checkout while `LIVE_PAID_CHECKOUT_ENABLED=0`.
 
-1. Sign in with one approved, verified test email and the private preview access code.
-2. Complete seven Free Career Discovery questions and download the free snapshot.
-3. Choose Premium Career Assessment → paste/skip resume → **Prepare my competency assessment**.
-4. Test multiple target roles, including the role that previously caused `Invalid role competency 3`.
-5. Confirm 12–15 substantive scenario questions appear, with 3 per competency, including technical and behavioural skills. If a bank needs retries, there should be no technical error visible to the user.
-6. Verify that the report stays locked until all questions are answered; review the detailed PDF, interview questions and optional resume files.
+### 3. Verify restricted access
 
-### Step 4 — test payment workflow (no real charges)
+1. Open the new protected Preview URL and sign into Vercel (or use an explicitly granted viewer link).
+2. Enter the separate pilot access passcode and a verified email on `LIVE_TESTER_EMAILS`; finish the email OTP.
+3. Confirm that a **non-approved email is denied** and cannot receive a verification code.
+4. Expect an initially **new** live test account, even if the same email previously completed the older preview, because the live collection is isolated. This avoids reusing uncharged mock credits.
+5. Complete the seven-question free assessment, download the snapshot and confirm it is saved.
 
-From the **Razorpay Dashboard in Test Mode**, generate a Test Key ID and Secret. Configure them in Vercel **Preview** as above, then redeploy. On your private Career Buddy URL:
+### 4. Test ₹499 premium activation through the 100% coupon
 
-1. Finish the free snapshot, select Premium Assessment and click **Pay using Razorpay TEST Mode**.
-2. Use Razorpay's published test Visa card `4100 2800 0000 1007`, a future expiry, and any CVV. Complete the test-bank success flow. There is no real debit.
-3. Verify the UI moves to the optional resume step and the account receives **60 interactions exactly once**. Check the Razorpay Test Dashboard payment status is **captured**.
-4. Test an **unsuccessful** or cancelled payment. Credits must stay unchanged; no paid assessment should unlock.
-5. Test a **30% coupon** and confirm the amount was calculated server-side (₹499 → ₹349 at the current indicative price, using nearest-rupee rounding).
-6. Use a new test account or an owner reset between *distinct* pack scenarios. Test the ₹149 intro pack (15 interactions) and refill packs (₹249 / 35, ₹399 / 75), including preserved history and remaining credits.
-7. After a completed test transaction, try **Check test payment status** and repeat the callback/status check. The same order must not add credits twice.
-8. Test closing the page after the test bank says success, then signing in again and selecting **Check test payment status**. A captured order should be recovered; an uncaptured order must not grant credits.
-9. Review `buddyTestPayments`, `buddyEmailSessions`, `buddyPreviewUsage` and the Razorpay Test Dashboard. Measure assessment-generation retries, token use and report costs before confirming pricing.
+1. Choose Premium Assessment from the free snapshot.
+2. Enter the code defined under `LIVE_FREE_COUPON_CODE` in the Starter coupon field.
+3. Select **Apply coupon / Continue**. No Razorpay window should appear, **₹0 is payable**, and 60 interactions should be added **exactly once**.
+4. Verify the first paid step is optional resume paste/skip, then 12–15 scored competency questions load in three preparation stages.
+5. Complete the questions, generate the full report and optional revised resume; check interview preparation and remaining credits.
+6. Sign out and back in with the same verified email. Confirm the report and credits persist.
+7. Try redeeming the same coupon for the same Starter pack again. The server must reject repeat eligibility; it must not create a second grant. Coupon activity is recorded in Firestore.
+8. To test a Standard or Extended refill, allow the tester a second complimentary redemption (default max 2 per email); it will be recorded separately by pack. No real Razorpay order is created.
 
-Reference: [Razorpay Test Mode](https://razorpay.com/docs/payments/dashboard/test-live-modes/) and [Test cards](https://github.com/razorpay/markdown-docs/blob/master/payments/payments/test-card-details.md).
+### 5. Verify the Firestore audit and running costs
 
-### Step 5 — retire legacy Professional entry **after acceptance**
+Under the same separate Career Buddy Firebase project, check:
 
-After private end-to-end assessment and test payment verification, change only the **main landing page's Professional link and `/professionals` route** to send *new visitors* to Career Buddy. No old Professional database migration is required per your instruction. Make a routing backup and test the Student and Recruiter links before retiring the old route. Do not activate real Razorpay keys in this build.
+- `buddyLiveEmailSessions` — verified private-live profile, saved snapshot, selected pack, credits and output files (not mock test data)
+- `buddyLiveCouponUsers` — per-email/pack redemption history
+- `buddyLiveCouponCounters` — global coupon use limit
+- `buddyLiveComplimentaryGrants` — one audit record per actual zero-price grant
+- `buddyPreviewUsage` and OpenAI dashboard — input/output tokens, rejected AI-generation retries and report-generation usage
 
-## Local automated checks
+Never manually edit a paid credit balance or redeem the same coupon after an owner reset. **Owner reset is disabled in this pilot.**
+
+### 6. Live money test and public release — deliberately separate
+
+For later real-money checkout, first ensure the Razorpay merchant account is live-approved and webhooks can reach `https://<reachable-career-buddy-host>/api/razorpay-webhook`. Keep the webhook secret (`RAZORPAY_LIVE_WEBHOOK_SECRET`, minimum 16 characters) in Vercel and configure the identical secret in Razorpay Dashboard. Subscribe to `payment.captured` (and optionally `order.paid`). **Vercel Authentication blocks external webhooks** if the domain is protected. Use a verified, narrowly scoped bypass strategy or a dedicated reachable webhook host; do **not** simply turn off deployment protection for the whole pilot.
+
+Then and only then set `LIVE_PAID_CHECKOUT_ENABLED=1`, redeploy, and test an explicitly authorised real purchase: captured status; exactly-once credits; failed/cancelled payments; recovery; coupon discount; refunds/disputes and reconciliation. **Money may actually be charged.** Do not enable for an unreconciled or publicly accessible environment.
+
+Only after the complete assessment and real-payment checks pass should you update the main website's `/professionals` route. The Student and Recruiter applications remain unchanged and there is no legacy Professional data to migrate per the owner's instruction.
+
+## Tests run locally
 
 ```bash
 npm test
-python tests/v5-6-browser.py
+python tests/v5-9-live-browser.py
+python tests/v5-8-browser.py
 python tests/v5-7-browser.py
 ```
 
-The browser checks use mocked assessment responses and a fake Razorpay Checkout callback. They validate UI state, but **do not confirm actual OpenAI, Firebase, Resend, Vercel or Razorpay network integration**. Those require your configured private deployment and a real Razorpay **Test Mode** transaction.
-
-## Cautions for future public release
-
-This is still a protected test application. Before public launch: production-strength access throttling and abuse controls, operational alerting, full billing reconciliation, real payment/webhook lifecycle, refunds and disputes, a privacy/retention policy and security review are required. Remove owner-reset/preview simulation features from the public build. Preserve explicit user consent and the option to delete personal career/resume data.
+These checks use mocked UI/provider results and unit tests. They **do not** establish a successful real Razorpay payment, webhook delivery or authentication against the owner's live deployment. This is a restricted live-services pilot, not a publicly released payments product. Perform a security/privacy and billing review before public launch.
