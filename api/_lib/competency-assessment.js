@@ -55,13 +55,72 @@ export function shuffleAnswers(bank,rng=max=>crypto.randomInt(max)){
   return {...q,options:[...rotated,'Not sure'],answerKey:target};
  });
 }
+// Normalize harmless schema variations without making up skills or changing their meaning.
+// The AI occasionally uses "behavioral", "soft" or non-sequential IDs; none of
+// those differences should stop a legitimate customer at competency 3.
+export function normalizeSkillMap(raw){
+ if(!raw||!Array.isArray(raw.competencies))return raw;
+ return {...raw,competencies:raw.competencies.map((c,i)=>{
+  const type=clean(c?.type).toLowerCase().replace(/[\s_-]+/g,'');
+  const canonical=['behavioral','behavioural','soft','softskills','softskill','leadership','interpersonal'].includes(type)?'behavioural':
+   ['technical','functional','hard','hardskills','domain'].includes(type)?'technical':c?.type;
+  return {...c,id:`s${i+1}`,type:canonical};
+ })};
+}
+// Keep provider usage for all successful API responses, even those rejected by
+// quality validation. Failed calls are never silently treated as free.
+export class AssessmentPreparationError extends Error {
+ constructor(message,usages=[],attempts=[]){super(message);this.name='AssessmentPreparationError';this.usages=usages;this.attempts=attempts;}
+}
 export async function createAssessmentBank(role,callAI){
- const mapOut=await callAI([{role:'system',content:SKILL_MAP_PROMPT},{role:'user',content:JSON.stringify({targetRole:role})}],2400);
- const map=validateSkillMap(mapOut.result),skills=map.competencies;
- const split=Math.ceil(skills.length/2),groups=[skills.slice(0,split),skills.slice(split)];
- const responses=await Promise.all(groups.map(g=>callAI([{role:'system',content:BANK_PROMPT},{role:'user',content:JSON.stringify({targetRole:role,competencies:g})}],5000)));
- const all=groups.flatMap((g,i)=>validateQuestionBatch(responses[i].result,g));
- return {bank:{version:ASSESSMENT_BANK_VERSION,role,competencies:skills,untestedSkills:map.untestedSkills,questions:shuffleAnswers(all)},usages:[mapOut,...responses]};
+ const usages=[],attempts=[];
+ async function validated(stage,baseMessages,limit,validator){
+  let previous=null,lastError='';
+  for(let attempt=1;attempt<=3;attempt++){
+   const messages=[...baseMessages];
+   if(attempt>1){
+    messages.push({role:'user',content:`Your preceding JSON did not meet the mandatory assessment schema. Fix this exact issue: ${lastError}. Preserve the target role and role-appropriate skill rigor. Output a complete corrected JSON object with no markdown. ${previous?`Previous rejected JSON: ${JSON.stringify(previous).slice(0,13000)}`:''}`});
+   }
+   let response;
+   try{response=await callAI(messages,limit);}catch(e){
+    lastError='The model response was unavailable or not valid JSON.';
+    attempts.push({stage,attempt,reason:lastError});
+    continue;
+   }
+   usages.push(response);
+   try{return validator(response.result);}catch(e){
+    lastError=clean(e?.message,240)||'Generated data does not meet assessment quality rules.';
+    previous=response.result;
+    attempts.push({stage,attempt,reason:lastError});
+   }
+  }
+  throw new AssessmentPreparationError('Could not prepare a sufficiently reliable question bank for this role.',usages,attempts);
+ }
+ try{
+  const map=await validated('skill-map',[
+   {role:'system',content:SKILL_MAP_PROMPT},
+   {role:'user',content:JSON.stringify({targetRole:role})}
+  ],2800,result=>validateSkillMap(normalizeSkillMap(result)));
+  const skills=map.competencies,split=Math.ceil(skills.length/2);
+  const groups=[skills.slice(0,split),skills.slice(split)];
+  // Sequential calls avoid abandoning a second billable AI request if the
+  // first batch is invalid. Each batch is retried independently.
+  const questions=[];
+  for(let i=0;i<groups.length;i++){
+   const g=groups[i];
+   const batch=await validated(`questions-${i+1}`,[
+    {role:'system',content:BANK_PROMPT},
+    {role:'user',content:JSON.stringify({targetRole:role,competencies:g})}
+   ],5300,result=>validateQuestionBatch(result,g));
+   questions.push(...batch);
+  }
+  const bank={version:ASSESSMENT_BANK_VERSION,role,competencies:skills,untestedSkills:map.untestedSkills,questions:shuffleAnswers(questions)};
+  if(!validBank(bank))throw new AssessmentPreparationError('The completed assessment did not meet quality checks.',usages,attempts);
+  return {bank,usages,attempts};
+ }catch(e){
+  if(e instanceof AssessmentPreparationError)throw e;
+  throw new AssessmentPreparationError('Could not prepare a reliable assessment.',usages,attempts);
+ }
 }
 export function validBank(bank){
  if(bank?.version!==ASSESSMENT_BANK_VERSION)return false;

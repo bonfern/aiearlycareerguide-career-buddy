@@ -1,67 +1,106 @@
-# Career Buddy V5.6 — Focused Competency Assessment
+# Career Buddy V5.7 — Private Live-Service + Razorpay Test Mode
 
-**Private preview build.** This remains a separate GitHub repository, Firebase project and Vercel deployment from the Student, Professional Assessment and Recruiter products. No existing live application is modified. **Razorpay is not activated; all packs are simulated.**
+**A separate application for private testing.** This package modifies only the `aiearlycareerguide-career-buddy` repository. It does not modify the Student, Recruiter or legacy Professional applications, nor does it migrate any legacy Professional data. **Do not redirect the public `/professionals` route yet.**
 
-## V5.6 — What changed
+## What's fixed
 
-### 1. Free Career Discovery (seven questions)
+The V5.6 bank generator stopped at errors such as `Invalid role competency 3`. V5.7:
+- Normalises harmless AI schema variations (nonsequential competency identifiers and behavioural/behavioral/soft-skill synonyms), without inventing skills or loosening substantive validation.
+- Performs up to **three attempts per stage** (role skill-map and each of the two question batches), with targeted correction feedback. Only valid complete banks are saved for reuse. A failed stage does not erase the assessment or consume coaching credits.
+- Preserves **4–5 competencies, at least two technical and two behavioural**, three distinct questions per competency (12–15). Report unlocking still requires every question answered. Answer keys stay server-only.
+- Separately records successful but *rejected* AI calls in `buddyPreviewUsage`; these can cost real API money even though the bank could not be used. When the provider fails without reporting usage, reconcile against the OpenAI dashboard.
+- Ignores expired cached question banks and shows a plain-English retry error rather than `Invalid role competency 3`.
 
-- The target-role competency question now explicitly says **“Select up to 4.”**
-- A live `0 of 4 selected` counter and frontend selection guard prevent a fifth choice from being selected; the backend also validates the same maximum. “No hands-on experience yet” is exclusive.
-- The free snapshot profile summary now gives a brief interpretation of the target role and existing experience, and explains which assumption still needs assessment. It no longer merely strings together submitted answers.
-- Older V5.5 reports remain available. Open **My reports → Refresh guidance** to regenerate the free snapshot with V5.6 wording without repeating questions. Shared generic role guidance is cached; personally identifying profile summaries are never placed into the shared cache.
+## Payment testing implementation
 
-### 2. Premium assessment (after free snapshot + simulated ₹499 starter)
+The package adds a **genuine Razorpay Test Mode checkout**, not real-money checkout:
+- Server creates an INR order from the *server-owned* pack price and approved coupon. Browser never supplies the payable amount or credit entitlement.
+- Razorpay Checkout popup, including success/failure simulation.
+- Server validates the checkout HMAC signature against the **stored** order ID, then independently fetches the payment and confirms `captured`, INR currency, exact amount and matching order ID.
+- A Firestore transaction grants a pack **only once**, on a captured payment. Repeating verification or status recovery cannot double-credit the session.
+- A **Check test payment status** action can reconcile a captured transaction when the browser closed before the success callback.
+- 100% discount coupons are not processed by the gateway. Use a smaller discount (e.g. `EARLY30`) for testing.
+- If `PAYMENT_FLOW_MODE=razorpay_test`, the old simulation endpoint is disabled. A misconfigured test key does not silently turn this mode into mock credit purchases.
 
-1. The first paid step remains **paste or skip your resume**.
-2. Select **Prepare my competency assessment**. The AI creates a role-specific bank the first time a target role is assessed, with **4–5 essential competencies** (at least two technical and two soft/behavioural).
-3. Each competency has **three distinct multiple-choice questions** (12–15 in total): applied knowledge when relevant, plus workplace scenarios of differing difficulty. Answers have **four plausible options plus “Not sure.”** No lengthy typing is required.
-4. Each selection is saved against the verified email account, and the next question resumes where the user stopped. Quick selections do **not** deduct coaching credits.
-5. The full detailed career report is locked until **all** 12–15 essential questions have been answered. It retains all the existing Professional Assessment-style sections, including skill-level development actions, unassessed skills, 30/60/90-day milestones, interview preparation and optional resume analysis.
-6. The report now uses **server-calculated performance** for each competency and identifies topics to practise from incorrect scenario responses. It distinguishes *judgement shown on scenarios* from *verified job performance* and *self-reported career history*.
-7. Remaining coaching interactions can still be used after generating the report. Pricing and number of credits are unchanged and indicative.
+Razorpay Test Mode uses **mock bank payments without deducting real funds**. `rzp_live_` keys are rejected by the backend. This code is **not enabled for production payments**.
 
-### 3. Security, privacy, costs and caching
+## Step-by-step: private deployment
 
-- The server stores question banks, private answer keys, grading explanations and submitted choices. Browser API responses expose only the current question and available choices; answer keys, correctness and grading rationales are not sent to the browser before the report.
-- Shared question-bank cache: Firestore collection `buddyCompetencyBanksV1`, keyed by **normalised target role only**. No name, email, resume text, chat history or answers are included. Banks are labelled with a version and 90-day expiry metadata.
-- Bank generation follows the approach of the existing Professional Assessment: precise role/skill map, 3 challenging questions per skill, distinct subskills, strict validation, credible distractors, and server-owned scoring. It is not a copy of that app's database or runtime.
-- A first-time target role generally requires **three OpenAI calls** (skill map + two parallel question batches); subsequent users of the same target role reuse the bank. API token usage from successful bank creation is logged against preview usage and cost summary. The detailed report call and coaching remain independently logged.
-- Configure `OPENAI_INPUT_USD_PER_MILLION`, `OPENAI_OUTPUT_USD_PER_MILLION`, `OPENAI_USD_INR` with rates and exchange assumptions applicable to your chosen model; leaving them zero yields *unpriced* calls, not meaningful cost estimates.
-- Failed calls or responses that fail validation may still incur API charges. For accurate profitability before public launch, compare the OpenAI dashboard invoices with the application's successful-call logs.
+### Step 1 — update only the separate Career Buddy repository
 
-## Local tests (no account needed)
+1. Extract this ZIP and upload/commit its contents to `aiearlycareerguide-career-buddy`, preferably to a new `v5-7-private-test` branch.
+2. Deploy the branch using **Vercel Preview** for the Career Buddy project. Enable Vercel deployment protection / authentication. Do not assign the public custom domain.
+3. Keep the existing separate Career Buddy Firebase project, OpenAI API configuration, verified Resend sender and access code. Do **not** copy secrets from an uploaded ZIP or from live Student/Recruiter apps.
 
-With Node.js 20+:
+### Step 2 — configure true-to-life services
+
+In the **Career Buddy Vercel Preview environment**, set or confirm:
+
+```text
+PREVIEW_ACCESS_CODE=(private tester code)
+PREVIEW_SESSION_SECRET=(random 32+ character secret)
+FIREBASE_SERVICE_ACCOUNT_JSON=(separate Career Buddy service-account JSON)
+RESEND_API_KEY=(private Resend key)
+RESEND_FROM_EMAIL=(verified sender)
+OPENAI_API_KEY=(OpenAI API key)
+OPENAI_MODEL=(model you've selected for quality and cost testing)
+OWNER_RESET_CODE=(separate private testing reset code)
+FREE_REPORT_DAILY_LIMIT=5
+OPENAI_INPUT_USD_PER_MILLION=(current model input rate)
+OPENAI_OUTPUT_USD_PER_MILLION=(current model output rate)
+OPENAI_USD_INR=(appropriate assumed INR/USD rate)
+PREVIEW_COUPONS_JSON={"EARLY30":30}
+```
+
+For a **real Razorpay Test Mode checkout**, additionally configure:
+
+```text
+PAYMENT_FLOW_MODE=razorpay_test
+RAZORPAY_TEST_KEY_ID=rzp_test_... (from Razorpay Test Dashboard)
+RAZORPAY_TEST_KEY_SECRET=(matching secret from Razorpay Test Dashboard)
+```
+
+**Never enter keys into this chat, GitHub source files or screenshots.** Use Vercel Settings → Environment Variables → Preview and redeploy to apply changes. Only Test Mode keys are accepted. If you prefer to validate the competency flow before entering payment keys, omit `PAYMENT_FLOW_MODE` to retain owner-simulation mode temporarily.
+
+### Step 3 — test assessment-generation reliability
+
+1. Sign in with one approved, verified test email and the private preview access code.
+2. Complete seven Free Career Discovery questions and download the free snapshot.
+3. Choose Premium Career Assessment → paste/skip resume → **Prepare my competency assessment**.
+4. Test multiple target roles, including the role that previously caused `Invalid role competency 3`.
+5. Confirm 12–15 substantive scenario questions appear, with 3 per competency, including technical and behavioural skills. If a bank needs retries, there should be no technical error visible to the user.
+6. Verify that the report stays locked until all questions are answered; review the detailed PDF, interview questions and optional resume files.
+
+### Step 4 — test payment workflow (no real charges)
+
+From the **Razorpay Dashboard in Test Mode**, generate a Test Key ID and Secret. Configure them in Vercel **Preview** as above, then redeploy. On your private Career Buddy URL:
+
+1. Finish the free snapshot, select Premium Assessment and click **Pay using Razorpay TEST Mode**.
+2. Use Razorpay's published test Visa card `4100 2800 0000 1007`, a future expiry, and any CVV. Complete the test-bank success flow. There is no real debit.
+3. Verify the UI moves to the optional resume step and the account receives **60 interactions exactly once**. Check the Razorpay Test Dashboard payment status is **captured**.
+4. Test an **unsuccessful** or cancelled payment. Credits must stay unchanged; no paid assessment should unlock.
+5. Test a **30% coupon** and confirm the amount was calculated server-side (₹499 → ₹349 at the current indicative price, using nearest-rupee rounding).
+6. Use a new test account or an owner reset between *distinct* pack scenarios. Test the ₹149 intro pack (15 interactions) and refill packs (₹249 / 35, ₹399 / 75), including preserved history and remaining credits.
+7. After a completed test transaction, try **Check test payment status** and repeat the callback/status check. The same order must not add credits twice.
+8. Test closing the page after the test bank says success, then signing in again and selecting **Check test payment status**. A captured order should be recovered; an uncaptured order must not grant credits.
+9. Review `buddyTestPayments`, `buddyEmailSessions`, `buddyPreviewUsage` and the Razorpay Test Dashboard. Measure assessment-generation retries, token use and report costs before confirming pricing.
+
+Reference: [Razorpay Test Mode](https://razorpay.com/docs/payments/dashboard/test-live-modes/) and [Test cards](https://github.com/razorpay/markdown-docs/blob/master/payments/payments/test-card-details.md).
+
+### Step 5 — retire legacy Professional entry **after acceptance**
+
+After private end-to-end assessment and test payment verification, change only the **main landing page's Professional link and `/professionals` route** to send *new visitors* to Career Buddy. No old Professional database migration is required per your instruction. Make a routing backup and test the Student and Recruiter links before retiring the old route. Do not activate real Razorpay keys in this build.
+
+## Local automated checks
 
 ```bash
 npm test
-```
-
-This suite includes 72 automated tests, covering the original user journeys plus new assessment-bank validation, free snapshot language, four-option selection cap, question-bank reuse model, server-only keys, scoring, report readiness, and a graded report PDF.
-
-If Python Playwright and a Chromium binary are installed:
-
-```bash
 python tests/v5-6-browser.py
+python tests/v5-7-browser.py
 ```
 
-This isolated browser test mocks paid question banks and API responses; it verifies 12 scenario selections, progress, report gating, the selection cap and mobile/desktop overflow. **It does not prove that the live OpenAI service will always generate a valid assessment.**
+The browser checks use mocked assessment responses and a fake Razorpay Checkout callback. They validate UI state, but **do not confirm actual OpenAI, Firebase, Resend, Vercel or Razorpay network integration**. Those require your configured private deployment and a real Razorpay **Test Mode** transaction.
 
-## Controlled private deployment and acceptance test
+## Cautions for future public release
 
-1. **Do not merge into any other application.** Replace the V5.5 files in the separate `aiearlycareerguide-career-buddy` repository or push this to a preview branch.
-2. Deploy to the **protected Career Buddy Vercel Preview deployment**, using the dedicated Career Buddy Firebase, Resend and OpenAI services. `vercel.json` permits up to 240 seconds for the bank-generation endpoint; check your Vercel plan supports that function limit.
-3. Keep preview authentication enabled and payments simulated. Do not add the public custom domain or publish the site.
-4. To retest from scratch, use **Owner test tools → Reset test session**, not a new email to repeatedly claim free assessments.
-5. Test target roles from different families (e.g. Director of Process Excellence, Product Manager, HR Business Partner) and a four- vs five-competency bank.
-6. Check that 12–15 *different* scenario questions appear, the distractors are plausible, “Not sure” is available, and the report remains locked until all are answered.
-7. Check the detailed PDF reflects the exact assessed competencies, including technical and behavioural skill development, and does not claim demonstrated workplace competence based solely on MCQs.
-8. Check optional resume skip and paste, downloading both report and resume, preserved credits after the report, re-login by the same verified email, and the user's free snapshot under My reports.
-9. Inspect `buddyPreviewUsage`, session `usageSummary`, and the provider's actual invoice before revising indicative prices.
-
-## Existing preview credentials
-
-Keep the current `PREVIEW_ACCESS_CODE`, `PREVIEW_SESSION_SECRET`, `FIREBASE_SERVICE_ACCOUNT_JSON`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `OPENAI_API_KEY`, `OPENAI_MODEL` and owner reset settings in the **separate** Vercel project. Never commit secrets. See `.env.example` for placeholder names. No new Firebase collection needs to be provisioned manually; the server will create the assessment bank collection when first used.
-
-**Release limitations:** V5.6 has passed automated and isolated UI tests, but authenticated, real OpenAI + Firebase end-to-end assessment generation and production payment verification have not been tested here. Keep the app in protected private preview until those checks pass. Generated questions, grading rationales, report content and actual AI spending need human quality review prior to launch.
+This is still a protected test application. Before public launch: production-strength access throttling and abuse controls, operational alerting, full billing reconciliation, real payment/webhook lifecycle, refunds and disputes, a privacy/retention policy and security review are required. Remove owner-reset/preview simulation features from the public build. Preserve explicit user consent and the option to delete personal career/resume data.
