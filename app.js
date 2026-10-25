@@ -1,11 +1,14 @@
 /* Career Buddy V5.7: assessment-first entry, contextual coaching and accessible scroll management. */
 const $=id=>document.getElementById(id);
+const APP_BASE=window.location.pathname.startsWith('/professionals/') || window.location.pathname==='/professionals' ? '/professionals' : '';
+const servicePath=()=>`${APP_BASE}/api/service`;
+
 const screens=['Choose','Login','Free','Snapshot','Upgrade','Resume','Paid','Toolkit','CoachOffer','Coach','Refills','Reports'];
-let state=null,configured=false,flow='free',current='Choose',loading=false,reportKind='free',preparationError='';
+let state=null,configured=false,privatePreview=true,flow='free',current='Choose',loading=false,reportKind='free',preparationError='';
 const uuid=()=>crypto.randomUUID();
 const money=n=>`₹${Number(n||0).toLocaleString('en-IN')}`;
 const el=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=String(text);return node;};
-async function api(action,data){const r=await fetch(`/api/service?action=${encodeURIComponent(action)}`,{method:data?'POST':'GET',credentials:'same-origin',headers:data?{'Content-Type':'application/json'}:{},body:data?JSON.stringify(data):undefined});let out={};try{out=await r.json();}catch{}if(!r.ok)throw Error(out.error||`Request failed (${r.status})`);return out;}
+async function api(action,data){const r=await fetch(`${servicePath()}?action=${encodeURIComponent(action)}`,{method:data?'POST':'GET',credentials:'same-origin',headers:data?{'Content-Type':'application/json'}:{},body:data?JSON.stringify(data):undefined});let out={};try{out=await r.json();}catch{}if(!r.ok)throw Error(out.error||`Request failed (${r.status})`);return out;}
 // Prevent browsers from restoring an old vertical position when a stage is replaced.
 try{if('scrollRestoration' in history)history.scrollRestoration='manual';}catch{}
 let navigationSequence=0;
@@ -274,12 +277,12 @@ async function activate(packId,couponId){
  await run(async()=>{
   const couponCode=$(couponId)?.value?.trim()||'';
   if(state?.paymentMode==='razorpay_live'){
-   notice('Validating your private testing coupon or preparing secure checkout…');
+   notice('Checking your discount or preparing secure payment…');
    const result=await api('liveCheckout',{packId,couponCode,requestId:uuid()});
    if(result.kind==='complimentary'){state=result.state;notice(result.notice);afterPurchase(packId);}
    else{
     state.pendingLiveCheckout={orderId:result.checkout.orderId};syncPaymentLabels();
-    notice('Razorpay LIVE checkout: this would charge real money. Only proceed if you intend to pay.');
+    notice(`Opening secure Razorpay checkout for ${money(result.checkout.amountPaise / 100)}. Confirm the amount before paying.`);
     const payment=await openTestCheckout(result.checkout);
     const verified=await api('livePaymentVerify',payment);
     state=verified.state;notice(verified.notice);afterPurchase(packId);
@@ -307,10 +310,10 @@ async function reconcileTestPayment(){
 }
 function syncPaymentLabels(){
  const test=state?.paymentMode==='razorpay_test',live=state?.paymentMode==='razorpay_live',external=test||live;
- for(const [id,text] of [['activateStarter',live?'Apply coupon / Continue →':test?'Pay using Razorpay TEST Mode →':'Activate test starter (no charge) →'],['activateIntro',live?'Apply coupon / Continue →':test?'Pay using Razorpay TEST Mode →':'Activate test coaching (no charge) →']]){
+ for(const [id,text] of [['activateStarter',live?'Review discount & proceed →':test?'Pay using Razorpay TEST Mode →':'Preview starter →'],['activateIntro',live?'Review discount & proceed →':test?'Pay using Razorpay TEST Mode →':'Preview coaching →']]){
   const node=$(id);if(node)node.textContent=text;
  }
- const notice=$('paymentModeNote');if(notice)notice.textContent=live?'Private LIVE mode: 100% approved coupon is free; other prices charge real money only when enabled.':test?'Razorpay TEST MODE: simulated transactions with no real charges.':'Owner simulation mode: credits activate without a payment.';
+ const notice=$('paymentModeNote');if(notice)notice.textContent=live?'Live payment mode: the final payable amount appears before payment confirmation.':test?'Razorpay TEST MODE: simulated transactions with no real charges.':'Owner simulation mode: credits activate without a payment.';
  const recover=$('paymentRecovery');
  if(recover)recover.classList.toggle('hidden',!external||!(live?state?.pendingLiveCheckout:state?.pendingTestCheckout));
 }
@@ -320,7 +323,7 @@ async function buildResume(){await run(async()=>{notice('Creating an editable re
 async function submitChat(event){event.preventDefault();const input=$('chatInput'),message=input.value.trim();if(!message)return;await run(async()=>{if(message.length>1200)throw Error('Maximum 1,200 characters per message.');input.value='';$('chatCount').textContent='0 / 1,200 characters';const req=api('chat',{message,requestId:uuid()}); // Allow the user to see a waiting indicator without inventing a charged response.
  $('chatMessages').append(el('div','message','Career Buddy is thinking…'));try{state=(await req).state;notice('');paintCoach();}catch(e){input.value=message;paintCoach();throw e;}
  });}
-function download(kind,format='pdf'){window.location.assign(`/api/service?action=download&kind=${encodeURIComponent(kind)}&format=${encodeURIComponent(format)}`);}
+function download(kind,format='pdf'){window.location.assign(`${servicePath()}?action=download&kind=${encodeURIComponent(kind)}&format=${encodeURIComponent(format)}`);}
 function openDialog(title){$('dialogTitle').textContent=title;$('reportContent').replaceChildren();$('reportDialog').showModal();$('reportDialog').scrollTop=0;$('reportContent').scrollTop=0;return $('reportContent');}
 function openFree(){if(!state.freeReport)return;reportKind='free';const r=state.freeReport,host=openDialog('Your Free Career Snapshot');host.append(el('h3','','1. Your professional profile'),el('p','',r.profileSummary||''));addList(host,'2. Skills your target role needs',r.targetCompetencies);addList(host,'3. Five practical next steps',r.nextSteps);addList(host,'4. What we should check next',r.furtherAssessment);if((r.version||0)<4)host.append(el('p','micro','You can refresh this snapshot for simpler, more practical guidance.'));}
 function openDetailed(){if(!state.report)return;reportKind='report';const r=state.report,host=openDialog('Career Action & Skill Development Report');host.append(el('h3','','Your career objective'),el('p','',r.goalPath?.headline||''),el('h3','','Career summary'),el('p','',r.summary||''));
@@ -336,7 +339,7 @@ function openDetailed(){if(!state.report)return;reportKind='report';const r=stat
  host.append(el('p','micro','The scenario assessment measures professional judgement, not verified work performance. Career history is self-reported.'));
 }
 function openResume(){if(!state.resumeRevision)return;reportKind='resume';const r=state.resumeRevision,host=openDialog('Revised Resume – review before use');host.append(el('h3','',r.headline),el('p','',r.summary));addList(host,'Core skills',r.coreSkills);for(const x of r.experience||[])addList(host,[x.role,x.employer,x.period].filter(Boolean).join(' · '),x.bullets);addList(host,'Education',r.education);addList(host,'Certifications',r.certifications);addList(host,'Facts to confirm',r.missingEvidence);}
-async function init(){try{const config=await api('config');configured=!!config.configured;if(!configured)notice('The preview is not configured. Check the Vercel environment variables.',true);if(config.paymentConfigurationError)notice('Payment mode is configured but the required Razorpay keys are missing or invalid. Check Vercel settings.',true);try{state=(await api('state')).state;}catch{} }catch(e){notice(e.message,true);}if(state){flow=state.journeyPreference||'free';goAssessment();}else show('Choose');}
+async function init(){try{const config=await api('config');configured=!!config.configured;privatePreview=!!config.privatePreview;const codeRow=$('previewCodeRow');if(codeRow)codeRow.classList.toggle('hidden',!privatePreview);$('accessCode').required=privatePreview;if(!configured)notice('Career Buddy is not configured. Please contact support.',true);if(config.paymentConfigurationError)notice('Payment mode is configured but the required Razorpay keys are missing or invalid. Check Vercel settings.',true);try{state=(await api('state')).state;}catch{} }catch(e){notice(e.message,true);}if(state){flow=state.journeyPreference||'free';goAssessment();}else show('Choose');}
 $('chooseAssessment').onclick=()=>choose('free');$('backToChoice').onclick=()=>show('Choose');$('homeButton').onclick=()=>show('Choose');$('myReportsButton').onclick=()=>{show('Reports');paint();};$('coachNavButton').onclick=goCoach;$('signOutButton').onclick=async()=>{await run(async()=>{await api('logout',{});state=null;notice('Signed out. Verify your email to resume later.');show('Choose');});};
 $('loginForm').onsubmit=async e=>{e.preventDefault();await run(async()=>{if(!configured)throw Error('The preview services are not configured.');await api('requestCode',{email:$('emailAddress').value.trim(),previewCode:$('accessCode').value});$('loginForm').classList.add('hidden');$('verifyForm').classList.remove('hidden');$('authHelp').textContent='Code sent. Check your email and enter the six digits below.';toPageStart('Login');});};
 $('verifyForm').onsubmit=async e=>{e.preventDefault();await run(async()=>{state=(await api('verifyCode',{email:$('emailAddress').value.trim(),previewCode:$('accessCode').value,code:$('otpCode').value.trim()})).state;notice('Email verified. Your progress is saved.');state=(await api('setJourney',{journey:flow==='premium'?'premium':'free'})).state;goAssessment();});};

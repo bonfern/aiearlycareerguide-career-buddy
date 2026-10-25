@@ -3,7 +3,7 @@
 // are required before idempotent fulfilment. Zero-price coupons do not use this.
 import {getApps,initializeApp,cert} from 'firebase-admin/app';
 import {getFirestore} from 'firebase-admin/firestore';
-import {paymentMode,validWebhookSignature,requirePrivateLiveSettings,razorpayLiveAPI} from './_lib/razorpay-live.js';
+import {paymentMode,validWebhookSignature,requireLiveSettings,razorpayLiveAPI} from './_lib/razorpay-live.js';
 import {grantCapturedLivePayment} from './_lib/live-grants.js';
 import {validateCapturedPayment} from './_lib/razorpay-test.js';
 export const config={api:{bodyParser:false}};
@@ -20,7 +20,7 @@ export default async function handler(req,res){
  if(paymentMode()!=='razorpay_live'||process.env.LIVE_PAID_CHECKOUT_ENABLED!=='1')return res.status(404).end();
  let raw=Buffer.alloc(0);
  try{
-  requirePrivateLiveSettings();
+  requireLiveSettings();
   const secret=process.env.RAZORPAY_LIVE_WEBHOOK_SECRET;
   if(!secret||secret.length<16)return res.status(503).end();
   const parts=[];let total=0;

@@ -4,8 +4,8 @@ import re,base64
 from playwright.sync_api import sync_playwright
 root=Path(__file__).resolve().parents[1]
 html=(root/'index.html').read_text()
-html=re.sub(r'<link rel="stylesheet" href="/style\.css(?:\?[^"]*)?"/>','<style>'+(root/'style.css').read_text()+'</style>',html)
-html=re.sub(r'<script defer src="/app\.js(?:\?[^"]*)?"></script>','',html)
+html=re.sub(r'<link rel="stylesheet" href="(?:\./|/)style\.css(?:\?[^"]*)?"/>','<style>'+(root/'style.css').read_text()+'</style>',html)
+html=re.sub(r'<script defer src="(?:\./|/)app\.js(?:\?[^"]*)?"></script>','',html)
 for f in ['brand-logo.webp','career-welcome.webp','career-coaching.webp']:
  html=html.replace('/'+f,'data:image/webp;base64,'+base64.b64encode((root/f).read_bytes()).decode())
 html=html.replace('</body>','<script>'+(root/'app.js').read_text()+'</script></body>')
@@ -33,7 +33,7 @@ with sync_playwright() as p:
   errs=[];page.on('pageerror',lambda e:errs.append(str(e)))
   page.set_content(html,wait_until='load')
   page.evaluate(script)
-  assert page.locator('#activateStarter').inner_text().startswith('Apply coupon')
+  assert page.locator('#activateStarter').inner_text().startswith('Review discount')
   assert not page.locator('#testerTools').is_visible()
   page.locator('#starterCoupon').fill('PILOT100')
   page.locator('#activateStarter').click()

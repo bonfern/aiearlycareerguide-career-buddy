@@ -9,17 +9,23 @@ import {buildFreeSnapshotPdf} from './_lib/free-snapshot-pdf.js';
 import {bankIdentity,validBank as validCompetencyBank,createAssessmentBank,createAssessmentStage,assessmentProgress,submitAnswer,assessmentEvidence} from './_lib/competency-assessment.js';
 import {assertTestKeys,testPaymentEnabled,testPaymentSignature,validateCapturedPayment,offerAmountPaise,razorpayTestAPI} from './_lib/razorpay-test.js';
 import {grantCapturedLivePayment} from './_lib/live-grants.js';
-import {paymentMode,assertLiveKeys,liveConfigured,approvedLiveTester,requirePrivateLiveSettings,liveCoupons,canUseFullDiscount,livePaymentSignature,razorpayLiveAPI} from './_lib/razorpay-live.js';
+import {paymentMode,assertLiveKeys,liveConfigured,approvedLiveTester,requireLiveSettings,publicLiveMode,liveCoupons,canUseFullDiscount,livePaymentSignature,razorpayLiveAPI} from './_lib/razorpay-live.js';
 import {FREE_SNAPSHOT_VERSION,cacheRoleKey,roleGuidancePrompt,validRoleGuidance,buildSnapshotV2,isSnapshotV2,cheapRedirect} from './_lib/free-snapshot-content.js';
 
-/* Private live pilot: verified-email access and strict live tester allowlist. Never publish this build without a security review. */
+/* Public production: verified-email access; live payments validated server-side. */
 const COOKIE='buddy_identity';
 const sessionCollection=()=>paymentMode()==='razorpay_live'?'buddyLiveEmailSessions':'buddyEmailSessions';
 const now=()=>Date.now();
 const clean=(s,n=1500)=>String(s||'').trim().slice(0,n);
 class HttpError extends Error {constructor(status,message){super(message);this.status=status;}}
 const fail=(code,msg)=>{throw new HttpError(code,msg);};
-function configured(){return ['PREVIEW_ACCESS_CODE','PREVIEW_SESSION_SECRET','OPENAI_API_KEY','FIREBASE_SERVICE_ACCOUNT_JSON','RESEND_API_KEY','RESEND_FROM_EMAIL'].every(k=>Boolean(process.env[k]?.trim()));}
+function configured(){
+ const common=['PREVIEW_SESSION_SECRET','OPENAI_API_KEY','FIREBASE_SERVICE_ACCOUNT_JSON','RESEND_API_KEY','RESEND_FROM_EMAIL'].every(k=>Boolean(process.env[k]?.trim()));
+ if(!common)return false;
+ if(publicLiveMode())return paymentMode()==='razorpay_live' && process.env.PREVIEW_SESSION_SECRET.length>=32 && liveConfigured();
+ return Boolean(process.env.PREVIEW_ACCESS_CODE?.trim());
+}
+const accessCodeRequired=()=>!publicLiveMode();
 let database;
 async function db(){
  if(database)return database;
@@ -39,7 +45,8 @@ function guardOrigin(req){
  if(!String(req.headers['content-type']||'').startsWith('application/json'))fail(415,'JSON requests only.');
  const origin=req.headers.origin;
  if(origin){let host;try{host=new URL(origin).host;}catch{fail(403,'Origin not allowed.');}
-  if(host!==req.headers.host&&host!==req.headers['x-forwarded-host'])fail(403,'Origin not allowed.');}
+  const allowed=new Set([String(req.headers.host||''),String(req.headers['x-forwarded-host']||''),...String(process.env.PUBLIC_SITE_ORIGIN||'').split(',').map(x=>{try{return new URL(x.trim()).host;}catch{return '';}})].filter(Boolean));
+  if(!allowed.has(host))fail(403,'Origin not allowed.');}
 }
 function out(res,status,payload){res.status(status).json(payload);}
 function isPaid(s){return ['paid','coach'].includes(s.tier)||(!s.tier&&Number(s.creditsGranted)>0);}
@@ -47,7 +54,7 @@ function isAssessmentPaid(s){return s.tier==='paid';}
 function safeState(s){
  const paid=isAssessmentPaid(s),coaching=isPaid(s),free=freeReadiness(s.profile||{});const rem=Math.max(0,s.credits||0);
  const assessment=paid?assessmentProgress(s.assessmentBank,s.assessmentAnswers||[]):{total:0,answered:0,finished:false,question:null};
- return {id:s.id,email:s.email||'',mode:paymentMode()==='razorpay_live'?'private-live':'preview',version:'5.9',journeyPreference:s.journeyPreference||'free',coachingEligible:Boolean(s.freeReport||s.report),tier:paid?'paid':coaching?'coach':'free',paymentsEnabled:paymentMode()==='razorpay_live'?liveConfigured():testPaymentEnabled(),paymentMode:paymentMode(),
+ return {id:s.id,email:s.email||'',mode:publicLiveMode()?'public-live':paymentMode()==='razorpay_live'?'private-live':'preview',version:'5.10',journeyPreference:s.journeyPreference||'free',coachingEligible:Boolean(s.freeReport||s.report),tier:paid?'paid':coaching?'coach':'free',paymentsEnabled:paymentMode()==='razorpay_live'?liveConfigured():testPaymentEnabled(),paymentMode:paymentMode(),
   guided:guidedProgress(s.profile||{},s.quickAnswers||{},s.quickSkipped||[],'free'),
   assessment:{...assessment,started:Boolean(s.assessmentBank),preparationStep:s.assessmentDraft?.stage||0,competencies:s.assessmentBank?.competencies?.map(c=>({name:c.name,type:c.type}))||[]},
   quickHistory:(s.quickHistory||[]).slice(-3),credits:rem,creditsGranted:s.creditsGranted||0,
@@ -62,18 +69,25 @@ function jsonBody(req){if(!req.body||typeof req.body!=='object'||Array.isArray(r
 // One free report per verified email, not per browser cookie. Preview site remains gated.
 async function requestEmailCode(req,res){
  const body=jsonBody(req);
- if(!equal(body.previewCode,process.env.PREVIEW_ACCESS_CODE))fail(403,'Incorrect preview access code.');
+ if(accessCodeRequired()&&!equal(body.previewCode,process.env.PREVIEW_ACCESS_CODE))fail(403,'Incorrect preview access code.');
  let email;try{email=normalizeEmail(body.email);}catch(e){fail(400,e.message);}
- if(paymentMode()==='razorpay_live'&&!approvedLiveTester(email))fail(403,'Private pilot access is restricted to approved email addresses.');
+ if(paymentMode()==='razorpay_live'&&!publicLiveMode()&&!approvedLiveTester(email))fail(403,'Private pilot access is restricted to approved email addresses.');
  const store=await db(),id=emailKey(email),ref=store.collection('buddyLoginChallenges').doc(id);
+ // Best-effort source rate limit, supplemental to Vercel WAF protections.
+ const suppliedIp=String(req.headers['x-vercel-forwarded-for']||req.headers['x-forwarded-for']||'').split(',')[0].trim().slice(0,100);
+ const day=new Date(now()).toISOString().slice(0,10);
+ const ipRef=publicLiveMode()&&suppliedIp?store.collection('buddyPublicLoginLimits').doc(hmac('login|'+suppliedIp+'|'+day)):null;
+ const ipLimit=Math.min(100,Math.max(5,Number(process.env.PUBLIC_LOGIN_CODES_PER_IP_DAY||25)));
  const challenge=await store.runTransaction(async tx=>{
-  const snap=await tx.get(ref),before=snap.data()||{},t=now();
+  const snap=await tx.get(ref),ipSnap=ipRef?await tx.get(ipRef):null,before=snap.data()||{},t=now();
+  if(ipSnap && (ipSnap.data()?.count||0)>=ipLimit)fail(429,'Too many verification attempts from this network today. Please try later.');
   if(before.sentAt&&t-before.sentAt<60000)fail(429,'Please wait a minute before requesting another code.');
   const hourStart=before.hourStart&&t-before.hourStart<3600000?before.hourStart:t;
   const count=hourStart===before.hourStart?(before.hourCount||0):0;
   if(count>=5)fail(429,'Too many codes requested for this email. Try again later.');
   const nonce=crypto.randomUUID(),otp=newOtp();
   tx.set(ref,{nonce,codeHash:challengeHash(email,otp,nonce,process.env.PREVIEW_SESSION_SECRET),sentAt:t,expiresAt:t+TTL,attempts:0,hourStart,hourCount:count+1});
+  if(ipRef)tx.set(ipRef,{count:(ipSnap.data()?.count||0)+1,day,updatedAt:t});
   return {otp,nonce};
  });
  const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${process.env.RESEND_API_KEY}`,'Content-Type':'application/json'},
@@ -83,9 +97,9 @@ async function requestEmailCode(req,res){
  out(res,200,{sent:true,notice:'Verification code sent. Check your inbox.'});
 }
 async function verifyEmailCode(req,res){
- const body=jsonBody(req);if(!equal(body.previewCode,process.env.PREVIEW_ACCESS_CODE))fail(403,'Incorrect preview access code.');
+ const body=jsonBody(req);if(accessCodeRequired()&&!equal(body.previewCode,process.env.PREVIEW_ACCESS_CODE))fail(403,'Incorrect preview access code.');
  let email;try{email=normalizeEmail(body.email);}catch(e){fail(400,e.message);}
- if(paymentMode()==='razorpay_live'&&!approvedLiveTester(email))fail(403,'Private pilot access is restricted to approved email addresses.');
+ if(paymentMode()==='razorpay_live'&&!publicLiveMode()&&!approvedLiveTester(email))fail(403,'Private pilot access is restricted to approved email addresses.');
  const code=String(body.code||''),store=await db(),id=emailKey(email),ref=store.collection('buddyLoginChallenges').doc(id);
  const result=await store.runTransaction(async tx=>{
   const snap=await tx.get(ref),challenge=snap.data();
@@ -119,7 +133,7 @@ async function resetTestSession(req,res){
 }
 async function getSession(req){const store=await db(),id=authId(req),ref=store.collection(sessionCollection()).doc(id),snap=await ref.get();
  if(!snap.exists)fail(401,'Preview session not found.');
- if(paymentMode()==='razorpay_live'&&!approvedLiveTester(snap.data()?.email))fail(403,'Private pilot access is restricted to approved email addresses.');
+ if(paymentMode()==='razorpay_live'&&!publicLiveMode()&&!approvedLiveTester(snap.data()?.email))fail(403,'Private pilot access is restricted to approved email addresses.');
  return {store,ref,s:snap.data()};}
 async function ownerState(req,res){const {s}=await getSession(req);out(res,200,{state:safeState(s)});}
 async function setJourney(req,res){
@@ -425,6 +439,7 @@ function previewCoupons(){
 // No real checkout occurs here. This action works ONLY behind the owner-preview code.
 // Replace with server-verified Razorpay orders/webhooks and real authentication BEFORE release.
 async function mockPurchase(req,res){
+ if(paymentMode()!=='simulation')fail(403,'Simulated purchases are available only in local development.');
  if(process.env.PAYMENT_FLOW_MODE==='razorpay_test')fail(403,'Simulated purchase is disabled while Razorpay Test Mode is selected.');
  if(process.env.PAYMENT_FLOW_MODE==='razorpay_live')fail(403,'Simulated purchase is disabled in live mode.');
  const body=jsonBody(req),id=body.requestId;
@@ -540,7 +555,7 @@ async function checkTestCheckout(req,res){
 // PRIVATE LIVE PILOT: only verified allowlisted testers; signed captured payments
 // or limited 100% coupons can grant a pack. Never grant credits in the browser.
 const LIVE_ORDER_MS=30*60*1000;
-function requireLive(){try{return requirePrivateLiveSettings();}catch(e){fail(503,e.message);}}
+function requireLive(){try{return requireLiveSettings();}catch(e){fail(503,e.message);}}
 function liveOffer(packId,couponCode){
  try{return computeOffer({packId,couponCode,coupons:liveCoupons()});}catch(e){fail(400,e.message);}
 }
@@ -561,7 +576,7 @@ export async function grantFullCoupon(store,ref,offer,requestId){
   const userMax=Math.max(1,Math.min(10,Number(process.env.LIVE_FREE_COUPON_MAX_PER_EMAIL||2)));
   const globalMax=Math.max(1,Math.min(500,Number(process.env.LIVE_FREE_COUPON_GLOBAL_LIMIT||20)));
   if(existing.filter(x=>x.code===code).length>=userMax)fail(409,'This email has reached its complimentary test-pack limit.');
-  if((counter.count||0)>=globalMax)fail(409,'This private testing coupon has reached its usage limit.');
+  if((counter.count||0)>=globalMax)fail(409,'This complimentary coupon has reached its usage limit.');
   let tier;try{tier=checkPackEligibility(s,offer.packId);}catch(e){fail(409,e.message);}
   const t=now(),expiry=Math.max(t,isPaid(s)?Number(s.expiresAt)||0:0)+offer.days*86400000;
   const record={code,packId:offer.packId,requestId,at:t};
@@ -584,15 +599,15 @@ async function createLiveCheckout(req,res){
  try{checkPackEligibility(s,offer.packId);}catch(e){fail(409,e.message);}
  if(offer.priceInr===0){
   const granted=await grantFullCoupon(store,ref,offer,requestId);
-  return out(res,200,{kind:'complimentary',state:safeState(granted.state),notice:granted.replayed?'Complimentary entitlement already activated.':'Your approved private-testing coupon was applied. No Razorpay charge was created.'});
+  return out(res,200,{kind:'complimentary',state:safeState(granted.state),notice:granted.replayed?'Complimentary entitlement already activated.':'Your complimentary coupon was applied. No Razorpay charge was created.'});
  }
- if(process.env.LIVE_PAID_CHECKOUT_ENABLED!=='1')fail(403,'Real-money checkout is not enabled for this private pilot. Use an approved 100% testing coupon.');
+ if(process.env.LIVE_PAID_CHECKOUT_ENABLED!=='1')fail(403,'Online checkout is temporarily unavailable. Please try again later.');
  if(!process.env.RAZORPAY_LIVE_WEBHOOK_SECRET||process.env.RAZORPAY_LIVE_WEBHOOK_SECRET.length<16)fail(503,'Live payment webhooks must be configured before real-money checkout is enabled.');
  if(Number(s.credits||0)+offer.credits>1000)fail(409,'Credit safety limit reached.');
  const pending=s.pendingLiveCheckout;
  if(pending&&now()-pending.at<LIVE_ORDER_MS){
   if(pending.packId!==offer.packId||pending.coupon!==offer.coupon)fail(409,'Finish your existing checkout or check its status before changing packs.');
-  return out(res,200,{kind:'checkout',checkout:{keyId:assertLiveKeys().id,orderId:pending.orderId,amountPaise:pending.amountPaise,currency:'INR',name:'AI Early Career Guide – Career Buddy',description:`${offer.label} (LIVE)`,email:s.email},notice:'Resuming your pending live checkout. Actual payment methods may charge real money.'});
+  return out(res,200,{kind:'checkout',checkout:{keyId:assertLiveKeys().id,orderId:pending.orderId,amountPaise:pending.amountPaise,currency:'INR',name:'AI Early Career Guide – Career Buddy',description:`${offer.label} (LIVE)`,email:s.email},notice:'Resuming secure checkout. Review the payable amount before proceeding.'});
  }
  let order;
  try{order=await razorpayLiveAPI('POST','/v1/orders',{amount:offerAmountPaise(offer),currency:'INR',receipt:requestId.replaceAll('-','').slice(0,32),notes:{product:'career-buddy-live',pack:offer.packId,session:ref.id.slice(0,24)}});}catch(e){fail(502,e.message);}
@@ -605,7 +620,7 @@ async function createLiveCheckout(req,res){
   tx.create(store.collection('buddyLivePayments').doc(order.id),record);
   tx.update(ref,{pendingLiveCheckout:{orderId:order.id,packId:offer.packId,coupon:offer.coupon,at:record.at,amountPaise:order.amount}});
  });
- return out(res,200,{kind:'checkout',checkout:{keyId:assertLiveKeys().id,orderId:order.id,amountPaise:order.amount,currency:'INR',name:'AI Early Career Guide – Career Buddy',description:`${offer.label} (LIVE payment)`,email:s.email},notice:'Razorpay LIVE order created. Only proceed if you intend a real payment.'});
+ return out(res,200,{kind:'checkout',checkout:{keyId:assertLiveKeys().id,orderId:order.id,amountPaise:order.amount,currency:'INR',name:'AI Early Career Guide – Career Buddy',description:`${offer.label} (LIVE payment)`,email:s.email},notice:'Secure checkout is ready. Review the payable amount before proceeding.'});
 }
 async function verifyLiveCheckout(req,res){
  requireLive();const body=jsonBody(req),{store,ref}=await getSession(req),orderId=String(body.orderId||''),paymentId=String(body.paymentId||'');
@@ -786,8 +801,11 @@ export default async function handler(req,res){
  try{
   guardOrigin(req);
   const action=String(req.query?.action||'');
-  if(action==='config'&&req.method==='GET')return out(res,200,{configured:configured()&&(paymentMode()!=='razorpay_live'||(liveConfigured()&&process.env.LIVE_PRIVATE_MODE==='1')),mode:paymentMode()==='razorpay_live'?'verified-email-private-live':'verified-email-owner-preview',paymentsEnabled:paymentMode()==='razorpay_live'?liveConfigured():testPaymentEnabled(),paymentMode:paymentMode(),paymentConfigurationError:(paymentMode()==='razorpay_test'&&!testPaymentEnabled())||(paymentMode()==='razorpay_live'&&!liveConfigured()),freeReportsDailyCap:Number(process.env.FREE_REPORT_DAILY_LIMIT||25)});
-  if(!configured())fail(503,'Preview not configured: see README setup instructions.');
+  if(paymentMode()==='unconfigured')fail(503,'Explicit payment mode must be configured on Vercel.');
+  if(publicLiveMode() && paymentMode()!=='razorpay_live')fail(503,'Live payment configuration required.');
+  if(publicLiveMode() && ['mockPurchase','testCheckout','testPaymentVerify','testPaymentStatus','ownerReset'].includes(action))fail(404,'Route not found.');
+  if(action==='config'&&req.method==='GET')return out(res,200,{configured:configured(),privatePreview:accessCodeRequired(),mode:publicLiveMode()?'verified-email-public-live':paymentMode()==='razorpay_live'?'verified-email-private-live':'verified-email-owner-preview',paymentsEnabled:paymentMode()==='razorpay_live'?liveConfigured():testPaymentEnabled(),paymentMode:paymentMode(),paymentConfigurationError:(paymentMode()==='razorpay_test'&&!testPaymentEnabled())||(paymentMode()==='razorpay_live'&&!liveConfigured()),freeReportsDailyCap:Number(process.env.FREE_REPORT_DAILY_LIMIT||25)});
+  if(!configured())fail(503,'Career Buddy has not been configured correctly.');
   if(action==='requestCode'&&req.method==='POST')return await requestEmailCode(req,res);
   if(action==='verifyCode'&&req.method==='POST')return await verifyEmailCode(req,res);
   if(action==='logout'&&req.method==='POST')return await signOut(req,res);
@@ -815,7 +833,7 @@ export default async function handler(req,res){
   fail(404,'Route not found.');
  }catch(e){
   const status=e instanceof HttpError?e.status:(e?.message?.includes('Your message')||e?.message?.includes('Please enter')||e?.message?.includes('Unsupported control')?400:500);
-  if(status===500)console.error('Career Buddy preview API error:',e?.stack||e);
+  if(status===500)console.error('Career Buddy API error:',e?.stack||e);
   return out(res,status,{error:status===500?'An unexpected error occurred. No chat credit was deducted.':e.message});
  }
 }
