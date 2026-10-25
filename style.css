@@ -61,3 +61,9 @@ dialog{max-width:min(850px,calc(100vw - 24px));width:100%;max-height:94dvh;overf
 @media(max-width:650px){.topbar-inner{row-gap:9px}.site-home{order:3;margin-left:auto;padding:6px 9px;font-size:11px}.landing-links{gap:7px}.landing-links a{padding:8px 10px;font-size:11px}.buddy-eyebrow{display:block;border-left:0;padding:0;margin:4px 0 0}#screenFree .question-shell{padding:15px 12px}#screenFree .question-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}#screenFree .question-actions button{width:100%;margin:0}#screenFree .question-actions .micro{grid-column:1/-1;grid-row:2}#screenFree .question-actions button:only-child{grid-column:1/-1}}
 /* Contain decorative inset backgrounds to prevent narrow-screen horizontal scrolling. */
 .main{overflow-x:clip}
+
+/* V5.12: offer pricing is information, not an active selected/highlighted input. */
+.offer{border:1px solid #dbe5ee;background:#f8fafc}
+/* Inline payment availability information stays inside its relevant purchase page. */
+.checkout-setup-notice{max-width:100%;margin:12px 0 4px;padding:12px 15px;border:1px solid #dbe5ee;border-radius:10px;background:#f6f9fd;color:#4a5f78;font-size:12px;line-height:1.6}
+.checkout-setup-notice.hidden{display:none}

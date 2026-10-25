@@ -34,9 +34,11 @@ function toPageStart(stage=current,{focusHeading=true}={}){
 function notice(text='',isError=false){$('notice').textContent=text;$('notice').className=text?`notice${isError?' error':''}`:'notice hidden';}
 function show(screen){
  if(document.activeElement instanceof HTMLElement)document.activeElement.blur();
+ if(current!==screen)notice(''); // Notices belong to their originating screen.
  current=screen;for(const name of screens)$('screen'+name).classList.toggle('hidden',name!==screen);
  $('topnav').classList.toggle('hidden',!state);$('coachNavButton').classList.toggle('hidden',!state?.freeReport&&!state?.reportGenerated);
  $('testerTools').classList.toggle('hidden',!state||state.mode!=='preview');$('signedEmail').textContent=state?.email?`Verified as ${state.email}`:'';
+ syncPaymentLabels(); // Scoped payment recovery UI cannot float above unrelated screens.
  toPageStart(screen);
 }
 function setFlow(next){flow=next;try{sessionStorage.setItem('buddy-v53-intent',next);}catch{}}
@@ -280,24 +282,28 @@ async function openTestCheckout(checkout){
   rzp.open();
  });
 }
-function afterPurchase(packId){
+function afterPurchase(packId,statusMessage=''){
  if(packId==='starter'){setFlow('premium');show(state.reportGenerated?'Toolkit':state.resumeDecision?'Paid':'Resume');}
  else show('Coach');
  paint();
+ if(statusMessage)notice(statusMessage);
 }
 async function activate(packId,couponId){
  await run(async()=>{
   const couponCode=$(couponId)?.value?.trim()||'';
+  if(state?.paymentMode==='razorpay_live'&&state.checkoutReady===false&&!couponCode){
+   throw Error('Paid checkout is not yet enabled. Please try again later or enter an eligible complimentary coupon.');
+  }
   if(state?.paymentMode==='razorpay_live'){
    notice('Checking your discount or preparing secure payment…');
    const result=await api('liveCheckout',{packId,couponCode,requestId:uuid()});
-   if(result.kind==='complimentary'){state=result.state;notice(result.notice);afterPurchase(packId);}
+   if(result.kind==='complimentary'){state=result.state;afterPurchase(packId,result.notice);}
    else{
     state.pendingLiveCheckout={orderId:result.checkout.orderId};syncPaymentLabels();
     notice(`Opening secure Razorpay checkout for ${money(result.checkout.amountPaise / 100)}. Confirm the amount before paying.`);
     const payment=await openTestCheckout(result.checkout);
     const verified=await api('livePaymentVerify',payment);
-    state=verified.state;notice(verified.notice);afterPurchase(packId);
+    state=verified.state;afterPurchase(packId,verified.notice);
    }
   }else if(state?.paymentMode==='razorpay_test'){
    notice('Opening Razorpay Test Mode checkout. No real money will be charged.');
@@ -305,7 +311,7 @@ async function activate(packId,couponId){
    state.pendingTestCheckout={orderId:order.checkout.orderId};syncPaymentLabels();
    const payment=await openTestCheckout(order.checkout);
    const verified=await api('testPaymentVerify',payment);
-   state=verified.state;notice(verified.notice);afterPurchase(packId);
+   state=verified.state;afterPurchase(packId,verified.notice);
   }else{
    const out=await api('mockPurchase',{packId,couponCode,requestId:uuid()});
    state=out.state;notice(out.notice);afterPurchase(packId);
@@ -322,12 +328,17 @@ async function reconcileTestPayment(){
 }
 function syncPaymentLabels(){
  const test=state?.paymentMode==='razorpay_test',live=state?.paymentMode==='razorpay_live',external=test||live;
- for(const [id,text] of [['activateStarter',live?'Review discount & proceed →':test?'Pay using Razorpay TEST Mode →':'Preview starter →'],['activateIntro',live?'Review discount & proceed →':test?'Pay using Razorpay TEST Mode →':'Preview coaching →']]){
+ for(const [id,text] of [['activateStarter','Proceed'],['activateIntro','Proceed']]){
   const node=$(id);if(node)node.textContent=text;
  }
  const notice=$('paymentModeNote');if(notice)notice.textContent=live?'Live payment mode: the final payable amount appears before payment confirmation.':test?'Razorpay TEST MODE: simulated transactions with no real charges.':'Owner simulation mode: credits activate without a payment.';
+ for(const warning of document.querySelectorAll('.checkout-setup-notice')){
+  const showWarning=Boolean(live&&state?.checkoutReady===false);
+  warning.classList.toggle('hidden',!showWarning);
+  if(showWarning)warning.textContent='Paid checkout is not yet enabled. An eligible 100% complimentary coupon can still be redeemed.';
+ }
  const recover=$('paymentRecovery');
- if(recover)recover.classList.toggle('hidden',!external||!(live?state?.pendingLiveCheckout:state?.pendingTestCheckout));
+ if(recover)recover.classList.toggle('hidden',!['Upgrade','CoachOffer','Refills'].includes(current)||!external||!(live?state?.pendingLiveCheckout:state?.pendingTestCheckout));
 }
 async function saveResume(skip){await run(async()=>{state=(await api('chooseResume',{skip,resumeText:skip?'':$('resumePaste').value})).state;notice(skip?'Resume skipped. You can return to it later.':'Resume saved securely for the detailed report.');if(state.reportGenerated)show('Toolkit');else show('Paid');paint();});}
 async function generateDetailed(){await run(async()=>{notice('Generating your detailed career report and tailored interview questions…');state=(await api('report',{requestId:uuid()})).state;notice('Your report is saved. Unused coaching credits remain available.');show('Toolkit');paint();});}
@@ -351,7 +362,7 @@ function openDetailed(){if(!state.report)return;reportKind='report';const r=stat
  host.append(el('p','micro','The scenario assessment measures professional judgement, not verified work performance. Career history is self-reported.'));
 }
 function openResume(){if(!state.resumeRevision)return;reportKind='resume';const r=state.resumeRevision,host=openDialog('Revised Resume – review before use');host.append(el('h3','',r.headline),el('p','',r.summary));addList(host,'Core skills',r.coreSkills);for(const x of r.experience||[])addList(host,[x.role,x.employer,x.period].filter(Boolean).join(' · '),x.bullets);addList(host,'Education',r.education);addList(host,'Certifications',r.certifications);addList(host,'Facts to confirm',r.missingEvidence);}
-async function init(){try{const config=await api('config');configured=!!config.configured;privatePreview=!!config.privatePreview;const codeRow=$('previewCodeRow');if(codeRow)codeRow.classList.toggle('hidden',!privatePreview);$('accessCode').required=privatePreview;if(!configured)notice('Career Buddy is not configured. Please contact support.',true);if(config.paymentConfigurationError)notice('Payment mode is configured but the required Razorpay keys are missing or invalid. Check Vercel settings.',true);try{state=(await api('state')).state;}catch{} }catch(e){notice(e.message,true);}if(state){flow=state.journeyPreference||'free';goAssessment();}else show('Choose');}
+async function init(){try{const config=await api('config');configured=!!config.configured;privatePreview=!!config.privatePreview;const codeRow=$('previewCodeRow');if(codeRow)codeRow.classList.toggle('hidden',!privatePreview);$('accessCode').required=privatePreview;if(!configured)notice('Career Buddy is not configured. Please contact support.',true);if(config.paymentConfigurationError)notice('Payment mode is configured but the required Razorpay keys are missing or invalid. Check Vercel settings.',true);try{state=(await api('state')).state;}catch{} }catch(e){notice(e.message,true);}if(state){flow=state.journeyPreference||'free';}show('Choose');}
 $('chooseAssessment').onclick=()=>choose('free');$('backToChoice').onclick=()=>show('Choose');$('homeButton').onclick=()=>show('Choose');$('myReportsButton').onclick=()=>{show('Reports');paint();};$('coachNavButton').onclick=goCoach;$('signOutButton').onclick=async()=>{await run(async()=>{await api('logout',{});state=null;notice('Signed out. Verify your email to resume later.');show('Choose');});};
 $('loginForm').onsubmit=async e=>{e.preventDefault();await run(async()=>{if(!configured)throw Error('The preview services are not configured.');await api('requestCode',{email:$('emailAddress').value.trim(),previewCode:$('accessCode').value});$('loginForm').classList.add('hidden');$('verifyForm').classList.remove('hidden');$('authHelp').textContent='Code sent. Check your email and enter the six digits below.';toPageStart('Login');});};
 $('verifyForm').onsubmit=async e=>{e.preventDefault();await run(async()=>{state=(await api('verifyCode',{email:$('emailAddress').value.trim(),previewCode:$('accessCode').value,code:$('otpCode').value.trim()})).state;notice('Email verified. Your progress is saved.');state=(await api('setJourney',{journey:flow==='premium'?'premium':'free'})).state;goAssessment();});};

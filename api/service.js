@@ -26,6 +26,7 @@ function configured(){
  return Boolean(process.env.PREVIEW_ACCESS_CODE?.trim());
 }
 const accessCodeRequired=()=>!publicLiveMode();
+const liveCheckoutReady=()=>paymentMode()==='razorpay_live' && liveConfigured() && process.env.LIVE_PAID_CHECKOUT_ENABLED==='1' && Boolean(process.env.RAZORPAY_LIVE_WEBHOOK_SECRET?.trim()?.length>=16);
 let database;
 async function db(){
  if(database)return database;
@@ -54,7 +55,7 @@ function isAssessmentPaid(s){return s.tier==='paid';}
 function safeState(s){
  const paid=isAssessmentPaid(s),coaching=isPaid(s),free=freeReadiness(s.profile||{});const rem=Math.max(0,s.credits||0);
  const assessment=paid?assessmentProgress(s.assessmentBank,s.assessmentAnswers||[]):{total:0,answered:0,finished:false,question:null};
- return {id:s.id,email:s.email||'',mode:publicLiveMode()?'public-live':paymentMode()==='razorpay_live'?'private-live':'preview',version:'5.10',journeyPreference:s.journeyPreference||'free',coachingEligible:Boolean(s.freeReport||s.report),tier:paid?'paid':coaching?'coach':'free',paymentsEnabled:paymentMode()==='razorpay_live'?liveConfigured():testPaymentEnabled(),paymentMode:paymentMode(),
+ return {id:s.id,email:s.email||'',mode:publicLiveMode()?'public-live':paymentMode()==='razorpay_live'?'private-live':'preview',version:'5.12',checkoutReady:liveCheckoutReady(),journeyPreference:s.journeyPreference||'free',coachingEligible:Boolean(s.freeReport||s.report),tier:paid?'paid':coaching?'coach':'free',paymentsEnabled:paymentMode()==='razorpay_live'?liveConfigured():testPaymentEnabled(),paymentMode:paymentMode(),
   guided:guidedProgress(s.profile||{},s.quickAnswers||{},s.quickSkipped||[],'free'),
   assessment:{...assessment,started:Boolean(s.assessmentBank),preparationStep:s.assessmentDraft?.stage||0,competencies:s.assessmentBank?.competencies?.map(c=>({name:c.name,type:c.type}))||[]},
   quickHistory:(s.quickHistory||[]).slice(-3),credits:rem,creditsGranted:s.creditsGranted||0,
@@ -822,7 +823,7 @@ export default async function handler(req,res){
   if(paymentMode()==='unconfigured')fail(503,'Explicit payment mode must be configured on Vercel.');
   if(publicLiveMode() && paymentMode()!=='razorpay_live')fail(503,'Live payment configuration required.');
   if(publicLiveMode() && ['mockPurchase','testCheckout','testPaymentVerify','testPaymentStatus','ownerReset'].includes(action))fail(404,'Route not found.');
-  if(action==='config'&&req.method==='GET')return out(res,200,{configured:configured(),privatePreview:accessCodeRequired(),mode:publicLiveMode()?'verified-email-public-live':paymentMode()==='razorpay_live'?'verified-email-private-live':'verified-email-owner-preview',paymentsEnabled:paymentMode()==='razorpay_live'?liveConfigured():testPaymentEnabled(),paymentMode:paymentMode(),paymentConfigurationError:(paymentMode()==='razorpay_test'&&!testPaymentEnabled())||(paymentMode()==='razorpay_live'&&!liveConfigured()),freeReportsDailyCap:Number(process.env.FREE_REPORT_DAILY_LIMIT||25)});
+  if(action==='config'&&req.method==='GET')return out(res,200,{configured:configured(),privatePreview:accessCodeRequired(),mode:publicLiveMode()?'verified-email-public-live':paymentMode()==='razorpay_live'?'verified-email-private-live':'verified-email-owner-preview',paymentsEnabled:paymentMode()==='razorpay_live'?liveConfigured():testPaymentEnabled(),checkoutReady:liveCheckoutReady(),paymentMode:paymentMode(),paymentConfigurationError:(paymentMode()==='razorpay_test'&&!testPaymentEnabled())||(paymentMode()==='razorpay_live'&&!liveConfigured()),freeReportsDailyCap:Number(process.env.FREE_REPORT_DAILY_LIMIT||25)});
   if(!configured())fail(503,'Career Buddy has not been configured correctly.');
   if(action==='requestCode'&&req.method==='POST')return await requestEmailCode(req,res);
   if(action==='verifyCode'&&req.method==='POST')return await verifyEmailCode(req,res);

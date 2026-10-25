@@ -1,12 +1,12 @@
-# Career Buddy V5.10 — production integration checklist
+# Career Buddy V5.12 — production integration checklist
 
 ## Deploy order
-1. Back up both repositories. Deploy V5.10 to `aiearlycareerguide-career-buddy` **first**, keeping the current website `/professionals` rewrite pointed at the legacy service.
+1. Back up your Career Buddy repository. Deploy V5.12 to `aiearlycareerguide-career-buddy`. The main website `/professionals/` rewrite is already active.
 2. Validate `https://aiearlycareerguide-career-buddy.vercel.app/` with its own verified-email login and report flow. Verify all API/asset requests work and that simulation is disabled.
 3. In **Career Buddy Vercel Production**, set production secrets below. Values must be entered through Vercel, never source files or chat.
 4. Confirm Razorpay live webhook destination works. The webhook MUST be publicly reachable; no Vercel Authentication or access passcode can block the webhook path. A signed webhook has a valid HMAC and captured-provider verification, unsigned requests must fail.
 5. Before switching the main website route, complete a deliberately authorised low-value *real paid* transaction (not a 100% coupon) and verify captured status + exactly one entitlement. Also verify failure and recovery. This is actual money.
-6. Only after acceptance, upload the companion **main-website routing patch** to BONCCPMT-V2 and deploy. It rewrites `/professionals/` and `/professionals/:path*` to the Buddy app. Other website routes remain unchanged.
+6. The main-website routing patch has already been deployed. **Do not redeploy BONCCPMT-V2** for V5.12 unless you are deliberately changing routing.
 7. Smoke-test `/professionals/`, `/professionals/style.css`, `/professionals/app.js`, `/professionals/api/service?action=config`, and the new signed webhook `/professionals/api/razorpay-webhook` using Razorpay webhook test/live authorised delivery. Confirm Student and Recruiter routes still operate. Monitor errors and costs.
 8. Keep the legacy Professional Vercel project available for rollback. To roll back, restore only the three original `/professionals` rewrites, and remove the new redirect; never edit the Student or Recruiter paths.
 

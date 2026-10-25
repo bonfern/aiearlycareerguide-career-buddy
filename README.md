@@ -1,8 +1,8 @@
-# Career Buddy V5.11 — Public Experience Polish and Payment Readiness
+# Career Buddy V5.12 — Navigation & Payment Experience Fixes
 
 This project powers **https://www.aiearlycareerguide.com/professionals/** through the existing Career Buddy Vercel deployment and main-site rewrite. It is NOT the old Professionals repository or the main site.
 
-V5.11 improves navigation and free discovery, adds dedicated Career Buddy informational pages, and keeps the existing Razorpay live checkout and webhook model. It does not enable paid checkout or generate a live payment.
+V5.12 builds on V5.11: fixes signed-in reload returning to the free report; removes sticky status errors, softens the payment card highlight, labels both purchase buttons “Proceed”, and exposes read-only checkout readiness. The payment processing safeguard is unchanged. See **V5_12_FIX_AND_PAYMENT_STEPS.md** for production steps. It does not automatically enable paid checkout or generate a live payment.
 
 ## What's changed
 - Main-site link, clearer "Career Buddy" presentation, FAQ/Know More/Terms/Privacy/Refund/Contact pages.
