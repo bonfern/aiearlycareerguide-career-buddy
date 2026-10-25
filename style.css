@@ -42,3 +42,22 @@ dialog{max-width:min(850px,calc(100vw - 24px));width:100%;max-height:94dvh;overf
 /* V5.4: one clear free-discovery entry option, no empty second card. */
 .choice-cards.single-choice{grid-template-columns:minmax(0,1fr);max-width:520px;}
 @media(max-width:700px){.choice-cards.single-choice{max-width:100%;}}
+
+/* V5.11 – responsive guided-discovery visuals and clear main-site navigation. */
+.site-home{color:#e1efff;text-decoration:none;border:1px solid #819bbd90;border-radius:999px;padding:8px 12px;font-size:12px;white-space:nowrap}
+.site-home:hover,.site-home:focus-visible{background:#ffffff24}
+.buddy-eyebrow{color:#fff;border-left:1px solid #e9c74f;padding-left:10px;margin-left:8px}
+.landing-links{display:flex;gap:9px;flex-wrap:wrap;margin:20px 0 15px}
+.landing-links a{color:#fff;text-decoration:none;font-size:12px;border:1px solid #b7d3e078;padding:10px 13px;border-radius:22px;background:#ffffff12}
+.landing-links a:hover,.landing-links a:focus-visible{background:#fff;color:#102344}
+#screenFree,#screenLogin,#screenPaid,#screenUpgrade,#screenCoachOffer,#screenRefills{position:relative;isolation:isolate}
+#screenFree:before,#screenLogin:before,#screenPaid:before,#screenUpgrade:before,#screenCoachOffer:before,#screenRefills:before{content:"";position:absolute;z-index:-1;inset:-18px;opacity:.24;border-radius:20px;background-image:linear-gradient(100deg,#edf7f9bb,#eaf0ffcc),url('./career-coaching.webp');background-position:center;background-size:cover;filter:saturate(.7)}
+#screenFree .content-card,#screenPaid .content-card{box-shadow:0 12px 40px #1f467a1a;background:linear-gradient(150deg,#fff 70%,#f9fcff)}
+#screenFree .flow-meta{padding:4px 0}
+#screenFree .question-shell{background:#ffffffed;padding:clamp(16px,3vw,27px);border:1px solid #e1eaf3;border-radius:17px;margin-top:18px}
+.snapshot-disclaimer{color:#335c76;background:#edf7fc;border:1px solid #d5e8f2;padding:12px 14px;border-radius:10px;font-size:12px;line-height:1.6}
+#screenFree .question-actions{justify-content:space-between}
+#screenFree .question-actions button{min-height:44px}
+@media(max-width:650px){.topbar-inner{row-gap:9px}.site-home{order:3;margin-left:auto;padding:6px 9px;font-size:11px}.landing-links{gap:7px}.landing-links a{padding:8px 10px;font-size:11px}.buddy-eyebrow{display:block;border-left:0;padding:0;margin:4px 0 0}#screenFree .question-shell{padding:15px 12px}#screenFree .question-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}#screenFree .question-actions button{width:100%;margin:0}#screenFree .question-actions .micro{grid-column:1/-1;grid-row:2}#screenFree .question-actions button:only-child{grid-column:1/-1}}
+/* Contain decorative inset backgrounds to prevent narrow-screen horizontal scrolling. */
+.main{overflow-x:clip}

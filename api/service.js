@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import {PACKS,EMPTY_PROFILE,validateMessage,mergeProfile,reportReadiness,freeReadiness,computeOffer,checkPackEligibility,creditWarning,estimateUsage,validId} from './_lib/domain.js';
-import {guidedProgress,validateQuickAnswer,addQuickAnswer,displayQuickAnswer,validateSkip} from './_lib/quickflow.js';
+import {guidedProgress,validateQuickAnswer,addQuickAnswer,displayQuickAnswer,validateSkip,rewindFreeAnswers} from './_lib/quickflow.js';
 import {normalizeEmail,emailKey,newOtp,challengeHash,otpValid,verifyCookie,signCookie,TTL,constantEqual} from './_lib/identity.js';
 import {DETAILED_PROMPT,validateDetailedReport,asProfessionalReport} from './_lib/report-v4.js';
 import {buildReportPdf} from './_lib/pdf-report.js';
@@ -237,7 +237,7 @@ async function quickAnswer(req,res){
   if(now()-(s.lastQuickAttemptAt||0)<250)fail(429,'Please wait a moment before continuing.');
   const q=guidedProgress(s.profile||{},s.quickAnswers||{},s.quickSkipped||[],'free').question;
   if(!q||q.id!==body.questionId)fail(409,'Your profile has moved forward. Refresh the next question.');
-  const answered={...(s.quickAnswers||{})},skipped=[...(s.quickSkipped||[])];
+  const answered={...(s.quickAnswers||{})},extras={...(s.quickAnswerExtras||{})},skipped=[...(s.quickSkipped||[])];
   let profile=s.profile||{},shown='';
   if(body.skip===true){
    try{validateSkip(q);}catch(e){fail(400,e.message);}
@@ -245,17 +245,35 @@ async function quickAnswer(req,res){
   }else{
    let validated;try{validated=validateQuickAnswer(q,{value:body.value,other:body.other});}catch(e){fail(400,e.message);}
    profile=addQuickAnswer(profile,q,validated);
-   answered[q.id]=validated.value;
+   answered[q.id]=validated.value;extras[q.id]=validated.other||'';
    shown=displayQuickAnswer(q,validated);
   }
   const history=[...(s.quickHistory||[]),{question:q.text,answer:shown,at:now()}].slice(-35);
-  const next={...s,profile,quickAnswers:answered,quickSkipped:skipped,quickHistory:history,lastQuickAttemptAt:now()};
+  const next={...s,profile,quickAnswers:answered,quickAnswerExtras:extras,quickSkipped:skipped,quickHistory:history,lastQuickAttemptAt:now()};
   next.lastQuickRequest={id:key,response:safeState(next)};
-  tx.update(ref,{profile,quickAnswers:answered,quickSkipped:skipped,quickHistory:history,
+  tx.update(ref,{profile,quickAnswers:answered,quickAnswerExtras:extras,quickSkipped:skipped,quickHistory:history,
    lastQuickAttemptAt:next.lastQuickAttemptAt,lastQuickRequest:next.lastQuickRequest});
   return next.lastQuickRequest.response;
  });
  out(res,200,{state:result});
+}
+// Rewind one completed free response with no OpenAI calls. Re-validate saved
+// answers on the server so changes to target roles never leave stale skills.
+async function quickBack(req,res){
+ const {store,ref}=await getSession(req);
+ const result=await store.runTransaction(async tx=>{
+  const snap=await tx.get(ref),s=snap.data();
+  if(!s)fail(401,'Session unavailable.');
+  if(s.freeReport||isPaid(s)||s.report)fail(409,'Your snapshot is already saved; completed assessments cannot be rewound.');
+  if(s.busy?.until>now())fail(409,'Another request is processing.');
+  const previous=rewindFreeAnswers(s.quickAnswers||{},s.quickAnswerExtras||{},s.profile||{});
+  if(!previous)fail(409,'You are already at the first question.');
+  tx.update(ref,{profile:previous.profile,quickAnswers:previous.answers,quickAnswerExtras:previous.extras,
+   quickSkipped:[],lastQuickRequest:null,lastQuickAttemptAt:0});
+  return {state:safeState({...s,profile:previous.profile,quickAnswers:previous.answers,quickAnswerExtras:previous.extras,quickSkipped:[]}),
+   draft:{id:previous.previousId,value:previous.previousValue,other:previous.previousOther}};
+ });
+ return out(res,200,result);
 }
 // Role question banks are shared only by normalised target role; no email,
 // resume, answer history or personal profile ever enters the shared cache.
@@ -827,6 +845,7 @@ export default async function handler(req,res){
   // V3 profile-only resume endpoint is retired. Use optional pasted resume then revised resume.
   // V3 standalone interview endpoint is retired; questions are included in V4 report.
   if(action==='quick'&&req.method==='POST')return await quickAnswer(req,res);
+  if(action==='quickBack'&&req.method==='POST')return await quickBack(req,res);
   if(action==='assessmentStart'&&req.method==='POST')return await startAssessment(req,res);
   if(action==='assessmentAnswer'&&req.method==='POST')return await answerAssessment(req,res);
   if(action==='report'&&req.method==='POST')return await report(req,res);

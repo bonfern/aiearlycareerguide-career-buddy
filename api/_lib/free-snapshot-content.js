@@ -27,11 +27,11 @@ export function snapshotSummary(profile={}){
  const path=goal.includes('change career')?'a career switch':goal.includes('promot')?'a promotion':goal.includes('another company')?'a move to another employer':'your next career move';
  const start=`For ${path} into ${target}, the important question is how ready you are for ${nextRole}.`;
  const middle=experienced.length
-   ?`Your work as ${present} and the areas you selected (${experienced.join(' and ')}) give us a useful starting point to explore, but these are not yet tested strengths.`
+   ?`As ${present}, you indicated practical exposure to ${experienced.join(' and ')}. That suggests areas to explore for your target role, but it is self-reported, not a confirmed competency.`
    :`Your background as ${present} provides some context, but we still need examples showing how your experience matches that role.`;
  const finish=gap&&gap!=='Not sure yet'
-   ?`The next useful step is to assess your decisions in realistic job situations, especially around ${gap}, before identifying exact gaps.`
-   :'A short, role-specific scenario assessment is needed before we can say which skills are strong and which need improvement.';
+   ?`You identified ${gap} as a development priority. A paid, scenario-based assessment could examine this along with technical and interpersonal judgement before identifying gaps.`
+   :'A separate, optional paid scenario assessment would be needed before drawing conclusions about strengths or skill gaps.';
  return `${start} ${middle} ${finish}`.slice(0,540);
 }
 export function furtherAssessment(profile={}){
@@ -46,7 +46,7 @@ export function furtherAssessment(profile={}){
 }
 export function buildSnapshotV2(profile,roleGuidance){
  if(!validRoleGuidance(roleGuidance))throw Error('Incomplete generic role guidance.');
- return {version:FREE_SNAPSHOT_VERSION,profileSummary:snapshotSummary(profile),targetCompetencies:roleGuidance.targetCompetencies,nextSteps:roleGuidance.nextSteps,furtherAssessment:furtherAssessment(profile)};
+ return {version:FREE_SNAPSHOT_VERSION,profileSummary:snapshotSummary(profile),targetCompetencies:roleGuidance.targetCompetencies,nextSteps:roleGuidance.nextSteps,furtherAssessment:[...furtherAssessment(profile),...roleGuidance.nextSteps.slice(0,2).map(s=>`Preparation example: ${s.title} — ${s.bullets[1]}`.slice(0,185))]};
 }
 export function isSnapshotV2(r){return r?.version===FREE_SNAPSHOT_VERSION&&isText(r.profileSummary,20,550)&&validRoleGuidance(r)&&Array.isArray(r.furtherAssessment)&&r.furtherAssessment.length>=3&&r.furtherAssessment.every(s=>isText(s,20,190));}
 // Respond to obvious junk and tightly scoped non-career questions locally;

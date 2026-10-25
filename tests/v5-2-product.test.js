@@ -33,7 +33,7 @@ test('expanded snapshot includes exactly two distinct meaningful bullets per com
  assert.equal(snap.nextSteps.length,5);
  for(const group of [snap.targetCompetencies,snap.nextSteps])for(const v of group)assert.equal(v.bullets.length,2);
  assert.match(snap.profileSummary,/Senior Quality Lead/);
- assert.equal(snap.furtherAssessment.length,4);
+ assert.equal(snap.furtherAssessment.length,6);
 });
 test('incomplete snapshot details are not accepted',()=>{
  const wrong=structuredClone(guidance);wrong.nextSteps[2].bullets.pop();assert.equal(validRoleGuidance(wrong),false);
@@ -51,7 +51,8 @@ test('PDF includes each of the 18 individual guidance bullet points',()=>{
  assert.match(pdf,/Transformation strategy/);
  assert.match(pdf,/Study target-role expectations/);
  assert.match(pdf,/Handle disagreement by presenting options/);
- assert.match(pdf,/Practise explaining each example clearly/);
+ assert.match(pdf,/What we need to check next/);
+ assert.doesNotMatch(pdf,/Five practical next steps/);
 });
 test('coaching debits all successful response scopes, with fast low-value path',()=>{
  const code=fs.readFileSync(new URL('../api/service.js',import.meta.url),'utf8');

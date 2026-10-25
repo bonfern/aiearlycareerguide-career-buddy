@@ -20,8 +20,10 @@ export function buildFreeSnapshotPdf(snapshot={}){
  };
  section('1. Your professional profile',[snapshot.profileSummary||'No profile summary was generated.']);
  section('2. Skills the target role needs',snapshot.targetCompetencies||[],true);
- section('3. Five practical next steps',snapshot.nextSteps||[],true);
- section('4. What needs checking in the full assessment',snapshot.furtherAssessment||[],true);footer();pages.push(current);
+ const checks=[...(snapshot.furtherAssessment||[])];
+ if(checks.length<=4)for(const step of (snapshot.nextSteps||[]).slice(0,2)){if(step?.title&&step?.bullets?.[1])checks.push(`Preparation example: ${step.title} - ${step.bullets[1]}`.slice(0,185));}
+ section('3. What we need to check next - optional paid assessment',checks,true);
+ draw('These checks are not included in the free snapshot. A paid assessment is optional.',{size:9,max:100});footer();pages.push(current);
  const objects=[null],add=s=>(objects.push(s),objects.length-1),root=add(''),kidsRoot=add('');const regular=add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');const bold=add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');const kids=[];
  for(const cmds of pages){const stream=cmds.join('\n');const content=add(`<< /Length ${Buffer.byteLength(stream,'latin1')} >>\nstream\n${stream}\nendstream`);kids.push(add(`<< /Type /Page /Parent ${kidsRoot} 0 R /MediaBox [0 0 595 842] /Resources << /Font << /R ${regular} 0 R /B ${bold} 0 R >> >> /Contents ${content} 0 R >>`));}
  objects[kidsRoot]=`<< /Type /Pages /Kids [${kids.map(k=>k+' 0 R').join(' ')}] /Count ${kids.length} >>`;objects[root]=`<< /Type /Catalog /Pages ${kidsRoot} 0 R >>`;

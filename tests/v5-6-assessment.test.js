@@ -74,7 +74,7 @@ test('scoring categories represent MCQ judgment, not claims of workplace validat
 });
 test('free snapshot uses an interpretation rather than a copy of answers',()=>{
  const prose=snapshotSummary({currentRole:'Quality Lead',targetRole:'Director of Process Excellence',goal:'Get promoted',roleExperience:['Lean Six Sigma','Automation'],gaps:['Strategic thinking']});
- assert.match(prose,/important question/);assert.match(prose,/not yet tested strengths/);assert.match(prose,/strategic thinking/i);
+ assert.match(prose,/important question/);assert.match(prose,/not a confirmed competency/);assert.match(prose,/strategic thinking/i);
  assert.equal(FREE_SNAPSHOT_VERSION,4);
  assert.ok(prose.length<=540);
 });

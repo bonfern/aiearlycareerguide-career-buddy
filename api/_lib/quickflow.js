@@ -32,13 +32,13 @@ export function competenciesForRole(targetRole=''){
 export const QUICK_TEXT_LIMIT=300;
 export const OTHER_TEXT_LIMIT=120;
 export const QUESTIONS=Object.freeze([
- {id:'employmentStatus',kind:'single',text:'What best describes your current work situation?',options:['Employed full-time','Employed part-time','Self-employed','Between jobs','Student or recent graduate']},
+ {id:'employmentStatus',kind:'single',text:'Which work situation best describes you right now?',options:['Employed full-time','Employed part-time','Self-employed','Between jobs','Student or recent graduate']},
  {id:'currentRole',kind:'text',text:'What is your current or most recent job title?',placeholder:'e.g. Process Excellence Manager',maxLength:120,minLength:3},
- {id:'experience',kind:'single',text:'How much relevant work experience do you have?',options:['Less than 1 year','1–3 years','4–7 years','8–12 years','13–20 years','Over 20 years']},
- {id:'goal',kind:'single',text:'What would you like help with most?',options:['Get promoted','Move to another company','Change careers','Return to work','Explore career options']},
- {id:'targetRole',kind:'text',text:'Which role would you like to work towards?',placeholder:'e.g. Director of Process Excellence (or Still exploring)',maxLength:120,minLength:3},
- {id:'roleExperience',kind:'multi',text:'Which target-role competencies have you used in practice? Select up to 4.',options:[],maxSelections:4,minSelections:1},
- {id:'gaps',kind:'single',text:'Which target-role competency would you most like to develop?',options:[]},
+ {id:'experience',kind:'single',text:'How many years have you worked in roles related to your career goals?',options:['Less than 1 year','1–3 years','4–7 years','8–12 years','13–20 years','Over 20 years']},
+ {id:'goal',kind:'single',text:'Which career outcome matters most to you at this stage?',options:['Get promoted','Move to another company','Change careers','Return to work','Explore career options']},
+ {id:'targetRole',kind:'text',text:'What specific role are you aiming for next?',placeholder:'e.g. Director of Process Excellence (or Still exploring)',maxLength:120,minLength:3},
+ {id:'roleExperience',kind:'multi',text:'Which of these target-role skills have you actually used at work? Select up to 4.',options:[],maxSelections:4,minSelections:1},
+ {id:'gaps',kind:'single',text:'Which skill would be your biggest stretch in the target role?',options:[]},
  // Deeper details only, after a purchase. Skip items answered in free discovery.
  {id:'responsibilities',kind:'multi',text:'Which responsibilities have you handled?',options:['Managing people','Improving processes','Leading projects','Analysing data','Working with customers','Other'],maxSelections:4,minSelections:1},
  {id:'skills',kind:'multi',text:'Which other skills could you demonstrate?',options:['Leading teams','Stakeholder communication','Solving problems','Project planning','Data analysis','Process improvement','Other'],maxSelections:5,minSelections:2},
@@ -149,6 +149,32 @@ export function addQuickAnswer(profile,q,answer){
   default:throw new Error('Unknown question.');
  }
  return mergeProfile(profile,fields);
+}
+// Rebuild from saved selections rather than merging into stale arrays. This is
+// local validation only: backtracking makes no model calls or coaching charges.
+export function rewindFreeAnswers(answers={},extras={},profile={}){
+ const order=FREE_QUESTION_IDS.filter(id=>Object.hasOwn(answers,id));
+ if(!order.length)return null;
+ const previousId=order.at(-1);
+ const remaining={...answers};delete remaining[previousId];
+ const remainingExtras={...extras};delete remainingExtras[previousId];
+ let rebuilt={employmentStatus:'',currentRole:'',experience:'',goal:'',targetRole:'',roleExperience:[],responsibilities:[],skills:[],gaps:[],achievements:[],constraints:'',industry:'',timeframe:''};
+ for(const id of FREE_QUESTION_IDS){
+  if(!Object.hasOwn(remaining,id))continue;
+  const base=QUESTIONS.find(item=>item.id===id);
+  const q=publicQuestion(adaptQuestion(base,rebuilt));
+  // Sessions saved before V5.11 retained the resolved Other text only in profile.
+  // Recover it when possible rather than making existing users restart the form.
+  let other=remainingExtras[id]||'';
+  const hasOther=Array.isArray(remaining[id])?remaining[id].includes('Other'):remaining[id]==='Other';
+  if(hasOther&&!other){
+   if(id==='roleExperience')other=(profile.roleExperience||[]).find(x=>x!==NO_EXPERIENCE&&!q.options.includes(x))||'';
+   if(id==='gaps')other=(profile.gaps||[]).find(x=>x&&!q.options.includes(x))||'';
+  }
+  const answer=validateQuickAnswer(q,{value:remaining[id],other});
+  rebuilt=addQuickAnswer(rebuilt,q,answer);
+ }
+ return {previousId,previousValue:answers[previousId],previousOther:extras[previousId]||'',answers:remaining,extras:remainingExtras,profile:rebuilt};
 }
 export function displayQuickAnswer(q,answer){
  if(q.kind==='text')return answer.value;

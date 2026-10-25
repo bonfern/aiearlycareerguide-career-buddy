@@ -4,7 +4,7 @@ const APP_BASE=window.location.pathname.startsWith('/professionals/') || window.
 const servicePath=()=>`${APP_BASE}/api/service`;
 
 const screens=['Choose','Login','Free','Snapshot','Upgrade','Resume','Paid','Toolkit','CoachOffer','Coach','Refills','Reports'];
-let state=null,configured=false,privatePreview=true,flow='free',current='Choose',loading=false,reportKind='free',preparationError='';
+let state=null,configured=false,privatePreview=true,flow='free',current='Choose',loading=false,reportKind='free',preparationError='',freeBackDraft=null;
 const uuid=()=>crypto.randomUUID();
 const money=n=>`₹${Number(n||0).toLocaleString('en-IN')}`;
 const el=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=String(text);return node;};
@@ -36,7 +36,7 @@ function show(screen){
  if(document.activeElement instanceof HTMLElement)document.activeElement.blur();
  current=screen;for(const name of screens)$('screen'+name).classList.toggle('hidden',name!==screen);
  $('topnav').classList.toggle('hidden',!state);$('coachNavButton').classList.toggle('hidden',!state?.freeReport&&!state?.reportGenerated);
- $('testerTools').classList.toggle('hidden',!state||state.mode==='private-live');$('signedEmail').textContent=state?.email?`Verified as ${state.email}`:'';
+ $('testerTools').classList.toggle('hidden',!state||state.mode!=='preview');$('signedEmail').textContent=state?.email?`Verified as ${state.email}`:'';
  toPageStart(screen);
 }
 function setFlow(next){flow=next;try{sessionStorage.setItem('buddy-v53-intent',next);}catch{}}
@@ -142,22 +142,24 @@ async function answerPaid(questionId,choice){await run(async()=>{
 function paintQuestion(free){const name=free?'free':'paid',host=$(name+'Question'),guided=state.guided||{},q=guided.question;
  const progress=(guided.completed||0)/(guided.total||10);$(name+'Progress').style.width=`${Math.round(100*progress)}%`;$(name+'Counter').textContent=`${guided.completed||0} of ${guided.total||10} topics completed`;
  host.replaceChildren();if(!free&&(!state.resumeDecision)){host.append(el('p','','Your optional resume decision comes first.'));const b=el('button','primary','Continue to resume step');b.onclick=()=>show('Resume');host.append(b);return;}
- if(!q){const ready=free?state.freeReportReady:state.reportReady;host.append(el('h2','',free?'Your free screening is complete.':ready?'Your detailed report is ready to generate.':'A little more context is needed.'));
+ if(!q){const ready=free?state.freeReportReady:state.reportReady;host.append(el('h2','',free?'Your free discovery questions are complete.':ready?'Your detailed report is ready to generate.':'A little more context is needed.'));
   host.append(el('p','muted',free?(state.freeReportReady?'Create your concise snapshot. You can download it now or at any time in My reports.':'A required area is incomplete. Please review the missing details before requesting a snapshot.'):ready?'Your initial detailed report is included and does not cost a chat interaction.':'You can use paid coaching to provide additional examples and clarify any missing areas.'));
   if(!ready){const missing=free?(state.freeReadiness?.missing||[]):(state.readiness?.missing||[]);if(missing.length)addList(host,'Information still needed',missing);}
+  if(free&&(guided.completed||0)>0){const review=el('button','secondary','← Review and change my answers');review.dataset.asyncAction='1';review.disabled=loading;review.onclick=rewindFree;host.append(review,el('p','micro','You can revise answers without using AI tokens. Generate the snapshot only when you are happy with them.'));}
   const button=el('button','primary',free?'Generate free snapshot →':ready?'Generate detailed report →':'Ask Career Buddy for guidance →');button.dataset.asyncAction='1';if(free)button.dataset.requiresFreeReady='1';button.onclick=()=>free?generateFree():ready?generateDetailed():goCoach();button.disabled=loading||(free&&!state.freeReportReady);host.append(button);return;}
  host.append(el('h2','',q.text));
  const choices=el('div','answers'),inputs=[];
+ const draft=free&&freeBackDraft?.id===q.id?freeBackDraft:null;
  const multiLimit=q.kind==='multi'?(q.maxSelections||4):null;
  const selectedCount=q.kind==='multi'?el('p','micro',`Select up to ${multiLimit} · 0 of ${multiLimit} selected`):null;
  if(selectedCount)host.append(selectedCount);
  if(q.kind!=='text'){
-  for(const op of q.options||[]){const row=el('label','answer');const input=document.createElement('input');input.type=q.kind==='multi'?'checkbox':'radio';input.name='answerOption';input.value=op;row.append(input,el('span','',op));choices.append(row);inputs.push(input);}
+  for(const op of q.options||[]){const row=el('label','answer');const input=document.createElement('input');input.type=q.kind==='multi'?'checkbox':'radio';input.name='answerOption';input.value=op;if(draft)input.checked=Array.isArray(draft.value)?draft.value.includes(op):draft.value===op;row.append(input,el('span','',op));choices.append(row);inputs.push(input);}
   host.append(choices);
  }
  let txt=null,other=null;
- if(q.kind==='text'){txt=el('textarea');txt.id='answerText';txt.maxLength=q.maxLength||300;txt.placeholder=q.placeholder||'A short answer is enough';txt.rows=3;host.append(txt,el('div','help-text',q.example?'A concrete work example is enough; numerical results are not required.':`Up to ${txt.maxLength} characters.`));}
- else {other=el('input');other.type='text';other.maxLength=120;other.placeholder='Please specify briefly';other.className='hidden';host.append(other);for(const input of inputs)input.onchange=()=>{
+ if(q.kind==='text'){txt=el('textarea');txt.id='answerText';txt.maxLength=q.maxLength||300;txt.placeholder=q.placeholder||'A short answer is enough';txt.rows=3;if(draft)txt.value=String(draft.value||'');host.append(txt,el('div','help-text',q.example?'A concrete work example is enough; numerical results are not required.':`Up to ${txt.maxLength} characters.`));}
+ else {other=el('input');other.type='text';other.maxLength=120;other.placeholder='Please specify briefly';other.className='hidden';if(draft){other.value=draft.other||'';other.classList.toggle('hidden',!inputs.some(x=>x.checked&&x.value==='Other'));if(selectedCount)selectedCount.textContent=`Select up to ${multiLimit} · ${inputs.filter(x=>x.checked).length} of ${multiLimit} selected`;}host.append(other);for(const input of inputs)input.onchange=()=>{
   if(q.kind==='multi'&&input.checked){
    if(input.value==='No hands-on experience yet'){inputs.forEach(x=>{if(x!==input)x.checked=false;});}
    else{const none=inputs.find(x=>x.value==='No hands-on experience yet');if(none)none.checked=false;}
@@ -168,11 +170,21 @@ function paintQuestion(free){const name=free?'free':'paid',host=$(name+'Question
   other.classList.toggle('hidden',!inputs.some(x=>x.checked&&x.value==='Other'));
  };}
  const row=el('div','question-actions'),error=el('div','question-error');
- if(q.optional){const skip=el('button','secondary','Skip');skip.onclick=()=>sendQuick(q,true);row.append(skip);}else row.append(el('span','micro','Your answer is saved automatically.'));
+ if(free&&(guided.completed||0)>0){const back=el('button','secondary','← Previous');back.type='button';back.dataset.asyncAction='1';back.disabled=loading;back.onclick=rewindFree;row.append(back);}else if(q.optional){const skip=el('button','secondary','Skip');skip.onclick=()=>sendQuick(q,true);row.append(skip);}else row.append(el('span','micro','You can change earlier answers before generating the free snapshot.'));
  const submit=el('button','primary','Continue →');submit.onclick=()=>{let value=q.kind==='text'?txt.value.trim():q.kind==='multi'?inputs.filter(x=>x.checked).map(x=>x.value):(inputs.find(x=>x.checked)?.value||'');if(!value||Array.isArray(value)&&!value.length){error.textContent='Choose an answer to continue.';return;}if(q.kind==='multi'&&value.length>(q.maxSelections||4)){error.textContent=`Select up to ${q.maxSelections||4} options.`;return;}if(q.kind==='multi'&&value.length<(q.minSelections||1)){error.textContent=`Choose at least ${q.minSelections||1} options.`;return;}sendQuick(q,false,value,other?.value?.trim()||'');};row.append(submit);host.append(row,error);
 }
-async function sendQuick(q,skip,value,other=''){await run(async()=>{const v=await api('quick',{questionId:q.id,skip,value,other,requestId:uuid()});state=v.state;notice('');paint();toPageStart(current);});}
-function paintSnapshot(){const r=state.freeReport||{},view=$('snapshotSummary');view.replaceChildren();if(!state.freeReport){view.append(el('p','','Finish the free assessment first.'));return;}view.append(el('h3','','Your professional profile'),el('p','',r.profileSummary||''));addList(view,'Skills your target role needs',(r.targetCompetencies||[]));addList(view,'Five practical next steps',(r.nextSteps||[]));addList(view,'What we need to check next',(r.furtherAssessment||[]));if((r.version||0)<4){const b=el('button','secondary','Refresh snapshot with clearer guidance →');b.onclick=generateFree;view.append(b);}}
+async function rewindFree(){await run(async()=>{const v=await api('quickBack',{});state=v.state;freeBackDraft=v.draft||null;notice('You can update this answer. Previous answers are saved; no AI credits are used.');paintQuestion(true);toPageStart('Free');});}
+async function sendQuick(q,skip,value,other=''){await run(async()=>{const v=await api('quick',{questionId:q.id,skip,value,other,requestId:uuid()});state=v.state;freeBackDraft=null;notice('');paint();toPageStart(current);});}
+// Existing saved V5.10 snapshots are still usable. Bring their two role-guidance
+// preparation examples into the one consolidated 'What we need to check next' section.
+function freeChecks(r={}){
+ const checks=[...(r.furtherAssessment||[])];
+ if(checks.length<=4){for(const step of (r.nextSteps||[]).slice(0,2)){
+  if(step?.title&&step?.bullets?.[1])checks.push(`Preparation example: ${step.title} — ${step.bullets[1]}`);
+ }}
+ return checks;
+}
+function paintSnapshot(){const r=state.freeReport||{},view=$('snapshotSummary');view.replaceChildren();if(!state.freeReport){view.append(el('p','','Finish the free assessment first.'));return;}view.append(el('h3','','Your professional profile'),el('p','',r.profileSummary||''));addList(view,'Skills your target role needs',(r.targetCompetencies||[]));view.append(el('p','snapshot-disclaimer','This free snapshot is based on your self-reported answers. It does not test or certify your competency. The topics below can be explored through the optional paid assessment.'));addList(view,'What we need to check next (Premium Assessment)',freeChecks(r));if((r.version||0)<4){const b=el('button','secondary','Refresh snapshot with clearer guidance →');b.onclick=generateFree;view.append(b);}}
 function paintResume(){const box=$('resumePaste');box.value=state?.resumeDecision==='provided'?'':box.value||'';$('resumeCount').textContent=`${box.value.length.toLocaleString()} / 12,000 characters`;}
 function paintToolkit(){const provided=state.resumeSubmitted,revised=!!state.resumeRevision;$('resumeKitText').textContent=revised?'Your revised resume is ready. Review the facts before using it.':provided?'Your pasted resume can now be revised into an editable Word document and PDF.':'Resume review is optional. You can paste one later without repeating the detailed assessment.';$('buildResume').classList.toggle('hidden',!provided||revised);$('resumeDownloadRow').classList.toggle('hidden',!revised);$('resumeLater').classList.toggle('hidden',provided);$('remainingNote').textContent=`${state.credits||0} interactions remaining. Your reports will stay in My reports.`;}
 // These are drafted locally from THIS USER'S saved career data. They consume no
@@ -325,7 +337,7 @@ async function submitChat(event){event.preventDefault();const input=$('chatInput
  });}
 function download(kind,format='pdf'){window.location.assign(`${servicePath()}?action=download&kind=${encodeURIComponent(kind)}&format=${encodeURIComponent(format)}`);}
 function openDialog(title){$('dialogTitle').textContent=title;$('reportContent').replaceChildren();$('reportDialog').showModal();$('reportDialog').scrollTop=0;$('reportContent').scrollTop=0;return $('reportContent');}
-function openFree(){if(!state.freeReport)return;reportKind='free';const r=state.freeReport,host=openDialog('Your Free Career Snapshot');host.append(el('h3','','1. Your professional profile'),el('p','',r.profileSummary||''));addList(host,'2. Skills your target role needs',r.targetCompetencies);addList(host,'3. Five practical next steps',r.nextSteps);addList(host,'4. What we should check next',r.furtherAssessment);if((r.version||0)<4)host.append(el('p','micro','You can refresh this snapshot for simpler, more practical guidance.'));}
+function openFree(){if(!state.freeReport)return;reportKind='free';const r=state.freeReport,host=openDialog('Your Free Career Snapshot');host.append(el('h3','','1. Your professional profile'),el('p','',r.profileSummary||''));addList(host,'2. Skills your target role needs',r.targetCompetencies);host.append(el('p','snapshot-disclaimer','The free snapshot does not include competency testing. A detailed scenario-based evaluation is available separately through the optional paid assessment.'));addList(host,'3. What we need to check next (paid assessment)',freeChecks(r));if((r.version||0)<4)host.append(el('p','micro','You can refresh this snapshot for simpler, more practical guidance.'));}
 function openDetailed(){if(!state.report)return;reportKind='report';const r=state.report,host=openDialog('Career Action & Skill Development Report');host.append(el('h3','','Your career objective'),el('p','',r.goalPath?.headline||''),el('h3','','Career summary'),el('p','',r.summary||''));
  for(const [title,items] of [['Technical capability priorities',r.capabilityFocus?.technical],['Leadership and soft-skill priorities',r.capabilityFocus?.behavioural]]){host.append(el('h3','',title));for(const x of items||[])host.append(el('h4','',x.name),el('p','',`${x.currentCompetency} | ${x.priority}. ${x.firstAction}`));}
  host.append(el('h3','','Career actions'));for(const a of r.goalPath?.careerActions||[])host.append(el('h4','',a.title),el('p','',a.action),el('p','',`Expected outcome: ${a.outcome}`));
