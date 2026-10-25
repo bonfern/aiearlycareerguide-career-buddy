@@ -67,3 +67,12 @@ dialog{max-width:min(850px,calc(100vw - 24px));width:100%;max-height:94dvh;overf
 /* Inline payment availability information stays inside its relevant purchase page. */
 .checkout-setup-notice{max-width:100%;margin:12px 0 4px;padding:12px 15px;border:1px solid #dbe5ee;border-radius:10px;background:#f6f9fd;color:#4a5f78;font-size:12px;line-height:1.6}
 .checkout-setup-notice.hidden{display:none}
+
+/* V5.13: headings are focused programmatically after navigation so screen readers
+   can announce the new view.  A static heading is not a keyboard control and
+   should not inherit the browser's prominent rectangular focus outline.
+   Leave visible focus indicators on buttons, links, fields and modal controls. */
+.screen h1[tabindex="-1"]:focus,
+.screen h2[tabindex="-1"]:focus {
+  outline: none;
+}

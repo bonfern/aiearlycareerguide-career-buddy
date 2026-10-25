@@ -1,6 +1,8 @@
-# Career Buddy V5.12 — Navigation & Payment Experience Fixes
+# Career Buddy V5.13 — Heading Outline Fix and Live Checkout Setup
 
 This project powers **https://www.aiearlycareerguide.com/professionals/** through the existing Career Buddy Vercel deployment and main-site rewrite. It is NOT the old Professionals repository or the main site.
+
+V5.13 builds on V5.12 by hiding the browser outline on programmatically focused non-interactive headings (while keeping keyboard focus indicators for actionable controls); it bumps the asset version to refresh the browser cache. No payment security, coupon, pricing or entitlement code is changed.
 
 V5.12 builds on V5.11: fixes signed-in reload returning to the free report; removes sticky status errors, softens the payment card highlight, labels both purchase buttons “Proceed”, and exposes read-only checkout readiness. The payment processing safeguard is unchanged. See **V5_12_FIX_AND_PAYMENT_STEPS.md** for production steps. It does not automatically enable paid checkout or generate a live payment.
 
