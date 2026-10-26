@@ -83,11 +83,6 @@ export function buildReportPdf(report){
   labelled('WHAT IS BEING EVALUATED',q.whatEvaluated);
   labelled('ANSWER PREPARATION FRAMEWORK',q.answerFramework);gap(5);
  }
- title('9. Resume alignment and improvement');
- if(report.resumeReview?.status==='provided'){
-  bulletList(report.resumeReview.changes||[]);
-  if(report.resumeReview.missingEvidence?.length){lines('DETAILS TO CONFIRM BEFORE FINALISING',{bold:true,color:C.purple,size:9});bulletList(report.resumeReview.missingEvidence);}
- }else lines('No resume was provided. Your full career report is complete; you can return later to paste resume text and prepare an improved resume.');
  gap(8);lines('Important: this report is guidance based on your self-reported career information and examples. Multiple-choice questions assessed professional judgement, not on-the-job performance; self-reported experience remains unverified. Interview questions are illustrative, not employer-specific guarantees. Confirm course suitability and costs before enrolling.',{size:9,color:C.muted,max:105,leading:13});
  flush();
  // Build a complete binary PDF with an embedded logo, brand-coloured page headers,

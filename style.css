@@ -92,3 +92,34 @@ dialog{max-width:min(850px,calc(100vw - 24px));width:100%;max-height:94dvh;overf
 .choice-card:focus-visible .snapshot-cta{background:#ffe27b}
 @media(max-width:600px){.choice-card .snapshot-cta{font-size:16px;min-height:50px;padding:11px 9px}}
 @media(prefers-reduced-motion:reduce){.choice-card .snapshot-cta{transition:none}}
+
+/* V5.15 - Calm discovery call-to-action; no bold/yellow highlight. */
+.choice-card .snapshot-cta{background:#e0f1ee;color:#174c55;font-weight:500;font-size:clamp(16px,1.4vw,19px);border:1px solid #a7d1cb;box-shadow:0 2px 8px #174c5515}
+.choice-card:hover .snapshot-cta{background:#cfebe6;transform:translateY(-1px)}
+.choice-card:focus-visible .snapshot-cta{background:#cfebe6}
+.product small{font-size:.7em;font-weight:400;color:#d3e8e9}
+.processing-overlay{position:fixed;inset:0;z-index:95;background:#0c1d366b;display:flex;align-items:center;justify-content:center;padding:24px;backdrop-filter:blur(2px)}
+.processing-overlay.hidden{display:none}
+.processing-card{background:white;box-shadow:0 14px 40px #05152b44;border:1px solid #cee1e6;border-radius:18px;max-width:410px;width:100%;padding:24px;display:flex;align-items:center;gap:18px;color:#102344}
+.processing-card strong{font-weight:700;font-size:17px}.processing-card p{color:#4c6580;font-size:13px;line-height:1.5;margin:5px 0 0}
+.processing-spinner{flex-shrink:0;width:38px;height:38px;border-radius:100%;border:4px solid #d6e9eb;border-top-color:#218b86;animation:spin .85s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.processing-spinner{animation:none;border-top-color:#218b86}}
+.resume-review-panel{margin:18px 0;padding:21px;background:#f3f9f9;border:1px solid #cae4df;border-radius:14px}
+.resume-review-panel.hidden,.review-result.hidden{display:none}
+.review-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:14px}
+.review-heading h2{margin:0 0 4px}.review-heading p{margin:0 0 15px;font-size:13px;color:#465f77;line-height:1.5}
+.resume-review-panel textarea{width:100%;max-width:100%;box-sizing:border-box;resize:vertical;background:white}
+.review-footer{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:12px}
+.review-result{background:#f5f9fd;border:1px solid #d6e3ef;border-radius:12px;padding:15px;margin:10px 0}
+.review-result button{margin-top:8px}
+@media(max-width:600px){.review-heading,.review-footer{flex-direction:column;align-items:stretch}.processing-card{padding:18px}.product small{display:block}}
+
+/* V5.15: resume review remains available after the first coaching exchange. */
+.coach-actions{display:flex;justify-content:flex-start;margin:12px 0 6px}
+.coach-actions .secondary{border-color:#b2d6d1;color:#175b5b;background:#edf7f5;font-size:13px}
+.coach-actions .secondary:hover{background:#dff2ec}
+@media(max-width:600px){.coach-actions .secondary{width:100%;min-height:44px}}
+
+/* First coaching view: resume review occupies the first suggestion only. */
+.coach-actions.hidden{display:none}

@@ -5,7 +5,7 @@ import {buildFreeSnapshotPdf} from '../api/_lib/free-snapshot-pdf.js';
 import fs from 'node:fs';
 import {validateDetailedReport} from '../api/_lib/report-v4.js';
 test('direct coaching intro is a smaller, distinct indicative package',()=>{
- assert.deepEqual([PACKS.intro.priceInr,PACKS.intro.credits,PACKS.intro.days],[149,15,14]);
+ assert.deepEqual([PACKS.intro.priceInr,PACKS.intro.credits,PACKS.intro.days],[149,12,14]);
  assert.equal(computeOffer({packId:'intro',couponCode:'EARLY30',coupons:{EARLY30:30}}).priceInr,104);
 });
 test('introductory coaching never grants detailed assessment access',()=>{
@@ -23,7 +23,7 @@ test('free PDF includes all four sections and supports long summaries',()=>{
 });
 test('V5 interface exposes two independent routes and saved reports',()=>{
  const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8'),js=fs.readFileSync(new URL('../app.js',import.meta.url),'utf8');
- for(const s of ['screenChoose','screenFree','screenSnapshot','screenPaid','screenResume','screenCoach','screenReports','snapshotDownload','resumeLater'])assert.ok(html.includes(`id="${s}"`),s);
+ for(const s of ['screenChoose','screenFree','screenSnapshot','screenPaid','screenCoach','screenReports','snapshotDownload','resumeReviewPanel','coachResumeText'])assert.ok(html.includes(`id="${s}"`),s);
  assert.match(js,/function toPageStart\(/);assert.match(js,/window\.scrollTo\(0,0\)/);
  assert.match(js,/download\('free'/);
 });

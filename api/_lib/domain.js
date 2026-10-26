@@ -1,9 +1,9 @@
 export const MESSAGE_LIMIT=1200;
 export const PACKS=Object.freeze({
- intro:{label:'Ask Career Buddy Intro',priceInr:149,credits:15,days:14},
- starter:{label:'Career Buddy Starter',priceInr:499,credits:60,days:30},
- standard:{label:'Standard Refill',priceInr:249,credits:35,days:30},
- extended:{label:'Extended Refill',priceInr:399,credits:75,days:60}
+ intro:{label:'Ayesha Intro Coaching',priceInr:149,credits:12,days:14},
+ starter:{label:'Premium Career Assessment + Ayesha',priceInr:499,credits:40,days:30},
+ standard:{label:'Standard Refill',priceInr:249,credits:30,days:30},
+ extended:{label:'Extended Refill',priceInr:399,credits:60,days:60}
 });
 export function validateMessage(v){
  if(typeof v!=='string')throw new Error('Please enter a message.');
@@ -91,17 +91,26 @@ export function reportReadiness(p={}){
  if(!has(p.constraints))missing.push('Time, learning budget or mobility constraints (including none)');
  return {ready:missing.length===0,missing,completed:7-missing.length,total:7};
 }
-export function creditWarning(n){if(n<=0)return 'Your test credits are exhausted. Your report and history remain available.';
+export function creditWarning(n){if(n<=0)return 'Your coaching credits are exhausted. Your report and history remain available.';
  if(n<=1)return 'Final interaction: only 1 credit remains.';
  if(n<=5)return `Low balance: ${n} interactions remaining. A refill will be needed soon.`;
  if(n<=10)return `${n} interactions remaining. Consider a refill before they run out.`;
  return '';
 }
-export function estimateUsage(usage,env){
- const input=Number(usage?.prompt_tokens||0),output=Number(usage?.completion_tokens||0);
- const ir=Number(env.OPENAI_INPUT_USD_PER_MILLION||0),or=Number(env.OPENAI_OUTPUT_USD_PER_MILLION||0),fx=Number(env.OPENAI_USD_INR||0);
+export const MODEL_PRICES_USD_PER_MILLION=Object.freeze({
+ 'gpt-6-astra':[10,50], 'gpt-6.1-sol':[2,10], 'gpt-6-luna':[.1,.5]
+});
+export function estimateUsage(usage,env,model=''){
+ const input=Number(usage?.prompt_tokens||usage?.input_tokens||0),output=Number(usage?.completion_tokens||usage?.output_tokens||0);
+ const selected=MODEL_PRICES_USD_PER_MILLION[String(model||'').toLowerCase()];
+ // Generic rates can be overridden in Vercel for an older chat model.
+ const ir=selected?selected[0]:Number(env.OPENAI_INPUT_USD_PER_MILLION||0);
+ const or=selected?selected[1]:Number(env.OPENAI_OUTPUT_USD_PER_MILLION||0);
+ const fx=Number(env.OPENAI_USD_INR||0);
  const usd=ir>0&&or>0?(input*ir+output*or)/1e6:null;
- return {inputTokens:input,outputTokens:output,totalTokens:input+output,usdCost:usd,inrCost:usd!==null&&fx>0?usd*fx:null,
-   modelRateConfigured:usd!==null,exchangeRateConfigured:fx>0};
+ return {inputTokens:input,outputTokens:output,totalTokens:input+output,usdCost:usd,
+  inrCost:usd!==null&&fx>0?usd*fx:null,
+  modelRateConfigured:usd!==null,exchangeRateConfigured:fx>0};
 }
+
 export function validId(v){return typeof v==='string'&&/^[a-f0-9-]{36}$/.test(v);}

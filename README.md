@@ -1,22 +1,43 @@
-# Career Buddy V5.13 — Heading Outline Fix and Live Checkout Setup
+> **Latest update: V5.15 — Ayesha · Your Career Buddy.** See [V5_15_RELEASE_NOTES.md](V5_15_RELEASE_NOTES.md) for features, credits, real AI-cost measurement, model settings and deployment.
 
-This project powers **https://www.aiearlycareerguide.com/professionals/** through the existing Career Buddy Vercel deployment and main-site rewrite. It is NOT the old Professionals repository or the main site.
+# Ayesha – Your Career Buddy | V5.15
 
-V5.13 builds on V5.12 by hiding the browser outline on programmatically focused non-interactive headings (while keeping keyboard focus indicators for actionable controls); it bumps the asset version to refresh the browser cache. No payment security, coupon, pricing or entitlement code is changed.
+Career Buddy is the separate application behind **https://www.aiearlycareerguide.com/professionals/**. Deploy this source to the existing **`aiearlycareerguide-career-buddy`** GitHub repository / Vercel project. It must **not** be uploaded to the retired Professionals assessment repository or to `BONCCPMT-V2`.
 
-V5.12 builds on V5.11: fixes signed-in reload returning to the free report; removes sticky status errors, softens the payment card highlight, labels both purchase buttons “Proceed”, and exposes read-only checkout readiness. The payment processing safeguard is unchanged. See **V5_12_FIX_AND_PAYMENT_STEPS.md** for production steps. It does not automatically enable paid checkout or generate a live payment.
+## What's new in V5.15
 
-## What's changed
-- Main-site link, clearer "Career Buddy" presentation, FAQ/Know More/Terms/Privacy/Refund/Contact pages.
-- Free discovery: back/review and edit of earlier saved answers before snapshot generation, with no OpenAI calls for navigation. Changed role selections rebuild the relevant profile without stale skill arrays.
-- Seven existing free questions refined. No additional model calls.
-- Free preview and PDF have one "What we need to check next" section instead of a separately labelled next-steps section. Paid competency evaluation is clearly optional and separate. Older V5.10 snapshots are still readable.
-- Gentle image-backed form panels, enhanced mobile layout, horizontal overflow correction, and public owner test tools hidden.
+- Calm, soft teal **Get my free career snapshot** call to action, normal font weight.
+- Accessible processing indicators during sign-in, preparation, scoring, downloads and coaching. Razorpay owns the screen during payment confirmation.
+- Removed excessive disclaimers and developer-centric cost commentary from question screens. Important limitations remain in concise report copy and policies.
+- **Ayesha – Your Career Buddy** branding, suggested career coaching prompts and a dedicated resume-review action.
+- Paid competency question bank uses **`gpt-6-astra`** high/medium reasoning and the older Professional Assessment's quality controls: 4–5 essential role skills, 3 scenario questions per skill, plausible balanced choices and private answer keys. A versioned role-only bank cache reduces repeat costs. Report generation uses **`gpt-6.1-sol`** by default (separate `REPORT_MODEL` override).
+- The paid assessment and report no longer ask for or analyse a resume. Resume review is an optional coaching tool (first suggested action, and available thereafter), can accept up to **16,000 characters**, identifies missing evidence and corrections, offers a standalone PDF, and deducts **5 credits only on success**.
+- Prices remain ₹499 Premium and ₹149 Intro. New grants: 40 coaching credits for Premium, 12 for Intro; refills ₹249/30 credits and ₹399/60 credits. Previously granted user balances remain untouched.
+- Marketing/informational pages reflect current credit numbers and distinct resume-review offering.
 
-## Tests
-`npm test` for Node unit/regression suite. `python tests/v5-11-browser.py` for Playwright mock browser flow: mobile, free revision, ₹499 premium and ₹149 coaching. Browser tests use **simulated Razorpay callback data and API responses** and make NO real payments.
+## Deployment and configuration
 
-## Deployment
-Upload the contents of this ZIP to **aiearlycareerguide-career-buddy** (the same repo you used for V5.10). Redeploy Vercel Production. No changes are needed in BONCCPMT-V2: `/professionals/` already proxies here. Preserve all existing environment variables and session keys. The current main-site routing covers `/professionals/*.html` and `/professionals/info.css`.
+1. Update **`aiearlycareerguide-career-buddy`**, redeploy the **Career Buddy Vercel Production** environment. No new main-site rewrite or webhook URL is needed if the existing site has been routing correctly.
+2. Preserve all existing keys and session secrets (Firebase, Resend, OpenAI, Razorpay). The original live checkout and coupon safeguards remain unchanged.
+3. Suggested Vercel Production model variables:
 
-See [PAYMENT-TEST-PLAN.md](./PAYMENT-TEST-PLAN.md) for the two live-payment verification gates and privacy/policy approval required before fully marketing the paid services.
+```
+ASSESSMENT_MODEL=gpt-6-astra
+ASSESSMENT_REASONING_EFFORT=high
+ASSESSMENT_FOLLOWUP_REASONING_EFFORT=medium
+REPORT_MODEL=gpt-6.1-sol
+REPORT_REASONING_EFFORT=medium
+# OPENAI_MODEL=<existing lower-cost coaching/free model>
+# OPENAI_USD_INR=<your chosen accounting exchange rate>
+```
+
+4. In a fresh verified test account, complete Free Snapshot → Premium purchase (an owner-approved 100% coupon is fine for access testing) → three-stage competency preparation → 12–15 graded scenarios → saved report. Confirm there is no resume gate or resume content in the report.
+5. Open **Ayesha coaching**, verify 40 newly granted credits for Premium or 12 for Intro, open Resume Review, paste a text sample longer than the normal coaching-message limit and confirm one successful review deducts five credits and its PDF downloads. Ordinary completed chat messages debit one credit; failed technical requests should not.
+6. Test a real paid Razorpay transaction and webhook/capture/duplicate prevention separately before broadening public marketing. **This ZIP does not change checkout enablement or verify a live charge.**
+7. Review Privacy, Terms and Refund drafts for your business and local legal requirements before public release.
+
+## Validation
+
+`npm test` is the unit/regression suite; `python tests/v5-15-browser.py` performs mocked Chromium desktop / mobile responsive checks at 1280, 390 and 320 pixels. Browser tests do **not** connect to Razorpay/Firebase/OpenAI.
+
+See **V5_15_RELEASE_NOTES.md** and **PAYMENT-TEST-PLAN.md**.

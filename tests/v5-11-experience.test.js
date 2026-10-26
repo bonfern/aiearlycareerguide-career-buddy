@@ -50,7 +50,7 @@ test('legacy Other descriptions survive a back operation without an OpenAI call'
 
 test('Career Buddy info pages, home link, no money-back guarantee, revised free preview and mobile visuals',()=>{
  assert.match(html,/class="site-home" href="https:\/\/www\.aiearlycareerguide\.com\/"/);
- assert.match(html,/PRESENTS <span class="buddy-eyebrow">CAREER BUDDY/);
+ assert.match(html,/PRESENTS <span class="buddy-eyebrow">AYESHA · YOUR CAREER BUDDY/);
  for(const path of ['know-more.html','faq.html','privacy.html','terms.html','refund.html','contact.html']){
   assert.match(html,new RegExp('\\./'+path.replace('.','\\.')));
   assert.ok(fs.existsSync(new URL('../'+path,import.meta.url)));

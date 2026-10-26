@@ -16,7 +16,7 @@ test('private live environment rejects public use and test credentials',()=>{
 });
 test('100% private coupon is allowlisted and leaves a zero-price order to bypass Razorpay',()=>{
  const offer=computeOffer({packId:'starter',couponCode:'PILOT100',coupons:liveCoupons(env)});
- assert.equal(offer.priceInr,0);assert.equal(offer.credits,60);
+ assert.equal(offer.priceInr,0);assert.equal(offer.credits,40);
  assert.equal(canUseFullDiscount({email:'first@example.org',code:'PILOT100',env}),true);
  assert.equal(canUseFullDiscount({email:'second@example.org',code:'PILOT100',env}),false);
  assert.equal(canUseFullDiscount({email:'first@example.org',code:'EARLY30',env}),false);
@@ -39,13 +39,13 @@ function fakeStore(){
 }
 test('real-money fulfillment checks captured matching amount, grants credits once only',async()=>{
  const store=fakeStore(),orderId='order_AbC123',session='hash1';
- const record={orderId,sessionId:session,packId:'starter',credits:60,days:30,priceInr:499,discountPercent:0,amountPaise:49900};
+ const record={orderId,sessionId:session,packId:'starter',credits:40,days:30,priceInr:499,discountPercent:0,amountPaise:49900};
  store.map.set('buddyLivePayments/'+orderId,record);
  store.map.set('buddyLiveEmailSessions/'+session,{id:session,email:'first@example.org',tier:'free',credits:0,creditsGranted:0,expiresAt:0,previewOrders:[]});
  const pay={id:'pay_AbC123',order_id:orderId,status:'captured',captured:true,amount:49900,currency:'INR'};
  const after=await grantCapturedLivePayment(store,record,pay);
- assert.equal(after.credits,60);assert.equal(after.tier,'paid');assert.equal(store.map.get('buddyLivePayments/'+orderId).granted,true);
- const retry=await grantCapturedLivePayment(store,record,pay);assert.equal(retry.credits,60);
+ assert.equal(after.credits,40);assert.equal(after.tier,'paid');assert.equal(store.map.get('buddyLivePayments/'+orderId).granted,true);
+ const retry=await grantCapturedLivePayment(store,record,pay);assert.equal(retry.credits,40);
 });
 test('source gates simulation and live charges separately',()=>{
  const service=fs.readFileSync(new URL('../api/service.js',import.meta.url),'utf8');
@@ -73,12 +73,12 @@ test('100% coupon can be granted only once per verified email/pack, with an over
   const starter=computeOffer({packId:'starter',couponCode:'PILOT100',coupons:liveCoupons(env)});
   const id1='11111111-1111-4111-8111-111111111111';
   const first=await grantFullCoupon(store,ref,starter,id1);
-  assert.equal(first.state.credits,60);assert.equal(first.state.tier,'paid');
+  assert.equal(first.state.credits,40);assert.equal(first.state.tier,'paid');
   assert.equal((await grantFullCoupon(store,ref,starter,id1)).replayed,true);
   await assert.rejects(grantFullCoupon(store,ref,starter,'22222222-2222-4222-8222-222222222222'),/already been redeemed/);
   const refill=computeOffer({packId:'standard',couponCode:'PILOT100',coupons:liveCoupons(env)});
   const second=await grantFullCoupon(store,ref,refill,'33333333-3333-4333-8333-333333333333');
-  assert.equal(second.state.credits,95);
+  assert.equal(second.state.credits,70);
   const third=computeOffer({packId:'extended',couponCode:'PILOT100',coupons:liveCoupons(env)});
   await assert.rejects(grantFullCoupon(store,ref,third,'44444444-4444-4444-8444-444444444444'),/limit/);
   assert.equal([...store.map.values()].filter(v=>v.kind==='approved-private-complimentary').length,2);

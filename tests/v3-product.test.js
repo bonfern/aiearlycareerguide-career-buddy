@@ -5,7 +5,7 @@ import {guidedProgress,validateQuickAnswer,addQuickAnswer,FREE_QUESTION_IDS} fro
 const sample={employmentStatus:'Employed full-time',currentRole:'Process Excellence Manager',experience:'Over 20 years',goal:'Get promoted',targetRole:'Director of Process Excellence',roleExperience:['Lean Six Sigma and process improvement','Transformation programme delivery'],responsibilities:['Experience with Lean Six Sigma and process improvement'],skills:['Lean Six Sigma and process improvement','Transformation programme delivery'],gaps:['Strategic planning and benefits realisation']};
 test('V3 price and pack entitlements are indicative and correct',()=>{
  assert.deepEqual(Object.keys(PACKS),['intro','starter','standard','extended']);
- assert.deepEqual(Object.values(PACKS).map(p=>[p.priceInr,p.credits]),[[149,15],[499,60],[249,35],[399,75]]);
+ assert.deepEqual(Object.values(PACKS).map(p=>[p.priceInr,p.credits]),[[149,12],[499,40],[249,30],[399,60]]);
 });
 test('Free snapshot needs basic profile but never requires experience examples or paid context',()=>{
  assert.equal(freeReadiness(EMPTY_PROFILE).ready,false);
@@ -27,7 +27,7 @@ test('Free profile is retained and paid examples unlock deeper report, without r
 test('Coupons are calculated server-side, invalid coupons do not grant discounts',()=>{
  const coupons={EARLY30:30,TEST100:100};
  const a=computeOffer({packId:'starter',couponCode:'early30',coupons});
- assert.equal(a.priceInr,349);assert.equal(a.credits,60);assert.equal(a.discountPercent,30);
+ assert.equal(a.priceInr,349);assert.equal(a.credits,40);assert.equal(a.discountPercent,30);
  const b=computeOffer({packId:'standard',coupons});assert.equal(b.priceInr,249);
  assert.equal(computeOffer({packId:'extended',couponCode:'TEST100',coupons}).priceInr,0);
  assert.throws(()=>computeOffer({packId:'starter',couponCode:'MADEUP',coupons}),/not valid/);

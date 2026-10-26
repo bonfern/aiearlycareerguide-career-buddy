@@ -6,7 +6,7 @@ const js=fs.readFileSync(new URL('../app.js',import.meta.url),'utf8');
 const css=fs.readFileSync(new URL('../style.css',import.meta.url),'utf8');
 
 test('async state unlocks dynamically-rendered report button and chat controls',()=>{
- assert.match(js,/finally\s*\{loading=false;syncBusyControls\(\);\}/);
+ assert.match(js,/finally\s*\{loading=false;syncBusyControls\(\);\$\('processingOverlay'\)\?\.classList\.add\('hidden'\);\}/);
  assert.match(js,/button\.dataset\.asyncAction='1'/);
  assert.match(js,/b\.disabled=loading/);
  assert.match(js,/const blocked=loading\|\|Number\(state\.credits\|\|0\)<=0\|\|Boolean\(state\.expired\)/);

@@ -38,7 +38,7 @@ with sync_playwright() as p:
   page.evaluate("show('Upgrade');paint();")
   page.locator('#activateStarter').click()
   page.wait_for_function("state?.tier==='paid'")
-  assert page.locator('#screenResume').is_visible()
+  assert page.locator('#screenPaid').is_visible()
   assert page.evaluate('window.calls.filter(x=>x.action===\'liveCheckout\')[0].body.packId')=='starter'
   assert page.evaluate('window.calls.filter(x=>x.action===\'livePaymentVerify\').length')==1
   assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Premium overflow '+label

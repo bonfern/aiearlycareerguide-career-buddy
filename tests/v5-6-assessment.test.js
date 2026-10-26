@@ -43,7 +43,7 @@ test('bank generator uses an anonymised role label, never an email or personal p
  assert.equal(bankIdentity(' DIRECTOR  of Process Excellence ').key,bankIdentity('director of process excellence').key);
 });
 test('answer keys stay server side, cannot be supplied by client; never unlock before 12 questions',()=>{
- const bank={version:1,role:'Director of Process Excellence',...map,questions:shuffleAnswers(validateQuestionBatch({questions:rawQs(skills)},skills),()=>0)};
+ const bank={version:2,role:'Director of Process Excellence',...map,questions:shuffleAnswers(validateQuestionBatch({questions:rawQs(skills)},skills),()=>0)};
  assert.ok(validBank(bank));let answers=[];
  for(let i=0;i<12;i++){
   const prog=assessmentProgress(bank,answers);assert.equal(prog.finished,false);
@@ -60,7 +60,7 @@ test('answer keys stay server side, cannot be supplied by client; never unlock b
  assert.ok(ev.skills.every(x=>x.category==='Develop further'));
 });
 test('scoring categories represent MCQ judgment, not claims of workplace validation',()=>{
- const bank={version:1,role:'Process Director',...map,questions:validateQuestionBatch({questions:rawQs(skills)},skills)};
+ const bank={version:2,role:'Process Director',...map,questions:validateQuestionBatch({questions:rawQs(skills)},skills)};
  const chosen=bank.questions.map((q,i)=>({questionId:q.id,competencyId:q.competencyId,selectedText:q.options[i%3===0?0:4],correct:i%3===0,subskill:q.subskill}));
  const ev=assessmentEvidence(bank,chosen);assert.ok(ev.skills.every(s=>s.correct===1&&s.category==='Priority development area'));
  const report={summary:'Test summary sufficient length for complete professional development report format.',goalPath:{headline:'Director',careerActions:Array.from({length:4},(_,i)=>({title:`Action ${i}`,action:'Complete a role-specific practical project',outcome:'Evidence of improvement'}))},skillAssessments:skills.map(x=>({...x,targetBenchmark:x.benchmark,currentCompetency:'self report',gap:'needs testing',actions:['Action a','Action b'],practiceTask:'Write a practical plan',successIndicator:'Reviewed at work',priority:'Validate first'})),additionalSkills:untestedSkills.map(x=>({...x,nextStep:'Research',howToVerify:'Discuss'})),actionPlan:['Days 1–30','Days 31–60','Days 61–90'].map(period=>({period,focus:'Role readiness',actions:['Build a case example','Practise interview decisions']})),interviewPreparation:Array.from({length:10},(_,i)=>({question:`What would you do in scenario ${i}?`,competency:'Role judgment',whatEvaluated:'Applied problem solving',answerFramework:'Describe actions and measurable evidence'})),learningGuidance:{free:[],paid:[],certifications:[]},resumeReview:{status:'not_provided',changes:[],missingEvidence:[]}};
@@ -89,6 +89,6 @@ test('full paid report requires answered and complete competency assessment, not
  assert.match(service,/reportReady:paid&&assessment.finished/);
  assert.match(service,/async function answerAssessment/);
  assert.match(service,/competency-bank-generation/);
- assert.match(service,/buddyCompetencyBanksV1/);
+ assert.match(service,/buddyCompetencyBanksV2/);
  assert.match(service,/question bank is not ready|start the detailed assessment/i);
 });

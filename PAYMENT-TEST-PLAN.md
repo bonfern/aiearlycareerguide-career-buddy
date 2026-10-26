@@ -1,6 +1,6 @@
-# Career Buddy V5.11 — Live purchase verification plan
+# Career Buddy V5.15 — Live purchase verification plan
 
-**Status:** The automated browser tests simulate Razorpay callbacks. They have not processed any live funds or verified your production Firebase/Razorpay/Resend configuration. Complete the following tests after deploying V5.11 and approving the Career Buddy Privacy, Terms and Refund wording.
+**Status:** The automated browser tests simulate Razorpay callbacks. They have not processed any live funds or verified your production Firebase/Razorpay/Resend configuration. Complete the following tests after deploying V5.15 and approving the Career Buddy Privacy, Terms and Refund wording.
 
 ## Before any paid checkout
 1. Verify `https://www.aiearlycareerguide.com/professionals/` and `/professionals/api/service?action=config` are working. Confirm public mode, correctly configured live payments, and no errors.
@@ -12,18 +12,19 @@
 ## A. ₹499 Premium Career Assessment (use a fresh verified email)
 1. Complete the seven-question Free Career Discovery. Change at least one earlier answer with Previous and verify the updated profile; generate and download the free snapshot.
 2. Select Premium Career Assessment. Verify displayed base price ₹499, applicable discount, and final payable amount in Razorpay. **For a true live test, use an authorised real-money transaction.**
-3. Confirm Razorpay Live Dashboard marks payment **captured**. Complete checkout and verify app unlocks the resume step and competency assessment, and grants exactly **60** interactions.
-4. Close and reopen the site, verify email and resume, and confirm no repeat purchase; refresh/check status should not double grant.
-5. Complete 12–15 paid questions, generate detailed report and optional resume. Download PDF and DOCX if resume provided. Confirm credits are not deducted for assessment questions.
+3. Confirm Razorpay Live Dashboard marks payment **captured**. Complete checkout and verify app unlocks the competency assessment without a resume step and grants exactly **40** coaching credits.
+4. Close and reopen the site, verify email and assessment progress, and confirm no repeat purchase; refresh/check status should not double grant.
+5. Complete 12–15 paid questions, generate the detailed report without any resume section. Download the report PDF. Confirm credits are not deducted for assessment questions.
 
 ## B. ₹149 Career Buddy Intro (use a **different fresh verified email**)
 1. Complete Free Career Discovery and get the free snapshot.
-2. Select Career Buddy Coaching (not the Premium Assessment). Check intro pack price ₹149 and 15 interactions / 14-day validity.
-3. Make a separately authorised live payment. Verify Razorpay capture, secure entitlement and **15** coaching interactions.
-4. Ask one legitimate coaching question, confirm balance becomes **14**; verify re-login restores messages and remaining credits.
+2. Select Career Buddy Coaching (not the Premium Assessment). Check intro pack price ₹149 and 12 coaching credits / 14-day validity.
+3. Make a separately authorised live payment. Verify Razorpay capture, secure entitlement and **12** coaching credits.
+4. Ask one legitimate coaching question, confirm balance becomes **11**; verify re-login restores messages and remaining credits.
 5. Verify coaching does not accidentally unlock the Premium detailed assessment. Refill packs can be tested separately after this.
 
-## C. 100% owner coupon checks — not a live paid checkout test
+## C. Ayesha resume review and complimentary owner coupon
+- From any eligible paid pack, open Ayesha coaching. Paste a sample resume (up to 16,000 characters) into the dedicated review tool. Confirm five credits are deducted only after completed feedback and the separate resume-review PDF downloads. Verify the normal 1,200-character question limit does not apply to this tool.
 - If `LIVE_FREE_COUPON_CODE`, `LIVE_FREE_COUPON_EMAILS` and the usage caps are configured, use two approved verified emails to test the Premium and Intro entitlement paths without Razorpay checkout. Both must show ₹0 payable, grant the correct pack only once and record a complimentary entitlement.
 - Reusing the same pack/coupon/email should fail without duplicate credits. A non-approved email should be rejected.
 - Do **not** interpret a complimentary redemption as verification of Razorpay capture, webhook delivery, bank settlement or refunds.

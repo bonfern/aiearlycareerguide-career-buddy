@@ -35,8 +35,7 @@ test('contextual coach prompt opens with skill gap rather than unrelated Product
  const block=app.slice(app.indexOf('function coachOpeningQuestions('),app.indexOf('function paintCoachPrompts('));
  const context=vm.createContext({});
  const suggestions=vm.runInContext(block+'\ncoachOpeningQuestions({profile:{targetRole:"Director of Process Excellence",currentRole:"Process Excellence Manager",gaps:["Strategic planning"],roleExperience:["Lean Six Sigma"]},reportGenerated:false})',context);
- assert.match(suggestions[0].question,/Strategic planning/);
- assert.match(suggestions[0].question,/Director of Process Excellence/);
+ assert.equal(suggestions[0].question,'resume-review');assert.match(suggestions[0].label,/Review my resume/);
  assert.equal(suggestions.length,4);
  assert.match(suggestions[1].question,/Director of Process Excellence/);
  assert.ok(suggestions.every(x=>x.question.length<220));
@@ -49,9 +48,9 @@ test('exploratory roles and paid reports receive sensible first coaching suggest
  const context=vm.createContext({});
  const fn=vm.runInContext(block+'\ncoachOpeningQuestions',context);
  const exploring=fn({profile:{targetRole:'Still exploring',currentRole:'Operations Executive'},reportGenerated:false});
- assert.match(exploring[0].question,/which three roles/);
+ assert.equal(exploring[0].question,'resume-review');assert.match(exploring[1].question,/interviews/);
  const paid=fn({profile:{targetRole:'Product Manager',gaps:[]},reportGenerated:true});
- assert.match(paid[0].question,/30\/60\/90-day plan/);
+ assert.equal(paid[0].question,'resume-review');
 });
 
 test('legacy reports stay readable, but must be refreshed to access updated simpler wording',()=>{

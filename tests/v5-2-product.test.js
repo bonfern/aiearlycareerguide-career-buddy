@@ -67,5 +67,5 @@ test('frontend renders structured free guidance and discloses credit rules',()=>
  const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
  assert.match(app,/snapshot-bullets/);
  assert.match(app,/Refresh snapshot with clearer guidance/);
- assert.match(html,/including off-topic or nonsensical questions/);
+ assert.match(html,/A completed coaching answer uses one credit/);
 });
