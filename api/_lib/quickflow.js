@@ -32,9 +32,9 @@ export function competenciesForRole(targetRole=''){
 export const QUICK_TEXT_LIMIT=300;
 export const OTHER_TEXT_LIMIT=120;
 export const QUESTIONS=Object.freeze([
- {id:'employmentStatus',kind:'single',text:'Which work situation best describes you right now?',options:['Employed full-time','Employed part-time','Self-employed','Between jobs','Student or recent graduate']},
+ {id:'employmentStatus',kind:'single',text:'Which work situation best describes you right now?',options:['Employed full-time','Employed part-time','Self-employed','Between jobs','Returning to work','Student','Recent graduate']},
  {id:'currentRole',kind:'text',text:'What is your current or most recent job title?',placeholder:'e.g. Process Excellence Manager',maxLength:120,minLength:3},
- {id:'experience',kind:'single',text:'How many years have you worked in roles related to your career goals?',options:['Less than 1 year','1–3 years','4–7 years','8–12 years','13–20 years','Over 20 years']},
+ {id:'experience',kind:'single',text:'How much relevant practical experience do you have toward this career goal?',options:['No experience yet','Less than 1 year','1–3 years','4–7 years','8–12 years','13–20 years','Over 20 years']},
  {id:'goal',kind:'single',text:'Which career outcome matters most to you at this stage?',options:['Get promoted','Move to another company','Change careers','Return to work','Explore career options']},
  {id:'targetRole',kind:'text',text:'What specific role are you aiming for next?',placeholder:'e.g. Director of Process Excellence (or Still exploring)',maxLength:120,minLength:3},
  {id:'roleExperience',kind:'multi',text:'Which of these target-role skills have you actually used at work? Select up to 4.',options:[],maxSelections:4,minSelections:1},
@@ -46,7 +46,7 @@ export const QUESTIONS=Object.freeze([
  {id:'achievement1',kind:'text',text:'What is one project or responsibility you have worked on?',placeholder:'e.g. Building an AI chatbot for HR queries',maxLength:QUICK_TEXT_LIMIT,minLength:18,example:true},
  {id:'achievement2',kind:'text',text:'What is another project or responsibility you handled?',placeholder:'e.g. Handling HR queries for employees',maxLength:QUICK_TEXT_LIMIT,minLength:18,example:true},
 ]);
-export const FREE_QUESTION_IDS=Object.freeze(['employmentStatus','currentRole','experience','goal','targetRole','roleExperience','gaps']);
+export const FREE_QUESTION_IDS=Object.freeze(['employmentStatus','goal','targetRole','currentRole','experience','roleExperience','gaps']);
 const known=Object.freeze(Object.fromEntries(QUESTIONS.map(q=>[q.id,q])));
 const norm=v=>String(v??'').trim();
 const nonempty=v=>typeof v==='string'&&v.trim().length>=2;
@@ -69,18 +69,22 @@ export function answeredByProfile(q,p={}){
 }
 function adaptQuestion(q,p={}){
  if(q.id==='roleExperience'){
-  return {...q,text:p.employmentStatus==='Student or recent graduate'?'Which competencies have you practised in projects or internships?':q.text,options:[...competenciesForRole(p.targetRole),'Other',NO_EXPERIENCE]};
+  return {...q,text:['Student','Recent graduate','Student or recent graduate'].includes(p.employmentStatus)?'Which competencies have you practised in projects or internships?':q.text,options:[...competenciesForRole(p.targetRole),'Other',NO_EXPERIENCE]};
  }
  if(q.id==='gaps'){
   return {...q,options:[...competenciesForRole(p.targetRole),'Interview preparation','Not sure yet','Other']};
  }
- if(p.employmentStatus==='Student or recent graduate'){
-  if(q.id==='currentRole')return {...q,text:'What are you currently studying, or what did you study?',placeholder:'e.g. BBA graduate'};
+ if(['Student','Recent graduate','Student or recent graduate'].includes(p.employmentStatus)){
+  if(q.id==='currentRole')return {...q,text:'What course, qualification or main subject are you studying, or have you recently completed?',placeholder:'e.g. Class 12 commerce, BBA, BTech Computer Science'};
   if(q.id==='responsibilities')return {...q,text:'Which activities have you practised in projects or internships?'};
   if(q.id==='achievement1')return {...q,text:'What is one project, internship or activity you completed?',placeholder:'e.g. Led a college project that analysed customer feedback'};
   if(q.id==='achievement2')return {...q,text:'What is another project or result you can describe?',placeholder:'e.g. Coordinated volunteers to deliver a college event on time'};
  }
+ if(p.employmentStatus==='Returning to work'&&q.id==='currentRole')return {...q,text:'What was your last role, or your main area of experience?',placeholder:'e.g. HR coordinator, or entering the workforce'};
  if(p.employmentStatus==='Between jobs'&&q.id==='currentRole')return {...q,text:'What was your most recent job title?'};
+ if(q.id==='goal'&&['Student','Recent graduate','Student or recent graduate'].includes(p.employmentStatus))return {...q,text:'What is your main career goal right now?',options:['Explore career options','Find my first job or internship','Build job-ready skills','Plan further studies','Change my field of study']};
+ if(q.id==='experience'&&['Student','Recent graduate','Student or recent graduate'].includes(p.employmentStatus))return {...q,text:'How much relevant experience do you have from internships, projects, volunteering or paid work?'};
+ if(q.id==='targetRole'&&['Student','Recent graduate','Student or recent graduate'].includes(p.employmentStatus))return {...q,text:'Which career or role interests you most? You may write “Still exploring”.',placeholder:'e.g. Data Analyst, UX Designer, or Still exploring'};
  return q;
 }
 function publicQuestion(q){
@@ -89,7 +93,7 @@ function publicQuestion(q){
  return {id,kind,text,options:options||[],maxSelections:maxSelections||1,minSelections:minSelections||1,maxLength:maxLength||OTHER_TEXT_LIMIT,minLength:minLength||1,placeholder:placeholder||'',optional:!!optional,example:!!example};
 }
 export function guidedProgress(p={},answers={},skips=[],phase='paid'){
- const questionSet=phase==='free'?QUESTIONS.filter(q=>FREE_QUESTION_IDS.includes(q.id)):QUESTIONS;
+ const questionSet=phase==='free'?FREE_QUESTION_IDS.map(id=>known[id]):QUESTIONS;
  const completed=questionSet.filter(q=>answeredByProfile(q,p)||Object.hasOwn(answers,q.id)||skips.includes(q.id)).length;
  const next=questionSet.find(q=>!answeredByProfile(q,p)&&!Object.hasOwn(answers,q.id)&&!skips.includes(q.id));
  return {completed,total:questionSet.length,question:publicQuestion(next?adaptQuestion(next,p):null),finished:!next,

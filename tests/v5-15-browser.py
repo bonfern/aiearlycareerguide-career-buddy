@@ -36,7 +36,7 @@ with sync_playwright() as p:
   assert page.locator('#screenChoose').is_visible()
   button=page.locator('.snapshot-cta')
   assert button.is_visible()
-  assert page.evaluate("getComputedStyle(document.querySelector('.snapshot-cta')).fontWeight") in ('500','400')
+  assert page.evaluate("getComputedStyle(document.querySelector('.snapshot-cta')).fontWeight")=='400'
   assert not page.locator('#processingOverlay').is_visible()
   page.locator('#coachNavButton').click()
   assert page.locator('#screenCoach').is_visible()
@@ -47,6 +47,7 @@ with sync_playwright() as p:
   assert len(data)>1200
   assert page.locator('#coachResumeText').get_attribute('maxlength')=='16000'
   page.locator('#coachResumeText').fill(data)
+  page.locator('#resumeConsent').check()
   page.locator('#submitResumeReview').click()
   assert page.locator('#processingOverlay').is_visible(), 'Loading indicator while resume runs'
   page.wait_for_function("!!state?.resumeReviews?.length")
@@ -59,5 +60,5 @@ with sync_playwright() as p:
   assert page.locator('[data-coach-prompt="resume-review"]').is_visible()
   assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Unexpected mobile overflow'
   assert not errors,errors
-  page.close();print(f'{width}px: Ayesha resume action, extended input, 5-credit result, processing indicator, responsive layout PASS')
+  page.close();print(f'{width}px: Career Buddy resume action, extended input, 5-credit result, processing indicator, responsive layout PASS')
  browser.close()

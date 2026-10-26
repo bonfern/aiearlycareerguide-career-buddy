@@ -18,7 +18,7 @@ export function buildResumeReviewPdf(review,role=''){
   for(const item of wrap(text,Math.max(65,Math.floor(103-size/2)-indent/5))){ensure(leading);commands.push(`BT /${bold?'F2':'F1'} ${size} Tf ${color} rg 1 0 0 1 ${48+indent} ${y} Tm (${pdfEsc(item)}) Tj ET`);y-=leading;}
  };
  const section=(label,items)=>{ensure(45);y-=14;line(label,{size:12,bold:true,color:'0.03 0.45 0.46',leading:20});for(const item of items||[])line('- '+item,{indent:10});};
- line('AYESHA - YOUR CAREER BUDDY',{size:18,bold:true,leading:28});
+ line('CAREER BUDDY - YOUR CAREER BUDDY',{size:18,bold:true,leading:28});
  line('Resume Review and Improvement Priorities',{size:13,bold:true,color:'0.03 0.45 0.46',leading:22});
  if(role)line('Target role: '+role,{size:10,leading:18});
  line(review.headline,{size:11,bold:true,leading:17});
@@ -35,7 +35,7 @@ export function buildResumeReviewPdf(review,role=''){
  const image=add(Buffer.concat([Buffer.from(`<< /Type /XObject /Subtype /Image /Width ${REPORT_BRAND_LOGO.width} /Height ${REPORT_BRAND_LOGO.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${logo.length} >>\nstream\n`,'latin1'),logo,Buffer.from('\nendstream','latin1')]));
  const refs=[];
  pages.forEach((content,i)=>{
-  const stream=`q 0.055 0.1 0.23 rg 0 785 595 57 re f Q\nq 85 0 0 33 46 796 cm /Logo Do Q\n${content.join('\n')}\nBT /F1 8 Tf 0.4 0.45 0.5 rg 1 0 0 1 47 37 Tm (Ayesha - AI Early Career Guide | Page ${i+1} of ${pages.length}) Tj ET`;
+  const stream=`q 0.055 0.1 0.23 rg 0 785 595 57 re f Q\nq 85 0 0 33 46 796 cm /Logo Do Q\n${content.join('\n')}\nBT /F1 8 Tf 0.4 0.45 0.5 rg 1 0 0 1 47 37 Tm (Career Buddy - AI Early Career Guide | Page ${i+1} of ${pages.length}) Tj ET`;
   const bytes=Buffer.from(stream,'latin1');const contentId=add(Buffer.concat([Buffer.from(`<< /Length ${bytes.length} >>\nstream\n`),bytes,Buffer.from('\nendstream')]));
   refs.push(add(`<< /Type /Page /Parent ${root} 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 ${fontRegular} 0 R /F2 ${fontBold} 0 R >> /XObject << /Logo ${image} 0 R >> >> /Contents ${contentId} 0 R >>`));
  });

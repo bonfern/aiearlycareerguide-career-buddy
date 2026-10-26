@@ -33,7 +33,7 @@ test('changing target role drops previous role competencies and validates select
  const old={...EMPTY_PROFILE,employmentStatus:'Employed full-time',currentRole:'Product Manager',experience:'8–12 years',goal:'Get promoted',targetRole:'Director of Process Excellence',roleExperience:['Lean Six Sigma and process improvement','Transformation programme delivery'],gaps:['Strategic planning and benefits realisation']};
  const answers={employmentStatus:old.employmentStatus,currentRole:old.currentRole,experience:old.experience,goal:old.goal,targetRole:old.targetRole,roleExperience:old.roleExperience,gaps:old.gaps[0]};
  let current=old,next=answers;
- for(const id of ['gaps','roleExperience','targetRole']){
+ for(const id of ['gaps','roleExperience','experience','currentRole','targetRole']){
   const state=rewindFreeAnswers(next,{},current);assert.equal(state.previousId,id);
   current=state.profile;next=state.answers;
  }
@@ -50,7 +50,7 @@ test('legacy Other descriptions survive a back operation without an OpenAI call'
 
 test('Career Buddy info pages, home link, no money-back guarantee, revised free preview and mobile visuals',()=>{
  assert.match(html,/class="site-home" href="https:\/\/www\.aiearlycareerguide\.com\/"/);
- assert.match(html,/PRESENTS <span class="buddy-eyebrow">AYESHA · YOUR CAREER BUDDY/);
+ assert.match(html,/PRESENTS <span class="buddy-eyebrow">CAREER BUDDY/);
  for(const path of ['know-more.html','faq.html','privacy.html','terms.html','refund.html','contact.html']){
   assert.match(html,new RegExp('\\./'+path.replace('.','\\.')));
   assert.ok(fs.existsSync(new URL('../'+path,import.meta.url)));

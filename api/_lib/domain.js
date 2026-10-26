@@ -1,7 +1,7 @@
 export const MESSAGE_LIMIT=1200;
 export const PACKS=Object.freeze({
- intro:{label:'Ayesha Intro Coaching',priceInr:149,credits:12,days:14},
- starter:{label:'Premium Career Assessment + Ayesha',priceInr:499,credits:40,days:30},
+ intro:{label:'Career Buddy Intro Coaching',priceInr:149,credits:12,days:14},
+ starter:{label:'Premium Career Assessment + Career Buddy',priceInr:499,credits:40,days:30},
  standard:{label:'Standard Refill',priceInr:249,credits:30,days:30},
  extended:{label:'Extended Refill',priceInr:399,credits:60,days:60}
 });
@@ -53,7 +53,7 @@ export function looksLikeEvidence(v){
 export function freeReadiness(p={}){
  const missing=[];
  const ok=v=>typeof v==='string'&&v.trim().length>=3;
- if(!ok(p.employmentStatus)||!ok(p.currentRole)||!ok(p.experience))missing.push('Current role and experience');
+ if(!ok(p.employmentStatus)||!ok(p.currentRole)||!ok(p.experience))missing.push('Your current situation, education or role, and relevant experience (including none)');
  if(!ok(p.goal)||!ok(p.targetRole))missing.push('Career goal and target role');
  if(!(Array.isArray(p.roleExperience)&&p.roleExperience.length>0)&&!((p.responsibilities||[]).length>0&&(p.skills||[]).length>=2))missing.push('Experience with target-role competencies');
  if(!Array.isArray(p.gaps)||p.gaps.length<1)missing.push('Area to develop (or not sure)');

@@ -123,3 +123,18 @@ dialog{max-width:min(850px,calc(100vw - 24px));width:100%;max-height:94dvh;overf
 
 /* First coaching view: resume review occupies the first suggestion only. */
 .coach-actions.hidden{display:none}
+
+/* V5.16: understated discovery CTA and privacy choices */
+.choice-card .snapshot-cta{font-size:clamp(13px,1.1vw,15px);font-weight:400;min-height:43px;padding:9px 12px;background:#e7f4f1;border-color:#c0ddd7;box-shadow:none;color:#245d5e}
+.choice-card:hover .snapshot-cta{background:#dbeee9}
+.product{font-size:clamp(17px,2vw,22px)}
+.free-browser-note{border:1px solid #d6e6e3;border-radius:12px;padding:13px 15px;background:#f2faf8;margin:16px 0;color:#27595c}
+.free-browser-note strong{font-size:13px}.free-browser-note p{margin:5px 0 0;font-size:12px;line-height:1.55}
+.consent-choice{display:flex;align-items:flex-start;gap:11px;line-height:1.55;border:1px solid #d9e3ec;border-radius:10px;padding:13px 14px;margin:13px 0;background:#fff;color:#43566a;font-size:12px;font-weight:400}
+.consent-choice input{flex:0 0 auto;margin:3px 0 0;width:17px;height:17px;accent-color:#187c70}
+.consent-choice span{flex:1}.consent-choice a{color:#166478}
+@media(max-width:600px){.choice-card .snapshot-cta{font-size:14px;min-height:44px}.consent-choice{padding:12px 11px}}
+
+/* Specificity reset: consent is normal-weight body copy, not a field title. */
+.auth-card label.consent-choice,.resume-review-panel label.consent-choice{display:flex;font-weight:400;font-size:12px;line-height:1.55;margin:13px 0;}
+.auth-card .consent-choice span,.resume-review-panel .consent-choice span{font-weight:400}

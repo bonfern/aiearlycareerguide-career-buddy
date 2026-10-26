@@ -8,7 +8,7 @@ const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
 const app=fs.readFileSync(new URL('../app.js',import.meta.url),'utf8');
 
 test('free discovery has seven relevant questions with no industry or career timing prompts',()=>{
- assert.deepEqual(FREE_QUESTION_IDS,['employmentStatus','currentRole','experience','goal','targetRole','roleExperience','gaps']);
+ assert.deepEqual(FREE_QUESTION_IDS,['employmentStatus','goal','targetRole','currentRole','experience','roleExperience','gaps']);
  assert.equal(guidedProgress(EMPTY_PROFILE,{},[],'free').total,7);
  assert.ok(!QUESTIONS.some(q=>q.id==='industry'||q.id==='timeframe'));
  assert.match(html,/Seven focused questions/);
