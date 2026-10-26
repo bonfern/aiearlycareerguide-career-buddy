@@ -76,3 +76,19 @@ dialog{max-width:min(850px,calc(100vw - 24px));width:100%;max-height:94dvh;overf
 .screen h2[tabindex="-1"]:focus {
   outline: none;
 }
+
+/* V5.14: highlight the single free-snapshot call to action without adding another button.
+   The entire discovery card remains clickable, including the label. */
+.choice-card .snapshot-cta{
+  box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:8px;
+  width:100%;min-height:52px;padding:12px 14px;margin-top:5px;
+  border-radius:10px;background:var(--yellow);color:#102344;
+  font-family:inherit;font-size:clamp(15px,1.35vw,18px);font-weight:850;
+  line-height:1.35;text-align:center;white-space:normal;overflow-wrap:break-word;
+  transition:background .15s ease,transform .15s ease;
+}
+.choice-card:hover .snapshot-cta{background:#ffe27b;transform:translateY(-1px)}
+.choice-card:focus-visible{outline:3px solid #ffe27b;outline-offset:3px}
+.choice-card:focus-visible .snapshot-cta{background:#ffe27b}
+@media(max-width:600px){.choice-card .snapshot-cta{font-size:16px;min-height:50px;padding:11px 9px}}
+@media(prefers-reduced-motion:reduce){.choice-card .snapshot-cta{transition:none}}
