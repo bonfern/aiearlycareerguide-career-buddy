@@ -51,7 +51,7 @@ function show(screen){
 function setFlow(next){flow=next;try{sessionStorage.setItem('buddy-v53-intent',next);}catch{}}
 function isAssessmentPaid(){return state?.tier==='paid';}
 function isCoachActive(){return Boolean(state?.freeReport||state?.reportGenerated)&&(state?.tier==='paid'||state?.tier==='coach');}
-function goAssessment(){if(!state){show('Login');return;}if(!state.freeReport){show('Free');$('freeIntroNote').textContent=flow==='premium'?'Seven focused questions create your free career snapshot.':'These brief questions create your free career snapshot.';}else if(isAssessmentPaid())show(state.reportGenerated?'Toolkit':'Paid');else if(flow==='premium')show('Upgrade');else show('Snapshot');paint();}
+function goAssessment(){if(!state){show('Login');return;}if(!state.freeReport){show('Free');$('freeIntroNote').textContent=flow==='premium'?'Nine short questions create your free career snapshot.':'These brief questions create your free career snapshot.';}else if(isAssessmentPaid())show(state.reportGenerated?'Toolkit':'Paid');else if(flow==='premium')show('Upgrade');else show('Snapshot');paint();}
 function goCoach(){if(!state){show('Login');return;}if(!state.freeReport&&!state.reportGenerated){notice('Complete your free career discovery and snapshot first to activate Career Buddy.');show('Free');paint();return;}if(isCoachActive())show('Coach');else show('CoachOffer');paint();}
 async function choose(next){setFlow(next);if(!state){show('Login');return;}await run(async()=>{state=(await api('setJourney',{journey:next})).state;notice('');goAssessment();});}
 function paint(){if(!state)return;const s=current;
@@ -165,7 +165,7 @@ function paintQuestion(free){const name=free?'free':'paid',host=$(name+'Question
   host.append(choices);
  }
  let txt=null,other=null;
- if(q.kind==='text'){txt=el('textarea');txt.id='answerText';txt.maxLength=q.maxLength||300;txt.placeholder=q.placeholder||'A short answer is enough';txt.rows=3;if(draft)txt.value=String(draft.value||'');host.append(txt,el('div','help-text',q.example?'A concrete work example is enough; numerical results are not required.':`Up to ${txt.maxLength} characters.`));}
+ if(q.kind==='text'){txt=el('textarea');txt.id='answerText';txt.maxLength=q.maxLength||300;txt.placeholder=q.placeholder||'A short answer is enough';txt.rows=3;if(draft)txt.value=String(draft.value||'');host.append(txt,el('div','help-text',q.example?'One specific project, task or learning activity is enough. If you have no example yet, choose Skip.':`Up to ${txt.maxLength} characters.`));}
  else {other=el('input');other.type='text';other.maxLength=120;other.placeholder='Please specify briefly';other.className='hidden';if(draft){other.value=draft.other||'';other.classList.toggle('hidden',!inputs.some(x=>x.checked&&x.value==='Other'));if(selectedCount)selectedCount.textContent=`Select up to ${multiLimit} · ${inputs.filter(x=>x.checked).length} of ${multiLimit} selected`;}host.append(other);for(const input of inputs)input.onchange=()=>{
   if(q.kind==='multi'&&input.checked){
    if(input.value==='No hands-on experience yet'){inputs.forEach(x=>{if(x!==input)x.checked=false;});}
@@ -177,7 +177,8 @@ function paintQuestion(free){const name=free?'free':'paid',host=$(name+'Question
   other.classList.toggle('hidden',!inputs.some(x=>x.checked&&x.value==='Other'));
  };}
  const row=el('div','question-actions'),error=el('div','question-error');
- if(free&&(guided.completed||0)>0){const back=el('button','secondary','← Previous');back.type='button';back.dataset.asyncAction='1';back.disabled=loading;back.onclick=rewindFree;row.append(back);}else if(q.optional){const skip=el('button','secondary','Skip');skip.onclick=()=>sendQuick(q,true);row.append(skip);}else row.append(el('span','micro','You can change earlier answers before generating the free snapshot.'));
+ if(free&&(guided.completed||0)>0){const back=el('button','secondary','← Previous');back.type='button';back.dataset.asyncAction='1';back.disabled=loading;back.onclick=rewindFree;row.append(back);}else if(!q.optional)row.append(el('span','micro','You can change earlier answers before generating the free snapshot.'));
+ if(q.optional){const skip=el('button','secondary','Skip — no example yet');skip.type='button';skip.dataset.asyncAction='1';skip.disabled=loading;skip.onclick=()=>sendQuick(q,true);row.append(skip);}
  const submit=el('button','primary','Continue →');submit.onclick=()=>{let value=q.kind==='text'?txt.value.trim():q.kind==='multi'?inputs.filter(x=>x.checked).map(x=>x.value):(inputs.find(x=>x.checked)?.value||'');if(!value||Array.isArray(value)&&!value.length){error.textContent='Choose an answer to continue.';return;}if(q.kind==='multi'&&value.length>(q.maxSelections||4)){error.textContent=`Select up to ${q.maxSelections||4} options.`;return;}if(q.kind==='multi'&&value.length<(q.minSelections||1)){error.textContent=`Choose at least ${q.minSelections||1} options.`;return;}sendQuick(q,false,value,other?.value?.trim()||'');};row.append(submit);host.append(row,error);
 }
 async function rewindFree(){await run(async()=>{const v=await api('quickBack',{});state=v.state;freeBackDraft=v.draft||null;notice('You can update your answer.');paintQuestion(true);toPageStart('Free');});}
@@ -191,7 +192,26 @@ function freeChecks(r={}){
  }}
  return checks;
 }
-function paintSnapshot(){const r=state.freeReport||{},view=$('snapshotSummary');view.replaceChildren();if(!state.freeReport){view.append(el('p','','Finish the free assessment first.'));return;}view.append(el('h3','','Your professional profile'),el('p','',r.profileSummary||''));addList(view,'Skills your target role needs',(r.targetCompetencies||[]));view.append(el('p','snapshot-disclaimer','This free snapshot is based on your self-reported answers. It does not test or certify your competency. The topics below can be explored through the optional paid assessment.'));addList(view,'What we need to check next (Premium Assessment)',freeChecks(r));if((r.version||0)<4){const b=el('button','secondary','Refresh snapshot with clearer guidance →');b.onclick=generateFree;view.append(b);}}
+function paintSnapshot(){const r=state.freeReport||{},view=$('snapshotSummary');view.replaceChildren();
+ if(!state.freeReport){view.append(el('p','','Finish the free discovery first.'));return;}
+ if(r.version>=5){
+  // Opening section intentionally contains ONLY goal, target-role skills and
+  // user-reported exposure. Assessment limitations appear at the bottom.
+  view.append(el('h3','','Your goal and starting point'),el('p','',r.profileSummary||''));
+  addList(view,'Skills important for your target role',(r.targetCompetencies||[]));
+  addList(view,'Skills you told us you have used',r.reportedExposure?.length?r.reportedExposure:['No hands-on exposure selected yet.']);
+  view.append(el('h3','','Your transferable advantage'),el('p','',r.transferableAdvantage||''));
+  view.append(el('h3','','Your career alignment'),el('p','',r.careerAlignment||''));
+  addList(view,'Your next best moves',r.nextBestMoves||[]);
+  addList(view,'What a deeper assessment could reveal',r.furtherAssessment||[]);
+  view.append(el('p','snapshot-disclaimer','This free snapshot interprets your own answers. It is not a verified competency score; the optional Premium Assessment evaluates role-specific decisions in greater depth.'));
+ }else{
+  view.append(el('h3','','Your professional profile'),el('p','',r.profileSummary||''));
+  addList(view,'Skills your target role needs',(r.targetCompetencies||[]));
+  addList(view,'What we need to check next (Premium Assessment)',freeChecks(r));
+  view.append(el('p','snapshot-disclaimer','Your saved snapshot is based on self-reported answers; it is not a verified competency score.'));
+ }
+}
 function paintToolkit(){$('remainingNote').textContent=`${state.credits||0} Career Buddy coaching credits remaining. Your report is saved under My reports.`;}
 // These are drafted locally from THIS USER'S saved career data. They consume no
 // tokens and are never stored in the shared role-guidance cache.

@@ -44,10 +44,10 @@ test('free browser claim identities are random and only an original account may 
  assert.match(server,/buddyFreeBrowserClaimsV1/);
  assert.match(server,/assertFreeBrowser\(bSnap\.data\(\),s\.id\)/);
 });
-test('seven questions ask goal before experience and student without a job can get a snapshot',()=>{
- assert.deepEqual(FREE_QUESTION_IDS,['employmentStatus','goal','targetRole','currentRole','experience','roleExperience','gaps']);
+test('nine questions ask goal before experience and student without a job can get a snapshot',()=>{
+ assert.deepEqual(FREE_QUESTION_IDS,['employmentStatus','goal','targetRole','currentRole','experience','roleExperience','gaps','applicationDepth','evidenceExample']);
  let profile={...EMPTY_PROFILE},answers={};
- const values={employmentStatus:'Student',goal:'Explore career options',targetRole:'Data Analyst',currentRole:'BSc Statistics',experience:'No experience yet',roleExperience:[NO_EXPERIENCE],gaps:'Not sure yet'};
+ const values={employmentStatus:'Student',goal:'Explore career options',targetRole:'Data Analyst',currentRole:'BSc Statistics',experience:'No experience yet',roleExperience:[NO_EXPERIENCE],gaps:'Not sure yet',applicationDepth:'Just exploring; no related learning or practice yet',evidenceExample:'I analysed survey responses for a college project'};
  for(const id of FREE_QUESTION_IDS){
   const q=guidedProgress(profile,answers,[],'free').question;
   assert.equal(q.id,id);

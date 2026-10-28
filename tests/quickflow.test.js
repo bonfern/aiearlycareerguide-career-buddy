@@ -15,7 +15,7 @@ test('quick question is short, one at a time, and has supported answer formats',
  assert.equal(q.id,'employmentStatus');
  assert.ok(q.text.split(' ').length<=20);
  assert.equal(q.kind,'single');
- assert.equal(QUESTIONS.length,12);
+ assert.equal(QUESTIONS.length,14);
 });
 test('quick answer validation rejects arbitrary options, oversized free text and missing Other',()=>{
  const q=flow({}).question;
@@ -61,7 +61,7 @@ test('a complete guided sequence populates profile and unlocks report only with 
 });
 test('shallow self-praise is not treated as evidence and cannot unlock report',()=>{
  assert.equal(looksLikeEvidence('I am good at almost everything I ever do'),false);
- assert.throws(()=>validateQuickAnswer(QUESTIONS.find(x=>x.id==='achievement1'),{value:'I am good at almost everything I ever do'}),/name a project or responsibility/);
+ assert.throws(()=>validateQuickAnswer(QUESTIONS.find(x=>x.id==='achievement1'),{value:'I am good at almost everything I ever do'}),/specific task, project or learning activity/);
  const p={employmentStatus:'Employed',currentRole:'Manager',experience:'10 years',goal:'Get promoted',targetRole:'Director',timeframe:'12 months',responsibilities:['Working across teams'],skills:['Planning','Leadership'],gaps:['Strategy'],constraints:'5 hours',achievements:['I am good at almost everything I ever do','I am a very smart and capable professional']};
  assert.equal(reportReadiness(p).ready,false);
 });

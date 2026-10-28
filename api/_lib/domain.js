@@ -15,7 +15,7 @@ export function validateMessage(v){
 }
 export const EMPTY_PROFILE=Object.freeze({
  employmentStatus:'',currentRole:'',industry:'',experience:'',goal:'',targetRole:'',timeframe:'',
- responsibilities:[],roleExperience:[],achievements:[],skills:[],gaps:[],constraints:''
+ responsibilities:[],roleExperience:[],achievements:[],skills:[],gaps:[],constraints:'',applicationDepth:'',evidenceExample:''
 });
 const text=(v,max=240)=>typeof v==='string'?v.replace(/\s+/g,' ').trim().slice(0,max):'';
 function uniqueArr(old, incoming){
@@ -30,7 +30,7 @@ function uniqueArr(old, incoming){
 }
 export function mergeProfile(current={},candidate={}){
  const out={...EMPTY_PROFILE,...current};
- for(const k of ['employmentStatus','currentRole','industry','experience','goal','targetRole','timeframe','constraints']){
+ for(const k of ['employmentStatus','currentRole','industry','experience','goal','targetRole','timeframe','constraints','applicationDepth','evidenceExample']){
   const v=text(candidate?.[k]);if(v)out[k]=v;
  }
  for(const k of ['responsibilities','roleExperience','achievements','skills','gaps'])out[k]=uniqueArr(out[k],candidate?.[k]);

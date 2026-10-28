@@ -39,6 +39,8 @@ export const QUESTIONS=Object.freeze([
  {id:'targetRole',kind:'text',text:'What specific role are you aiming for next?',placeholder:'e.g. Director of Process Excellence (or Still exploring)',maxLength:120,minLength:3},
  {id:'roleExperience',kind:'multi',text:'Which of these target-role skills have you actually used at work? Select up to 4.',options:[],maxSelections:4,minSelections:1},
  {id:'gaps',kind:'single',text:'Which skill would be your biggest stretch in the target role?',options:[]},
+ {id:'applicationDepth',kind:'single',text:'How have you typically used the skills you selected?',options:['Still learning; not applied yet','Used with guidance or supervision','Applied independently in work, studies or projects','Used to solve problems, improve outcomes or guide others']},
+ {id:'evidenceExample',kind:'text',text:'Describe one real example of using a relevant skill or preparing for your career goal.',placeholder:'e.g. I made a Power BI dashboard to show weekly service delays',maxLength:300,minLength:18,example:true,optional:true},
  // Deeper details only, after a purchase. Skip items answered in free discovery.
  {id:'responsibilities',kind:'multi',text:'Which responsibilities have you handled?',options:['Managing people','Improving processes','Leading projects','Analysing data','Working with customers','Other'],maxSelections:4,minSelections:1},
  {id:'skills',kind:'multi',text:'Which other skills could you demonstrate?',options:['Leading teams','Stakeholder communication','Solving problems','Project planning','Data analysis','Process improvement','Other'],maxSelections:5,minSelections:2},
@@ -46,7 +48,7 @@ export const QUESTIONS=Object.freeze([
  {id:'achievement1',kind:'text',text:'What is one project or responsibility you have worked on?',placeholder:'e.g. Building an AI chatbot for HR queries',maxLength:QUICK_TEXT_LIMIT,minLength:18,example:true},
  {id:'achievement2',kind:'text',text:'What is another project or responsibility you handled?',placeholder:'e.g. Handling HR queries for employees',maxLength:QUICK_TEXT_LIMIT,minLength:18,example:true},
 ]);
-export const FREE_QUESTION_IDS=Object.freeze(['employmentStatus','goal','targetRole','currentRole','experience','roleExperience','gaps']);
+export const FREE_QUESTION_IDS=Object.freeze(['employmentStatus','goal','targetRole','currentRole','experience','roleExperience','gaps','applicationDepth','evidenceExample']);
 const known=Object.freeze(Object.fromEntries(QUESTIONS.map(q=>[q.id,q])));
 const norm=v=>String(v??'').trim();
 const nonempty=v=>typeof v==='string'&&v.trim().length>=2;
@@ -55,6 +57,8 @@ export function answeredByProfile(q,p={}){
   case 'employmentStatus':return nonempty(p.employmentStatus);
   case 'currentRole':return typeof p.currentRole==='string'&&p.currentRole.trim().length>=3;
   case 'experience':return nonempty(p.experience);
+  case 'applicationDepth':return nonempty(p.applicationDepth);
+  case 'evidenceExample':return typeof p.evidenceExample==='string'&&looksLikeEvidence(p.evidenceExample);
   case 'goal':return nonempty(p.goal);
   case 'targetRole':return nonempty(p.targetRole);
   case 'roleExperience':return Array.isArray(p.roleExperience)&&p.roleExperience.some(nonempty);
@@ -71,6 +75,9 @@ function adaptQuestion(q,p={}){
  if(q.id==='roleExperience'){
   return {...q,text:['Student','Recent graduate','Student or recent graduate'].includes(p.employmentStatus)?'Which competencies have you practised in projects or internships?':q.text,options:[...competenciesForRole(p.targetRole),'Other',NO_EXPERIENCE]};
  }
+ if(q.id==='applicationDepth'&&(p.roleExperience||[]).includes(NO_EXPERIENCE))return {...q,text:'How far have you explored or prepared for your chosen career?',options:['Just exploring; no related learning or practice yet','Started learning the basics','Tried a tutorial or class activity','Completed a related personal or academic project']};
+ if(q.id==='evidenceExample'&&['Student','Recent graduate','Student or recent graduate'].includes(p.employmentStatus))return {...q,text:'Describe one project, class activity or learning experience related to the career you want.',placeholder:'e.g. I analysed survey responses for a college project'};
+ if(q.id==='evidenceExample'&&p.applicationDepth==='Still learning; not applied yet')return {...q,text:'What is one learning activity you have completed towards this career? (Optional)',placeholder:'e.g. I completed a spreadsheet course and practised cleaning a dataset'};
  if(q.id==='gaps'){
   return {...q,options:[...competenciesForRole(p.targetRole),'Interview preparation','Not sure yet','Other']};
  }
@@ -93,11 +100,22 @@ function publicQuestion(q){
  return {id,kind,text,options:options||[],maxSelections:maxSelections||1,minSelections:minSelections||1,maxLength:maxLength||OTHER_TEXT_LIMIT,minLength:minLength||1,placeholder:placeholder||'',optional:!!optional,example:!!example};
 }
 export function guidedProgress(p={},answers={},skips=[],phase='paid'){
- const questionSet=phase==='free'?FREE_QUESTION_IDS.map(id=>known[id]):QUESTIONS;
+ const questionSet=phase==='free'?FREE_QUESTION_IDS.map(id=>known[id]):QUESTIONS.filter(q=>!['applicationDepth','evidenceExample'].includes(q.id));
  const completed=questionSet.filter(q=>answeredByProfile(q,p)||Object.hasOwn(answers,q.id)||skips.includes(q.id)).length;
  const next=questionSet.find(q=>!answeredByProfile(q,p)&&!Object.hasOwn(answers,q.id)&&!skips.includes(q.id));
  return {completed,total:questionSet.length,question:publicQuestion(next?adaptQuestion(next,p):null),finished:!next,
   skipped:skips.filter(id=>!!known[id])};
+}
+// Cheap, deterministic checks. Do not attempt to infer truth or competence here.
+export function isObviousNonsense(v){
+ const s=norm(v).toLowerCase().replace(/\s+/g,' ');
+ const words=s.split(' ');
+ if(/^(?:asdf|qwerty|zxcv|blah|lorem ipsum|test test|123456|abcde)/i.test(s))return true;
+ if(/^([a-z0-9]{1,4})\1{3,}$/i.test(s.replace(/\s/g,'')))return true;
+ if(/^(.)\1{5,}$/u.test(s.replace(/\s/g,'')))return true;
+ if(words.length>=3&&new Set(words).size===1)return true;
+ if(/\b(?:ignore previous instructions|system prompt|write me a poem|drop table)\b/i.test(s))return true;
+ return false;
 }
 function sanitizeText(v,min,max){
  if(typeof v!=='string')throw new Error('Please enter a short response.');
@@ -112,7 +130,8 @@ export function validateQuickAnswer(q,raw){
  let value,other='';
  if(q.kind==='text'){
   const value=sanitizeText(raw?.value,q.minLength,q.maxLength);
-  if(q.example&&!looksLikeEvidence(value))throw new Error('Please name a project or responsibility, such as “Building an AI chatbot for HR queries”. Ongoing work is fine.');
+  if(q.example&&isObviousNonsense(value))throw new Error('Please describe a real project, task or learning activity, or select Skip if you have no example yet.');
+  if(q.example&&!looksLikeEvidence(value))throw new Error('Please give one specific task, project or learning activity you actually completed, or select Skip.');
   return {value,other:''};
  }
  const selections=q.kind==='multi'?raw?.value:[raw?.value];
@@ -133,6 +152,8 @@ export function addQuickAnswer(profile,q,answer){
   case 'employmentStatus':fields.employmentStatus=v;break;
   case 'currentRole':fields.currentRole=v;break;
   case 'experience':fields.experience=v;break;
+  case 'applicationDepth':fields.applicationDepth=v;break;
+  case 'evidenceExample':fields.evidenceExample=v;fields.achievements=[v];break;
   case 'goal':fields.goal=v;break;
   case 'targetRole':fields.targetRole=v;break;
   case 'roleExperience':{
@@ -156,13 +177,14 @@ export function addQuickAnswer(profile,q,answer){
 }
 // Rebuild from saved selections rather than merging into stale arrays. This is
 // local validation only: backtracking makes no model calls or coaching charges.
-export function rewindFreeAnswers(answers={},extras={},profile={}){
- const order=FREE_QUESTION_IDS.filter(id=>Object.hasOwn(answers,id));
+export function rewindFreeAnswers(answers={},extras={},profile={},skips=[]){
+ const order=FREE_QUESTION_IDS.filter(id=>Object.hasOwn(answers,id)||skips.includes(id));
  if(!order.length)return null;
  const previousId=order.at(-1);
  const remaining={...answers};delete remaining[previousId];
  const remainingExtras={...extras};delete remainingExtras[previousId];
- let rebuilt={employmentStatus:'',currentRole:'',experience:'',goal:'',targetRole:'',roleExperience:[],responsibilities:[],skills:[],gaps:[],achievements:[],constraints:'',industry:'',timeframe:''};
+ const remainingSkips=skips.filter(id=>id!==previousId);
+ let rebuilt={employmentStatus:'',currentRole:'',experience:'',goal:'',targetRole:'',roleExperience:[],responsibilities:[],skills:[],gaps:[],achievements:[],constraints:'',industry:'',timeframe:'',applicationDepth:'',evidenceExample:''};
  for(const id of FREE_QUESTION_IDS){
   if(!Object.hasOwn(remaining,id))continue;
   const base=QUESTIONS.find(item=>item.id===id);
@@ -178,7 +200,7 @@ export function rewindFreeAnswers(answers={},extras={},profile={}){
   const answer=validateQuickAnswer(q,{value:remaining[id],other});
   rebuilt=addQuickAnswer(rebuilt,q,answer);
  }
- return {previousId,previousValue:answers[previousId],previousOther:extras[previousId]||'',answers:remaining,extras:remainingExtras,profile:rebuilt};
+ return {previousId,previousValue:answers[previousId]||'',previousOther:extras[previousId]||'',answers:remaining,extras:remainingExtras,skips:remainingSkips,profile:rebuilt};
 }
 export function displayQuickAnswer(q,answer){
  if(q.kind==='text')return answer.value;

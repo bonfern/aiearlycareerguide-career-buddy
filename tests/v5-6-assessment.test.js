@@ -74,9 +74,9 @@ test('scoring categories represent MCQ judgment, not claims of workplace validat
 });
 test('free snapshot uses an interpretation rather than a copy of answers',()=>{
  const prose=snapshotSummary({currentRole:'Quality Lead',targetRole:'Director of Process Excellence',goal:'Get promoted',roleExperience:['Lean Six Sigma','Automation'],gaps:['Strategic thinking']});
- assert.match(prose,/important question/);assert.match(prose,/not a confirmed competency/);assert.match(prose,/strategic thinking/i);
- assert.equal(FREE_SNAPSHOT_VERSION,4);
- assert.ok(prose.length<=540);
+ assert.match(prose,/Director of Process Excellence/);assert.match(prose,/reported exposure/i);assert.doesNotMatch(prose,/paid|assessment|not tested/i);
+ assert.equal(FREE_SNAPSHOT_VERSION,5);
+ assert.ok(prose.length<=950);
 });
 test('free multiselect question explicitly states the maximum of four',()=>{
  const q=QUESTIONS.find(q=>q.id==='roleExperience');assert.match(q.text,/Select up to 4/);assert.equal(q.maxSelections,4);

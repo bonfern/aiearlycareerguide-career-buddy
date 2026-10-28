@@ -8,16 +8,16 @@ const app=fs.readFileSync(new URL('../app.js',import.meta.url),'utf8');
 const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
 const svc=fs.readFileSync(new URL('../api/service.js',import.meta.url),'utf8');
 
-test('all seven free questions remain cost-free and can be rewound without AI calls',()=>{
+test('all nine free questions remain cost-free and can be rewound without AI calls',()=>{
  let profile={...EMPTY_PROFILE},answers={},extras={};
- const choices={employmentStatus:'Employed full-time',currentRole:'Process Excellence Manager',experience:'Over 20 years',goal:'Get promoted',targetRole:'Director of Process Excellence',roleExperience:['Lean Six Sigma and process improvement','Transformation programme delivery'],gaps:'Strategic planning and benefits realisation'};
+ const choices={employmentStatus:'Employed full-time',currentRole:'Process Excellence Manager',experience:'Over 20 years',goal:'Get promoted',targetRole:'Director of Process Excellence',roleExperience:['Lean Six Sigma and process improvement','Transformation programme delivery'],gaps:'Strategic planning and benefits realisation',applicationDepth:'Applied independently in work, studies or projects',evidenceExample:'Led a team to create a process improvement dashboard for operations'};
  for(const id of FREE_QUESTION_IDS){
   const q=guidedProgress(profile,answers,[],'free').question;
   assert.equal(q.id,id);
   const a=validateQuickAnswer(q,{value:choices[id]});profile=addQuickAnswer(profile,q,a);answers[id]=a.value;
  }
  assert.equal(guidedProgress(profile,answers,[],'free').finished,true);
- for(let n=6;n>=0;n--){
+ for(let n=FREE_QUESTION_IDS.length-1;n>=0;n--){
   const back=rewindFreeAnswers(answers,extras,profile);
   assert.equal(back.previousId,FREE_QUESTION_IDS[n]);
   profile=back.profile;answers=back.answers;extras=back.extras;

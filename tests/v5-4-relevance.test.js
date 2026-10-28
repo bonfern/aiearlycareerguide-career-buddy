@@ -7,12 +7,12 @@ import {QUESTIONS,FREE_QUESTION_IDS,guidedProgress,competenciesForRole,NO_EXPERI
 const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
 const app=fs.readFileSync(new URL('../app.js',import.meta.url),'utf8');
 
-test('free discovery has seven relevant questions with no industry or career timing prompts',()=>{
- assert.deepEqual(FREE_QUESTION_IDS,['employmentStatus','goal','targetRole','currentRole','experience','roleExperience','gaps']);
- assert.equal(guidedProgress(EMPTY_PROFILE,{},[],'free').total,7);
+test('free discovery has nine relevant questions with no industry or career timing prompts',()=>{
+ assert.deepEqual(FREE_QUESTION_IDS,['employmentStatus','goal','targetRole','currentRole','experience','roleExperience','gaps','applicationDepth','evidenceExample']);
+ assert.equal(guidedProgress(EMPTY_PROFILE,{},[],'free').total,9);
  assert.ok(!QUESTIONS.some(q=>q.id==='industry'||q.id==='timeframe'));
- assert.match(html,/Seven focused questions/);
- assert.match(html,/Question 1 of 7/);
+ assert.match(html,/Nine short questions/);
+ assert.match(html,/Question 1 of 9/);
 });
 test('over 20 years is the highest work experience option and retains accurate range',()=>{
  const experience=QUESTIONS.find(q=>q.id==='experience');

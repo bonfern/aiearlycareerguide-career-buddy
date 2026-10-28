@@ -27,13 +27,13 @@ test('role-only key normalises label and never includes personal profile context
 test('expanded snapshot includes exactly two distinct meaningful bullets per competency and per step',()=>{
  assert.ok(validRoleGuidance(guidance));
  const snap=buildSnapshotV2(profile,guidance);
- assert.equal(snap.version,4);
+ assert.equal(snap.version,5);
  assert.ok(isSnapshotV2(snap));
  assert.equal(snap.targetCompetencies.length,4);
  assert.equal(snap.nextSteps.length,5);
  for(const group of [snap.targetCompetencies,snap.nextSteps])for(const v of group)assert.equal(v.bullets.length,2);
- assert.match(snap.profileSummary,/Senior Quality Lead/);
- assert.equal(snap.furtherAssessment.length,6);
+ assert.match(snap.profileSummary,/Director of Process Excellence/);
+ assert.equal(snap.furtherAssessment.length,3);
 });
 test('incomplete snapshot details are not accepted',()=>{
  const wrong=structuredClone(guidance);wrong.nextSteps[2].bullets.pop();assert.equal(validRoleGuidance(wrong),false);
@@ -51,7 +51,7 @@ test('PDF includes each of the 18 individual guidance bullet points',()=>{
  assert.match(pdf,/Transformation strategy/);
  assert.match(pdf,/Study target-role expectations/);
  assert.match(pdf,/Handle disagreement by presenting options/);
- assert.match(pdf,/What we need to check next/);
+ assert.match(pdf,/What a deeper assessment could reveal/);
  assert.doesNotMatch(pdf,/Five practical next steps/);
 });
 test('coaching debits all successful response scopes, with fast low-value path',()=>{
@@ -60,12 +60,12 @@ test('coaching debits all successful response scopes, with fast low-value path',
  assert.match(code,/const localReply=cheapRedirect\(msg\)/);
  assert.match(code,/charged:true,creditsDeducted:1,scope/);
  assert.match(code,/usage\?updatedUsage\(s\.usageSummary,usage\):s\.usageSummary/);
- assert.match(code,/isSnapshotV2\(s\.freeReport\)/);
+ assert.match(code,/if\(s\.freeReport\)return/);
 });
 test('frontend renders structured free guidance and discloses credit rules',()=>{
  const app=fs.readFileSync(new URL('../app.js',import.meta.url),'utf8');
  const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
  assert.match(app,/snapshot-bullets/);
- assert.match(app,/Refresh snapshot with clearer guidance/);
+ assert.match(app,/Your transferable advantage/);
  assert.match(html,/A completed coaching answer uses one credit/);
 });
