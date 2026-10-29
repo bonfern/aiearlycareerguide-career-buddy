@@ -81,10 +81,10 @@ test('free report and PDF remain meaningful without inventing verified skills',(
  assert.match(report.profileSummary,/Data Analyst/);assert.match(report.profileSummary,/Solving problems/);
  assert.match(report.profileSummary,/Excel dashboard/);
  const pdf=buildFreeSnapshotPdf(report);assert.equal(pdf.subarray(0,5).toString(),'%PDF-');
- assert.match(pdf.toString('latin1'),/Strengths you selected/);
- assert.match(pdf.toString('latin1'),/Tools or examples you mentioned/);
- assert.equal(report.careerOpportunities.length,2);
- assert.match(pdf.toString('latin1'),/Career opportunities worth exploring/);
+ assert.match(pdf.toString('latin1'),/Your career profile/);
+ assert.match(pdf.toString('latin1'),/Your transferable advantage/);
+ assert.equal(report.careerOpportunities.length,3);
+ assert.match(pdf.toString('latin1'),/Three career pathways to explore/);
 });
 test('Premium still needs its specific paid role; free navigation has no paid-credit use',()=>{
  const f=runFlow(exploringAnswers);
@@ -97,7 +97,7 @@ test('UI and server have new version, dynamic progress, and no 13-question publi
  const server=fs.readFileSync(new URL('../api/service.js',import.meta.url),'utf8');
  const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
  const app=fs.readFileSync(new URL('../app.js',import.meta.url),'utf8');
- assert.match(server,/version:'5\.21'/);assert.match(server,/migrating=!s.freeReport/);
+ assert.match(server,/version:'5\.22'/);assert.match(server,/migrating=!s.freeReport/);
  assert.doesNotMatch(html,/Thirteen focused questions|Question 1 of 13/);
  assert.match(app,/requestId:uuid\(\)/); // reuses standard guided-answer API, no AI calls
 });

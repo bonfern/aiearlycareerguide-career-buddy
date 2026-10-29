@@ -196,9 +196,22 @@ function freeChecks(r={}){
  }}
  return checks;
 }
+// V5.22: concise FREE report. Premium continues to own scored gaps and development plans.
+function renderFocusedFreeSnapshot(host,r){
+ host.append(el('h3','','1. Your career profile'),el('p','',r.profileSummary||''));
+ host.append(el('h3','','Your transferable advantage'),el('p','',r.transferableAdvantage||''));
+ host.append(el('h3','','2. Three career pathways to explore'));
+ const paths=el('ol','ranked-career-paths');for(const path of (r.careerOpportunities||[]).slice(0,3))paths.append(el('li','',path));host.append(paths);
+ host.append(el('h3','','3. Your three immediate next moves'));
+ const actions=el('ol','ranked-career-actions');for(const action of (r.nextBestMoves||[]).slice(0,3))actions.append(el('li','',action));host.append(actions);
+ host.append(el('h3','','4. What a Premium Assessment evaluates'));
+ const checks=el('ul');for(const item of (r.furtherAssessment||[]).slice(0,3))checks.append(el('li','',item));host.append(checks);
+ host.append(el('p','snapshot-disclaimer','Your free snapshot is based on self-reported answers, not tested competency scores.'));
+}
 function paintSnapshot(){const r=state.freeReport||{},view=$('snapshotSummary');view.replaceChildren();
  if(!state.freeReport){view.append(el('p','','Finish the free discovery first.'));return;}
- if(r.version>=5){
+ if(r.version>=6){renderFocusedFreeSnapshot(view,r);}
+ else if(r.version>=5){
   // Opening section intentionally contains ONLY goal, target-role skills and
   // user-reported exposure. Assessment limitations appear at the bottom.
   view.append(el('h3','','Your goal and starting point'),el('p','',r.profileSummary||''));
@@ -413,7 +426,8 @@ function openDialog(title){$('dialogDownload').onclick=()=>reportKind==='resume-
 function openFree(){
  if(!state.freeReport)return;
  reportKind='free';const r=state.freeReport,host=openDialog('Your Free Career Snapshot');
- if(r.version>=5){
+ if(r.version>=6){renderFocusedFreeSnapshot(host,r);}
+ else if(r.version>=5){
   host.append(el('h3','','Your goal and starting point'),el('p','',r.profileSummary||''));
   addList(host,'Skills relevant to your career direction',r.targetCompetencies||[]);
   addList(host,'Strengths you selected',r.reportedStrengths?.length?r.reportedStrengths:['No strengths selected yet.']);

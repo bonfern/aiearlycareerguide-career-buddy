@@ -138,3 +138,8 @@ dialog{max-width:min(850px,calc(100vw - 24px));width:100%;max-height:94dvh;overf
 /* Specificity reset: consent is normal-weight body copy, not a field title. */
 .auth-card label.consent-choice,.resume-review-panel label.consent-choice{display:flex;font-weight:400;font-size:12px;line-height:1.55;margin:13px 0;}
 .auth-card .consent-choice span,.resume-review-panel .consent-choice span{font-weight:400}
+
+/* V5.22 free report: clear, scannable ranked pathways and three next moves. */
+.snapshot-summary ol.ranked-career-paths,.snapshot-summary ol.ranked-career-actions,#reportContent ol.ranked-career-paths,#reportContent ol.ranked-career-actions{padding-left:23px;margin:9px 0 17px;}
+.snapshot-summary ol li,#reportContent ol li{padding-left:4px;margin:8px 0;line-height:1.6;}
+.snapshot-summary ol li::marker,#reportContent ol li::marker{color:#147965;font-weight:700;}

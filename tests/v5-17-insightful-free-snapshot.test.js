@@ -14,7 +14,7 @@ const guidance={targetCompetencies:[
 ],nextSteps:Array.from({length:5},(_,i)=>({title:`Practical action ${i+1}`,bullets:[`Create a specific example showing one skill relevant to the selected data analyst goal number ${i+1}.`,`Write down your role in the example, your approach and a result or learning for exercise ${i+1}.`]}))};
 
 test.skip('nine free questions are no-cost deterministic flow with two additional insight prompts [superseded by V5.18 13-question specification]',()=>{
- assert.equal(FREE_SNAPSHOT_VERSION,5);
+ assert.equal(FREE_SNAPSHOT_VERSION,6);
  assert.equal(FREE_QUESTION_IDS.length,9);
  assert.deepEqual(FREE_QUESTION_IDS.slice(-2),['applicationDepth','evidenceExample']);
  let p={...EMPTY_PROFILE},answers={};
@@ -64,7 +64,7 @@ test('obvious gibberish and non-specific personal praise do not become evidence'
 test('personalised report opens with goal, role skills and self-reported exposure, and ends with further evaluation',()=>{
  assert.ok(validRoleGuidance(guidance));
  const p={...EMPTY_PROFILE,goal:'Change careers',targetRole:'Data Analyst',roleExperience:['Dashboards and data storytelling'],applicationDepth:'Applied independently in work, studies or projects',evidenceExample:'I created a dashboard to analyse the most common service delays in my team.',gaps:['SQL and data preparation']};
- const insight={transferableAdvantage:'Your operational reporting experience may help you ask useful analytical questions and communicate the value of dashboards.',careerAlignment:'You described independent dashboard work, which connects to the target role; the specific example does not establish SQL experience.',nextBestMoves:['Prepare a short case study explaining the service delays you analysed and which decisions your dashboard improved.','Use a public dataset to write three SQL joins and compare the results against your existing dashboard.']};
+ const insight={transferableAdvantage:'Your operational reporting experience may help you ask useful analytical questions and communicate the value of dashboards.',nextBestMoves:['Prepare a short case study explaining the service delays you analysed and which decisions your dashboard improved.','Use a public dataset to write three SQL joins and compare the results against your existing dashboard.','Discuss one business analytics job description with an analyst and write down two interview examples.'],careerOpportunities:['Data Analyst: apply your operational dashboard background to find patterns and advise teams on business decisions.','Operations Analyst: use your experience with service delays to investigate trends, bottlenecks and process measures.','Business Intelligence Analyst: explore reporting that joins domain knowledge with data modelling and stakeholder communication.']};
  assert.ok(validPersonalInsights(insight));
  const r=buildSnapshotV2(p,guidance,insight);
  assert.ok(isSnapshotV2(r));
@@ -72,15 +72,15 @@ test('personalised report opens with goal, role skills and self-reported exposur
  assert.match(r.profileSummary,/Dashboards and data storytelling/);
  assert.doesNotMatch(r.profileSummary,/untested|assessment|paid|not verified|testing/i);
  assert.equal(r.reportedExposure.length,1);
- assert.equal(r.nextBestMoves.length,2);
+ assert.equal(r.nextBestMoves.length,3);
  assert.equal(r.furtherAssessment.length,3);
  const pdf=buildFreeSnapshotPdf(r).toString('latin1');
  assert.match(pdf,/Your transferable advantage/);
- assert.match(pdf,/Your career alignment/);
- assert.match(pdf,/Your next best moves/);
- const start=pdf.indexOf('Your career goal and starting point'),bottom=pdf.indexOf('What a deeper assessment could reveal');
+ assert.match(pdf,/Three career pathways to explore/);
+ assert.match(pdf,/Your three immediate next moves/);
+ const start=pdf.indexOf('Your career profile'),bottom=pdf.indexOf('What a Premium Assessment evaluates');
  assert.ok(start>0&&bottom>start);
- assert.match(pdf,/It is not a verified competency score/);
+ assert.match(pdf,/Premium Assessment evaluates/);
 });
 
 test('same configured free model synthesises private insight once at report generation, with role-only shared caching',()=>{

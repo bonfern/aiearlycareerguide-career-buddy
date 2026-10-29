@@ -27,7 +27,7 @@ test('role-only key normalises label and never includes personal profile context
 test('expanded snapshot includes exactly two distinct meaningful bullets per competency and per step',()=>{
  assert.ok(validRoleGuidance(guidance));
  const snap=buildSnapshotV2(profile,guidance);
- assert.equal(snap.version,5);
+ assert.equal(snap.version,6);
  assert.ok(isSnapshotV2(snap));
  assert.equal(snap.targetCompetencies.length,4);
  assert.equal(snap.nextSteps.length,5);
@@ -44,15 +44,15 @@ test('nonsense gets fast local response, legitimate career questions reach AI',(
  assert.match(cheapRedirect('What is the weather today?'),/Career Buddy/);
  for(const msg of ['How do I become a PM?','What does a CEO do?','Tell me how to prepare for an interview','What are HRBP skills?'])assert.equal(cheapRedirect(msg),null);
 });
-test('PDF includes each of the 18 individual guidance bullet points',()=>{
+test('new free PDF is concise and excludes the paid competency-detail sections',()=>{
  const data=buildFreeSnapshotPdf(buildSnapshotV2(profile,guidance));
  assert.equal(data.toString('latin1',0,8),'%PDF-1.4');
  const pdf=data.toString('latin1');
- assert.match(pdf,/Transformation strategy/);
- assert.match(pdf,/Study target-role expectations/);
- assert.match(pdf,/Handle disagreement by presenting options/);
- assert.match(pdf,/What a deeper assessment could reveal/);
- assert.doesNotMatch(pdf,/Five practical next steps/);
+ assert.match(pdf,/Three career pathways to explore/);
+ assert.match(pdf,/Your three immediate next moves/);
+ assert.match(pdf,/What a Premium Assessment evaluates/);
+ assert.doesNotMatch(pdf,/Study target-role expectations|Handle disagreement by presenting options/);
+ assert.match(pdf,/\/Count 2/);
 });
 test('coaching debits all successful response scopes, with fast low-value path',()=>{
  const code=fs.readFileSync(new URL('../api/service.js',import.meta.url),'utf8');

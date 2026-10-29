@@ -21,7 +21,7 @@ test('stage navigation resets scroll after layout, focuses heading and handles s
 });
 
 test('plain-English snapshot guidance uses a separate v3 shared ROLE cache, with no personal information',()=>{
- assert.equal(FREE_SNAPSHOT_VERSION,5);
+ assert.equal(FREE_SNAPSHOT_VERSION,6);
  assert.match(roleGuidancePrompt,/everyday English/);
  assert.match(roleGuidancePrompt,/actual work artefacts/);
  assert.match(roleGuidancePrompt,/EXACTLY 5 nextSteps/);

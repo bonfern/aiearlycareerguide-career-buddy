@@ -18,7 +18,16 @@ export function buildFreeSnapshotPdf(snapshot={}){
   }
   y-=11;
  };
- if(snapshot.version>=5){
+ if(snapshot.version>=6){
+  // V5.22: Free is exploration, not a paid evaluation. Two compact A4 pages.
+  section('1. Your career profile',[snapshot.profileSummary||'Your current career direction.']);
+  section('Your transferable advantage',[snapshot.transferableAdvantage||'Your selected strengths can help you identify suitable starting points.']);
+  section('2. Three career pathways to explore',(snapshot.careerOpportunities||[]).slice(0,3).map((p,i)=>`${i+1}. ${p}`));
+  newPage();
+  section('3. Your three immediate next moves',(snapshot.nextBestMoves||[]).slice(0,3).map((m,i)=>`${i+1}. ${m}`));
+  section('4. What a Premium Assessment evaluates',(snapshot.furtherAssessment||[]).slice(0,3),true);
+  draw('Free discovery is based on your answers and does not measure competency scores.',{size:9,max:100});
+ }else if(snapshot.version>=5){
   section('1. Your career goal and starting point',[snapshot.profileSummary||'Your goal and starting point.']);
   section('Skills important for your target role',snapshot.targetCompetencies||[],true);
   section('Strengths you selected',snapshot.reportedStrengths?.length?snapshot.reportedStrengths:['No strengths selected yet.'],true);
