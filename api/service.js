@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import {browserClaimKey,browserAccess} from './_lib/free-browser.js';
+import {browserClaimKey,browserAccess,browserClaimFromSnapshot} from './_lib/free-browser.js';
 import {verificationMessage,CONSENT_VERSION} from './_lib/auth-email.js';
 import {PACKS,EMPTY_PROFILE,validateMessage,mergeProfile,reportReadiness,freeReadiness,computeOffer,checkPackEligibility,creditWarning,estimateUsage,validId} from './_lib/domain.js';
 import {guidedProgress,validateQuickAnswer,addQuickAnswer,displayQuickAnswer,validateSkip,rewindFreeAnswers,applyFreeAnswers,freeIntakeComplete} from './_lib/quickflow.js';
@@ -67,7 +67,7 @@ function isAssessmentPaid(s){return s.tier==='paid';}
 function safeState(s){
  const paid=isAssessmentPaid(s),coaching=isPaid(s),free=freeReadiness(s.profile||{});const rem=Math.max(0,s.credits||0);
  const assessment=paid?assessmentProgress(s.assessmentBank,s.assessmentAnswers||[]):{total:0,answered:0,finished:false,question:null};
- return {id:s.id,email:s.email||'',mode:publicLiveMode()?'public-live':paymentMode()==='razorpay_live'?'private-live':'preview',version:'5.19',checkoutReady:liveCheckoutReady(),journeyPreference:s.journeyPreference||'free',coachingEligible:Boolean(s.freeReport||s.report),tier:paid?'paid':coaching?'coach':'free',paymentsEnabled:paymentMode()==='razorpay_live'?liveConfigured():testPaymentEnabled(),paymentMode:paymentMode(),
+ return {id:s.id,email:s.email||'',mode:publicLiveMode()?'public-live':paymentMode()==='razorpay_live'?'private-live':'preview',version:'5.20',checkoutReady:liveCheckoutReady(),journeyPreference:s.journeyPreference||'free',coachingEligible:Boolean(s.freeReport||s.report),tier:paid?'paid':coaching?'coach':'free',paymentsEnabled:paymentMode()==='razorpay_live'?liveConfigured():testPaymentEnabled(),paymentMode:paymentMode(),
   profile:s.profile||{},guided:guidedProgress(s.profile||{},s.quickAnswers||{},s.quickSkipped||[],'free'),
   assessment:{...assessment,started:Boolean(s.assessmentBank),preparationStep:s.assessmentDraft?.stage||0,competencies:s.assessmentBank?.competencies?.map(c=>({name:c.name,type:c.type}))||[]},
   quickHistory:(s.quickHistory||[]).slice(-3),credits:rem,creditsGranted:s.creditsGranted||0,
@@ -286,7 +286,7 @@ async function quickAnswer(req,res){
   const [snap,bSnap]=await Promise.all([tx.get(ref),bRef?tx.get(bRef):Promise.resolve(null)]),s=snap.data();
   if(!s)fail(401,'Session is unavailable.');
   if(!s.profile||typeof s.profile!=='object'||Array.isArray(s.profile))fail(409,'Your saved profile could not be loaded. Please sign out and sign back in.');
-  assertFreeBrowser(bSnap.data(),s.id);
+  assertFreeBrowser(browserClaimFromSnapshot(bSnap),s.id);
   if(s.consent?.version!==CONSENT_VERSION)fail(403,'Please sign out and verify your email again to review the updated Privacy Policy.');
   if(s.lastQuickRequest?.id===key)return s.lastQuickRequest.response;
   if(s.busy?.until>now())fail(409,'A career coaching response is still processing.');
@@ -467,7 +467,7 @@ async function freeReport(req,res){
  const start=await store.runTransaction(async tx=>{
   const bRef=browserRef(store,req);
   const [snap,limitSnap,bSnap]=await Promise.all([tx.get(ref),tx.get(limitRef),bRef?tx.get(bRef):Promise.resolve(null)]),s=snap.data();
-  assertFreeBrowser(bSnap.data(),s?.id);
+  assertFreeBrowser(browserClaimFromSnapshot(bSnap),s?.id);
   if(s&&s.consent?.version!==CONSENT_VERSION)fail(403,'Please sign out and verify your email again to review the updated Privacy Policy.');
   if(!s)fail(401,'Session unavailable.');
   if(!s.profile||typeof s.profile!=='object'||Array.isArray(s.profile))fail(409,'Your profile could not be loaded. Please sign out and sign back in.');

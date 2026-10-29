@@ -42,7 +42,7 @@ test('free browser claim identities are random and only an original account may 
  assert.equal(browserAccess({ownerId:'account1'},'account2'),false);
  assert.throws(()=>browserClaimKey('email@example.com',key),/Browser storage/);
  assert.match(server,/buddyFreeBrowserClaimsV1/);
- assert.match(server,/assertFreeBrowser\(bSnap\.data\(\),s\.id\)/);
+ assert.match(server,/assertFreeBrowser\(browserClaimFromSnapshot\(bSnap\),s\.id\)/);
 });
 test.skip('nine questions ask goal before experience and student without a job can get a snapshot [superseded by V5.18 13-question specification]',()=>{
  assert.deepEqual(FREE_QUESTION_IDS,['employmentStatus','goal','targetRole','currentRole','experience','roleExperience','gaps','applicationDepth','evidenceExample']);

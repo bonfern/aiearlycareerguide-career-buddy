@@ -93,6 +93,6 @@ test('server error logs include action without echoing questionnaire text',()=>{
  const server=fs.readFileSync(new URL('../api/service.js',import.meta.url),'utf8');
  assert.match(server,/action:String\(req\.query\?\.action/);
  assert.match(server,/typeof s\.profile!=='object'/);
- assert.match(server,/version:'5\.19'/);
+ assert.match(server,/version:'5\.20'/);
  assert.match(server,/ENFORCE_FREE_BROWSER_LIMIT==='1'/);
 });
