@@ -22,6 +22,7 @@ export function buildFreeSnapshotPdf(snapshot={}){
   // V5.22: Free is exploration, not a paid evaluation. Two compact A4 pages.
   section('1. Your career profile',[snapshot.profileSummary||'Your current career direction.']);
   section('Your transferable advantage',[snapshot.transferableAdvantage||'Your selected strengths can help you identify suitable starting points.']);
+  section('Four important skills for your target direction',(snapshot.targetCompetencies||[]).slice(0,4).map(skill=>`${skill.title}: ${skill.bullets?.[0]||'A relevant foundational skill.'}`),true);
   section('2. Three career pathways to explore',(snapshot.careerOpportunities||[]).slice(0,3).map((p,i)=>`${i+1}. ${p}`));
   newPage();
   section('3. Your three immediate next moves',(snapshot.nextBestMoves||[]).slice(0,3).map((m,i)=>`${i+1}. ${m}`));

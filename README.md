@@ -1,4 +1,6 @@
-# AI Early Career Guide — Career Buddy V5.22
+**Latest release: V5.23.** See `V5_23_RELEASE_NOTES.md` and `FIRESTORE_COUPONS_GUIDE.md`.
+
+# AI Early Career Guide — Career Buddy V5.23
 
 Separate Career Buddy application behind **https://www.aiearlycareerguide.com/professionals/**, deployed from the GitHub repository `aiearlycareerguide-career-buddy`. Do not upload to the old Professional Assessment or the main-website repository.
 

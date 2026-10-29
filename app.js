@@ -200,6 +200,8 @@ function freeChecks(r={}){
 function renderFocusedFreeSnapshot(host,r){
  host.append(el('h3','','1. Your career profile'),el('p','',r.profileSummary||''));
  host.append(el('h3','','Your transferable advantage'),el('p','',r.transferableAdvantage||''));
+ host.append(el('h3','','Four important skills for your target direction'));
+ const skills=el('ul','free-role-skills');for(const skill of (r.targetCompetencies||[]).slice(0,4)){const item=el('li');item.append(el('strong','',skill.title),document.createTextNode(' — '+(skill.bullets?.[0]||'A relevant foundational skill.')));skills.append(item);}host.append(skills);
  host.append(el('h3','','2. Three career pathways to explore'));
  const paths=el('ol','ranked-career-paths');for(const path of (r.careerOpportunities||[]).slice(0,3))paths.append(el('li','',path));host.append(paths);
  host.append(el('h3','','3. Your three immediate next moves'));
@@ -317,12 +319,13 @@ function loadRazorpayCheckout(){
 async function openTestCheckout(checkout){
  await loadRazorpayCheckout();
  return new Promise((resolve,reject)=>{
+  let settled=false;
   const rzp=new window.Razorpay({
    key:checkout.keyId,amount:checkout.amountPaise,currency:'INR',order_id:checkout.orderId,
    name:checkout.name,description:checkout.description,prefill:{email:checkout.email},
    theme:{color:'#15294e'},
-   handler:data=>{if($('processingOverlay'))$('processingOverlay').classList.remove('hidden');resolve({orderId:data.razorpay_order_id,paymentId:data.razorpay_payment_id,signature:data.razorpay_signature});},
-   modal:{ondismiss:()=>reject(Error('Checkout closed. No credits were added. You can check payment status before trying again.'))}
+   handler:data=>{if(settled)return;settled=true;if($('processingOverlay'))$('processingOverlay').classList.remove('hidden');resolve({orderId:data.razorpay_order_id,paymentId:data.razorpay_payment_id,signature:data.razorpay_signature});},
+   modal:{ondismiss:()=>{if(settled)return;settled=true;resolve({cancelled:true});}}
   });
   rzp.on('payment.failed',()=>{ /* Keep the checkout open for retry. No credits granted. */ });
   // Payment modal owns focus while open; do not leave the loading mask above it.
@@ -355,6 +358,12 @@ async function activate(packId,couponId){
     state.pendingLiveCheckout={orderId:result.checkout.orderId};syncPaymentLabels();
     notice(`Opening secure Razorpay checkout for ${money(result.checkout.amountPaise / 100)}. Confirm the amount before paying.`);
     const payment=await openTestCheckout(result.checkout);
+    if(payment.cancelled){
+     const released=await api('liveCheckoutDismiss',{orderId:result.checkout.orderId});
+     state=released.state;syncPaymentLabels();notice(released.notice);paint();
+     if(state?.tier==='paid'&&packId==='starter')afterPurchase(packId,released.notice);
+     return;
+    }
     const verified=await api('livePaymentVerify',payment);
     state=verified.state;afterPurchase(packId,verified.notice);
    }

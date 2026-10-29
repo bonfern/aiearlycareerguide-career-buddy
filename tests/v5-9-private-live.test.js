@@ -52,7 +52,7 @@ test('source gates simulation and live charges separately',()=>{
  const browser=fs.readFileSync(new URL('../app.js',import.meta.url),'utf8');
  for(const action of ['liveCheckout','livePaymentVerify','livePaymentStatus'])assert.match(service,new RegExp("action==='"+action+"'"));
  assert.match(service,/LIVE_PAID_CHECKOUT_ENABLED/);
- assert.match(service,/buddyLiveCouponUsers/);assert.match(service,/buddyLiveCouponCounters/);assert.match(service,/approvedLiveTester/);
+ assert.match(service,/couponUserRef/);assert.match(service,/couponCounterRef/);assert.match(service,/approvedLiveTester/);
  assert.match(service,/reset is disabled in the private live pilot/);
  assert.match(browser,/result\.kind==='complimentary'/);
 });

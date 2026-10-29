@@ -11,6 +11,7 @@ import {buildFreeSnapshotPdf} from './_lib/free-snapshot-pdf.js';
 import {bankIdentity,validBank as validCompetencyBank,createAssessmentBank,createAssessmentStage,assessmentProgress,submitAnswer,assessmentEvidence} from './_lib/competency-assessment.js';
 import {assertTestKeys,testPaymentEnabled,testPaymentSignature,validateCapturedPayment,offerAmountPaise,razorpayTestAPI} from './_lib/razorpay-test.js';
 import {grantCapturedLivePayment} from './_lib/live-grants.js';
+import {resolveLiveCoupon,parseFirestoreCoupon,couponCounterRef,couponUserRef} from './_lib/firestore-coupons.js';
 import {paymentMode,assertLiveKeys,liveConfigured,approvedLiveTester,requireLiveSettings,publicLiveMode,liveCoupons,canUseFullDiscount,livePaymentSignature,razorpayLiveAPI} from './_lib/razorpay-live.js';
 import {FREE_SNAPSHOT_VERSION,cacheRoleKey,roleGuidancePrompt,validRoleGuidance,buildSnapshotV2,isSnapshotV2,personalisedSnapshotPrompt,validPersonalInsights,cheapRedirect} from './_lib/free-snapshot-content.js';
 
@@ -68,7 +69,7 @@ function safeState(s){
  if(!s.freeReport&&Number(s.profile?.freeIntakeVersion||0)<21){s={...s,profile:applyFreeAnswers({}, {}, []),quickAnswers:{},quickAnswerExtras:{},quickSkipped:[],quickHistory:[]};}
  const paid=isAssessmentPaid(s),coaching=isPaid(s),free=freeReadiness(s.profile||{});const rem=Math.max(0,s.credits||0);
  const assessment=paid?assessmentProgress(s.assessmentBank,s.assessmentAnswers||[]):{total:0,answered:0,finished:false,question:null};
- return {id:s.id,email:s.email||'',mode:publicLiveMode()?'public-live':paymentMode()==='razorpay_live'?'private-live':'preview',version:'5.22',checkoutReady:liveCheckoutReady(),journeyPreference:s.journeyPreference||'free',coachingEligible:Boolean(s.freeReport||s.report),tier:paid?'paid':coaching?'coach':'free',paymentsEnabled:paymentMode()==='razorpay_live'?liveConfigured():testPaymentEnabled(),paymentMode:paymentMode(),
+ return {id:s.id,email:s.email||'',mode:publicLiveMode()?'public-live':paymentMode()==='razorpay_live'?'private-live':'preview',version:'5.23',checkoutReady:liveCheckoutReady(),journeyPreference:s.journeyPreference||'free',coachingEligible:Boolean(s.freeReport||s.report),tier:paid?'paid':coaching?'coach':'free',paymentsEnabled:paymentMode()==='razorpay_live'?liveConfigured():testPaymentEnabled(),paymentMode:paymentMode(),
   profile:s.profile||{},guided:guidedProgress(s.profile||{},s.quickAnswers||{},s.quickSkipped||[],'free'),
   assessment:{...assessment,started:Boolean(s.assessmentBank),preparationStep:s.assessmentDraft?.stage||0,competencies:s.assessmentBank?.competencies?.map(c=>({name:c.name,type:c.type}))||[]},
   quickHistory:(s.quickHistory||[]).slice(-3),credits:rem,creditsGranted:s.creditsGranted||0,
@@ -674,67 +675,129 @@ async function checkTestCheckout(req,res){
 // or limited 100% coupons can grant a pack. Never grant credits in the browser.
 const LIVE_ORDER_MS=30*60*1000;
 function requireLive(){try{return requireLiveSettings();}catch(e){fail(503,e.message);}}
-function liveOffer(packId,couponCode){
- try{return computeOffer({packId,couponCode,coupons:liveCoupons()});}catch(e){fail(400,e.message);}
-}
-export async function grantFullCoupon(store,ref,offer,requestId){
+export async function grantFullCoupon(store,ref,offer,requestId,couponRule=null){
  const code=offer.coupon,hash=crypto.createHash('sha256').update(code).digest('hex').slice(0,32);
- const counterRef=store.collection('buddyLiveCouponCounters').doc(hash);
+ const counterRef=couponCounterRef(store,code);
+ const definitionRef=couponRule?.source==='firestore'?store.collection('buddyLiveCoupons').doc(code):null;
  return store.runTransaction(async tx=>{
   const snap=await tx.get(ref),s=snap.data();if(!s)fail(401,'Verified session unavailable.');
-  if(!canUseFullDiscount({email:s.email,code}))fail(403,'This complimentary code is not available for your account.');
+  const definition=definitionRef?await tx.get(definitionRef):null;
+  if(definitionRef){
+   if(!definition?.exists)fail(403,'Coupon is unavailable.');
+   try{const active=parseFirestoreCoupon(code,definition.data(),s.email,offer.packId);if(active.discountPercent!==100)throw Error('Coupon discount has changed.');}catch(e){fail(403,e.message);}
+  }else if(!canUseFullDiscount({email:s.email,code}))fail(403,'This complimentary code is not available for your account.');
   if(s.busy?.until>now())fail(409,'Please wait for the previous request to finish.');
   if(Number(s.credits||0)+offer.credits>1000)fail(409,'Credit safety limit reached.');
   // Read all dependent documents before any write.
-  const userRef=store.collection('buddyLiveCouponUsers').doc(s.id),userSnap=await tx.get(userRef),user=userSnap.data()||{};
+  const userRef=couponUserRef(store,s.id),userSnap=await tx.get(userRef),user=userSnap.data()||{};
   const counterSnap=await tx.get(counterRef),counter=counterSnap.data()||{};
   const existing=user.redemptions||[];
   if(existing.some(x=>x.code===code&&x.packId===offer.packId&&x.requestId===requestId))return {state:s,replayed:true};
   if(existing.some(x=>x.code===code&&x.packId===offer.packId))fail(409,'This complimentary pack has already been redeemed for your email.');
-  const userMax=Math.max(1,Math.min(10,Number(process.env.LIVE_FREE_COUPON_MAX_PER_EMAIL||2)));
-  const globalMax=Math.max(1,Math.min(500,Number(process.env.LIVE_FREE_COUPON_GLOBAL_LIMIT||20)));
+  const userMax=couponRule?.source==='firestore'?couponRule.maxPerEmail:Math.max(1,Math.min(10,Number(process.env.LIVE_FREE_COUPON_MAX_PER_EMAIL||2)));
+  const globalMax=couponRule?.source==='firestore'?couponRule.maxRedemptions:Math.max(1,Math.min(500,Number(process.env.LIVE_FREE_COUPON_GLOBAL_LIMIT||20)));
   if(existing.filter(x=>x.code===code).length>=userMax)fail(409,'This email has reached its complimentary test-pack limit.');
-  if((counter.count||0)>=globalMax)fail(409,'This complimentary coupon has reached its usage limit.');
+  if((counter.count||0)+(counter.pending||0)>=globalMax)fail(409,'This complimentary coupon has reached its usage limit.');
   let tier;try{tier=checkPackEligibility(s,offer.packId);}catch(e){fail(409,e.message);}
   const t=now(),expiry=Math.max(t,isPaid(s)?Number(s.expiresAt)||0:0)+offer.days*86400000;
   const record={code,packId:offer.packId,requestId,at:t};
   const grant={id:requestId,packId:offer.packId,credits:offer.credits,priceInr:0,discountPercent:100,kind:'approved-private-complimentary',at:t};
   const next={...s,tier,credits:(s.credits||0)+offer.credits,creditsGranted:(s.creditsGranted||0)+offer.credits,
    expiresAt:expiry,paidStartedAt:s.paidStartedAt||t,previewOrders:[...(s.previewOrders||[]),grant].slice(-30)};
-  tx.set(userRef,{emailHash:s.id,redemptions:[...existing,record]});
-  tx.set(counterRef,{codeHash:hash,count:(counter.count||0)+1,updatedAt:t});
-  tx.create(store.collection('buddyLiveComplimentaryGrants').doc(requestId),{...grant,sessionId:s.id,couponCode:code});
+  tx.set(userRef,{...user,emailHash:s.id,redemptions:[...existing,record]});
+  tx.set(counterRef,{...counter,codeHash:hash,count:(counter.count||0)+1,updatedAt:t});
+  tx.create(store.collection('buddyLiveComplimentaryGrants').doc(requestId),{...grant,sessionId:s.id,couponCode:code,couponSource:couponRule?.source||'environment'});
   tx.update(ref,{tier:next.tier,paidStartedAt:next.paidStartedAt,credits:next.credits,creditsGranted:next.creditsGranted,expiresAt:next.expiresAt,previewOrders:next.previewOrders});
   return {state:next,replayed:false};
  });
 }
+
+// Razorpay has no "cancel order" endpoint. We only release the local checkout
+// lock after asking Razorpay whether the order has any captured payment.
+// The original order stays on the ledger for late webhook reconciliation.
+export async function releaseAbandonedLiveCheckout(store,ref,s,expectedOrderId='',fetchPayments=orderId=>razorpayLiveAPI('GET',`/v1/orders/${orderId}/payments`)){
+ const pending=s.pendingLiveCheckout;
+ if(!pending)return {state:s,released:true};
+ if(expectedOrderId&&pending.orderId!==expectedOrderId)fail(409,'Checkout has changed. Refresh the page.');
+ const payRef=store.collection('buddyLivePayments').doc(pending.orderId);
+ const order=(await payRef.get()).data();
+ if(!order||order.sessionId!==ref.id)fail(409,'Unable to verify the previous payment. Contact support.');
+ let provider;try{provider=await fetchPayments(order.orderId);}catch(e){fail(502,'Could not check the last payment with Razorpay. Try again shortly.');}
+ const captured=(provider.items||[]).find(p=>validateCapturedPayment(p,order));
+ if(captured){const state=await grantCapturedLivePayment(store,order,captured);return {state,released:false,paid:true};}
+ const result=await store.runTransaction(async tx=>{
+  const sSnap=await tx.get(ref),current=sSnap.data();if(!current)fail(401,'Session unavailable.');
+  const pSnap=await tx.get(payRef),payment=pSnap.data();
+  if(!current.pendingLiveCheckout||current.pendingLiveCheckout.orderId!==pending.orderId)return current;
+  if(payment?.granted)return current;
+  // The issued order can still be captured later; preserve its ID for recovery.
+  const unsettled=[...new Set([...(current.unsettledLiveCheckoutIds||[]),pending.orderId])].slice(-10);
+  if(payment?.couponSource==='firestore'&&payment.coupon&&payment.couponReserved){
+   const counterRef=couponCounterRef(store,payment.coupon),userRef=couponUserRef(store,current.id);
+   const counterSnap=await tx.get(counterRef),userSnap=await tx.get(userRef);
+   const counter=counterSnap.data()||{},user=userSnap.data()||{};
+   tx.set(counterRef,{...counter,pending:Math.max(0,(counter.pending||0)-1)});
+   tx.set(userRef,{...user,pending:(user.pending||[]).filter(r=>r.orderId!==pending.orderId)});
+   tx.update(payRef,{status:'abandoned',couponReserved:false,abandonedAt:now()});
+  }else tx.update(payRef,{status:'abandoned',abandonedAt:now()});
+  tx.update(ref,{pendingLiveCheckout:null,unsettledLiveCheckoutIds:unsettled});
+  return {...current,pendingLiveCheckout:null,unsettledLiveCheckoutIds:unsettled};
+ });
+ return {state:result,released:!result.pendingLiveCheckout,paid:false};
+}
+async function dismissLiveCheckout(req,res){
+ requireLive();const body=jsonBody(req),{store,ref,s}=await getSession(req);
+ const result=await releaseAbandonedLiveCheckout(store,ref,s,String(body.orderId||''));
+ return out(res,200,{state:safeState(result.state),notice:result.paid?'Payment confirmed; your credits are available.':result.released?'Checkout closed. You may choose another package.':'Payment was already processed; refresh your account.'});
+}
+
 async function createLiveCheckout(req,res){
  requireLive();const body=jsonBody(req),requestId=body.requestId;
  if(!validId(requestId))fail(400,'Request ID missing.');
- const offer=liveOffer(body.packId,body.couponCode);
- const {store,ref,s}=await getSession(req);
+ const {store,ref}=await getSession(req);
+ let s=(await ref.get()).data();
+ let resolved;try{resolved=await resolveLiveCoupon(store,{packId:body.packId,couponCode:body.couponCode,email:s.email});}catch(e){fail(400,e.message);}
+ const {offer,couponRule}=resolved;
  if(s.busy?.until>now())fail(409,'Please finish the previous request.');
  try{checkPackEligibility(s,offer.packId);}catch(e){fail(409,e.message);}
  if(offer.priceInr===0){
-  const granted=await grantFullCoupon(store,ref,offer,requestId);
+  const granted=await grantFullCoupon(store,ref,offer,requestId,couponRule);
   return out(res,200,{kind:'complimentary',state:safeState(granted.state),notice:granted.replayed?'Complimentary entitlement already activated.':'Your complimentary coupon was applied. No Razorpay charge was created.'});
  }
  if(process.env.LIVE_PAID_CHECKOUT_ENABLED!=='1')fail(403,'Online checkout is temporarily unavailable. Please try again later.');
  if(!process.env.RAZORPAY_LIVE_WEBHOOK_SECRET||process.env.RAZORPAY_LIVE_WEBHOOK_SECRET.length<16)fail(503,'Live payment webhooks must be configured before real-money checkout is enabled.');
  if(Number(s.credits||0)+offer.credits>1000)fail(409,'Credit safety limit reached.');
  const pending=s.pendingLiveCheckout;
- if(pending&&now()-pending.at<LIVE_ORDER_MS){
-  if(pending.packId!==offer.packId||pending.coupon!==offer.coupon)fail(409,'Finish your existing checkout or check its status before changing packs.');
+ if(pending&&now()-pending.at<LIVE_ORDER_MS&&pending.packId===offer.packId&&pending.coupon===offer.coupon){
   return out(res,200,{kind:'checkout',checkout:{keyId:assertLiveKeys().id,orderId:pending.orderId,amountPaise:pending.amountPaise,currency:'INR',name:'AI Early Career Guide – Career Buddy',description:`${offer.label} (LIVE)`,email:s.email},notice:'Resuming secure checkout. Review the payable amount before proceeding.'});
+ }
+ if(pending){
+  const result=await releaseAbandonedLiveCheckout(store,ref,s,pending.orderId);
+  if(result.paid)fail(409,'Your previous payment was confirmed and credited. Refresh your account before purchasing again.');
+  if(!result.released)fail(409,'Previous checkout status is still being updated. Retry shortly.');
+  s=result.state;
  }
  let order;
  try{order=await razorpayLiveAPI('POST','/v1/orders',{amount:offerAmountPaise(offer),currency:'INR',receipt:requestId.replaceAll('-','').slice(0,32),notes:{product:'career-buddy-live',pack:offer.packId,session:ref.id.slice(0,24)}});}catch(e){fail(502,e.message);}
  if(!/^order_[A-Za-z0-9]+$/.test(order.id||'')||Number(order.amount)!==offerAmountPaise(offer)||order.currency!=='INR')fail(502,'Payment provider returned an unexpected order.');
- const record={...offer,orderId:order.id,sessionId:ref.id,amountPaise:order.amount,currency:'INR',at:now(),status:'created',granted:false,kind:'razorpay-live'};
+ const record={...offer,orderId:order.id,sessionId:ref.id,amountPaise:order.amount,currency:'INR',at:now(),status:'created',granted:false,kind:'razorpay-live',couponSource:couponRule?.source||'environment',couponReserved:Boolean(couponRule)};
  await store.runTransaction(async tx=>{
   const snap=await tx.get(ref),cur=snap.data();if(!cur)fail(401,'Session unavailable.');
   if(cur.pendingLiveCheckout&&now()-cur.pendingLiveCheckout.at<LIVE_ORDER_MS)fail(409,'A checkout is already active. Check status before retrying.');
   checkPackEligibility(cur,offer.packId);
+  if(couponRule?.source==='firestore'){
+   const couponRef=store.collection('buddyLiveCoupons').doc(couponRule.code),couponSnap=await tx.get(couponRef);
+   if(!couponSnap.exists)fail(409,'Coupon has been removed.');
+   let latest;try{latest=parseFirestoreCoupon(couponRule.code,couponSnap.data(),cur.email,offer.packId);}catch(e){fail(409,e.message);}
+   if(latest.discountPercent!==couponRule.discountPercent)fail(409,'Coupon discount has changed.');
+   const counterRef=couponCounterRef(store,couponRule.code),userRef=couponUserRef(store,cur.id);
+   const counterSnap=await tx.get(counterRef),userSnap=await tx.get(userRef);
+   const counter=counterSnap.data()||{},user=userSnap.data()||{};
+   if((counter.count||0)+(counter.pending||0)>=latest.maxRedemptions)fail(409,'Coupon usage limit reached.');
+   if((user.redemptions||[]).filter(x=>x.code===couponRule.code).length+(user.pending||[]).filter(x=>x.code===couponRule.code).length>=latest.maxPerEmail)fail(409,'This email has reached the coupon usage limit.');
+   tx.set(counterRef,{...counter,codeHash:counterRef.id||couponRule.code,pending:(counter.pending||0)+1,updatedAt:now()});
+   tx.set(userRef,{...user,emailHash:cur.id,pending:[...(user.pending||[]),{code:couponRule.code,orderId:order.id,packId:offer.packId,at:now()}]});
+  }
   tx.create(store.collection('buddyLivePayments').doc(order.id),record);
   tx.update(ref,{pendingLiveCheckout:{orderId:order.id,packId:offer.packId,coupon:offer.coupon,at:record.at,amountPaise:order.amount}});
  });
@@ -753,7 +816,17 @@ async function verifyLiveCheckout(req,res){
 }
 async function checkLiveCheckout(req,res){
  requireLive();const {store,ref,s}=await getSession(req),pending=s.pendingLiveCheckout;
- if(!pending)return out(res,200,{state:safeState(s),notice:'No pending live checkout.'});
+ if(!pending){
+  // Recover a charge that arrived after the customer closed Razorpay.
+  for(const orderId of (s.unsettledLiveCheckoutIds||[]).slice(-5).reverse()){
+   const record=(await store.collection('buddyLivePayments').doc(orderId).get()).data();
+   if(!record||record.sessionId!==ref.id||record.granted)continue;
+   let lookup;try{lookup=await razorpayLiveAPI('GET',`/v1/orders/${orderId}/payments`);}catch{continue;}
+   const captured=(lookup.items||[]).find(p=>validateCapturedPayment(p,record));
+   if(captured){const next=await grantCapturedLivePayment(store,record,captured);return out(res,200,{state:safeState(next),notice:'A previous payment has been confirmed and credited.'});}
+  }
+  return out(res,200,{state:safeState(s),notice:'No captured payment found.'});
+ }
  const record=(await store.collection('buddyLivePayments').doc(pending.orderId).get()).data();
  if(!record||record.sessionId!==ref.id)fail(403,'Order not linked to your account.');
  let data;try{data=await razorpayLiveAPI('GET',`/v1/orders/${record.orderId}/payments`);}catch(e){fail(502,e.message);}
@@ -888,6 +961,7 @@ export default async function handler(req,res){
   if(action==='chat'&&req.method==='POST')return await chat(req,res);
   if(action==='freeReport'&&req.method==='POST')return await freeReport(req,res);
   if(action==='liveCheckout'&&req.method==='POST')return await createLiveCheckout(req,res);
+  if(action==='liveCheckoutDismiss'&&req.method==='POST')return await dismissLiveCheckout(req,res);
   if(action==='livePaymentVerify'&&req.method==='POST')return await verifyLiveCheckout(req,res);
   if(action==='livePaymentStatus'&&req.method==='POST')return await checkLiveCheckout(req,res);
   if(action==='mockPurchase'&&req.method==='POST')return await mockPurchase(req,res);
