@@ -85,7 +85,7 @@ test('free multiselect question explicitly states the maximum of four',()=>{
 });
 test('full paid report requires answered and complete competency assessment, not just self-reported examples',()=>{
  const service=fs.readFileSync(new URL('../api/service.js',import.meta.url),'utf8');
- assert.match(service,/if\(!s\.assessmentBank\|\|!assessmentProgress\(s\.assessmentBank,s\.assessmentAnswers/);
+ assert.match(service,/if\(!session\.assessmentBank\|\|!assessmentProgress\(session\.assessmentBank,session\.assessmentAnswers/);
  assert.match(service,/reportReady:paid&&assessment.finished/);
  assert.match(service,/async function answerAssessment/);
  assert.match(service,/competency-bank-generation/);

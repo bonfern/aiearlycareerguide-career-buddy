@@ -97,7 +97,7 @@ test('UI and server have new version, dynamic progress, and no 13-question publi
  const server=fs.readFileSync(new URL('../api/service.js',import.meta.url),'utf8');
  const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
  const app=fs.readFileSync(new URL('../app.js',import.meta.url),'utf8');
- assert.match(server,/version:'5\.23'/);assert.match(server,/migrating=!s.freeReport/);
+ assert.match(server,/version:'5\.24'/);assert.match(server,/migrating=!s.freeReport/);
  assert.doesNotMatch(html,/Thirteen focused questions|Question 1 of 13/);
  assert.match(app,/requestId:uuid\(\)/); // reuses standard guided-answer API, no AI calls
 });

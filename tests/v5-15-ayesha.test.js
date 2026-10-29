@@ -70,6 +70,6 @@ test('calm visual CTA, Career Buddy name, processing and clean question copy app
  assert.match(css,/\.choice-card \.snapshot-cta\{font-size:clamp\(13px,1\.1vw,15px\);font-weight:400/);
  assert.match(html,/PRESENTS <span class="buddy-eyebrow">CAREER BUDDY/);
  assert.match(html,/id="processingOverlay"/);
- assert.match(app,/Preparing questions: stage/);
+ assert.match(app,/Preparing assessment: stage/);
  assert.doesNotMatch(html,/Career Buddy provides AI-generated career guidance based on supplied information, not verified competence scores/);
 });

@@ -15,5 +15,5 @@ test('free-snapshot call to action is visually distinguished within one clickabl
 test('CTA continues to use existing free discovery activation; secure coupon validation unchanged',()=>{
  assert.match(js,/chooseAssessment/);
  assert.match(js,/const couponCode=\$\(couponId\)\?\.value\?\.trim\(\)\|\|''/);
- assert.match(html,/style\.css\?v=5\.18/);
+ assert.match(html,/style\.css\?v=5\.24/);
 });

@@ -143,3 +143,18 @@ dialog{max-width:min(850px,calc(100vw - 24px));width:100%;max-height:94dvh;overf
 .snapshot-summary ol.ranked-career-paths,.snapshot-summary ol.ranked-career-actions,#reportContent ol.ranked-career-paths,#reportContent ol.ranked-career-actions{padding-left:23px;margin:9px 0 17px;}
 .snapshot-summary ol li,#reportContent ol li{padding-left:4px;margin:8px 0;line-height:1.6;}
 .snapshot-summary ol li::marker,#reportContent ol li::marker{color:#147965;font-weight:700;}
+
+/* V5.24: preserve the full desktop hero portrait while keeping mobile cover. */
+@media(min-width:881px){
+ .hero{grid-template-columns:minmax(0,1.6fr) minmax(320px,1fr);align-items:stretch;}
+ .hero-image{align-self:center;width:100%;height:auto;max-height:none;object-fit:contain;object-position:center;mask-image:linear-gradient(90deg,transparent,#000 18%);}
+}
+@media(max-width:880px){.hero-image{object-fit:cover;}}
+/* Persistent product navigation and readable coupon validation. */
+#topnav{flex-wrap:wrap;justify-content:flex-end}
+.coupon-verify-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:6px 0 14px}
+.coupon-check{background:transparent;border:0;color:#145d69;font-size:13px;text-decoration:underline;cursor:pointer;padding:6px 0}
+.coupon-check:focus-visible{outline:2px solid #147e81;outline-offset:3px}
+.coupon-verify-row .micro{max-width:90%;margin:0}
+.report-progress-note{border:1px solid #cde4e4;background:#f2faf9;border-radius:12px;padding:12px 14px;margin:14px 0;color:#1c5261;font-size:13px}
+@media(max-width:700px){.topbar-inner{gap:8px}.topbar nav{width:100%;flex-basis:100%;justify-content:flex-start!important;margin-left:0;gap:6px}.nav-button{font-size:11px;padding:9px 8px}#topnav{flex-wrap:wrap}}
