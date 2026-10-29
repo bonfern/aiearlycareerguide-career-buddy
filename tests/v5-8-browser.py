@@ -39,9 +39,9 @@ with sync_playwright() as p:
   page.wait_for_function('window.stageCalls>=2 && !loading',timeout=7000)
   assert page.evaluate('state.assessment.preparationStep')==1
   assert 'Question stage 2 was interrupted' in page.locator('#paidQuestion').inner_text()
-  assert 'Retry / resume preparation' in page.locator('#paidQuestion').inner_text()
+  assert 'Try again' in page.locator('#paidQuestion').inner_text()
   assert page.evaluate('stageCalls')==2
-  page.get_by_role('button',name='Retry / resume preparation').click()
+  page.get_by_role('button',name='Try again').click()
   page.wait_for_function('!loading && state.assessment.started')
   assert page.evaluate('stageCalls')==4
   assert page.locator('text=How would you choose a project').is_visible()

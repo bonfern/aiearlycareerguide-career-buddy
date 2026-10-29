@@ -60,12 +60,12 @@ test('frontend makes three bounded requests and keeps user-visible retry informa
  const js=fs.readFileSync(new URL('../app.js',import.meta.url),'utf8');
  assert.match(js,/for\(let step=0;step<3;step\+\+\)/);
  assert.match(js,/preparationError=e\.message/);
- assert.match(js,/Retry \/ resume preparation/);
+ assert.match(js,/Try again/);
 });
 test('backend saves intermediate drafts and records rejected AI provider usage',()=>{
  const src=fs.readFileSync(new URL('../api/service.js',import.meta.url),'utf8');
  assert.match(src,/assessmentDraft:\{\.\.\.stageResult\.draft,roleKey:/);
  assert.match(src,/competency-bank-rejected/);
  assert.match(src,/maxAttempts:2/);
- assert.match(src,/busy:\{id:key,until:now\(\)\+100000\}/);
+ assert.match(src,/busy:\{id:key,until:now\(\)\+180000\}/);
 });

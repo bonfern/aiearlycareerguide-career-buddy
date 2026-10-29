@@ -48,5 +48,5 @@ test('free and Premium remain separate in UI and model instructions',()=>{
  assert.match(personalisedSnapshotPrompt,/EXACTLY THREE/);
  assert.match(service,/personalisedSnapshotPrompt/);
  assert.match(service,/free-personal-insight/);
- assert.match(service,/version:'5\.24'/);
+ assert.match(service,/version:'5\.25'/);
 });

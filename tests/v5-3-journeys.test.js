@@ -45,5 +45,5 @@ test('paid route has same free foundation, without repeated screening',()=>{
  assert.match(app,/flow==='premium'\)show\('Upgrade'\)/);
  assert.match(server,/assessmentProgress\(s\.assessmentBank,s\.assessmentAnswers/);
  assert.match(server,/Use the role-based assessment questions/);
- assert.match(html,/Your free answers are saved/);
+ assert.match(html,/Your free discovery responses have been saved/);
 });

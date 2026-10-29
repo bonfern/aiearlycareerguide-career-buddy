@@ -1,4 +1,4 @@
-/* Career Buddy V5.7: assessment-first entry, contextual coaching and accessible scroll management. */
+/* Career Buddy V5.25: resilient assessment preparation, clean journey messaging. */
 const $=id=>document.getElementById(id);
 const APP_BASE=window.location.pathname.startsWith('/professionals/') || window.location.pathname==='/professionals' ? '/professionals' : '';
 const servicePath=()=>`${APP_BASE}/api/service`;
@@ -52,9 +52,9 @@ function show(screen){
 function setFlow(next){flow=next;try{sessionStorage.setItem('buddy-v53-intent',next);}catch{}}
 function isAssessmentPaid(){return state?.tier==='paid';}
 function isCoachActive(){return Boolean(state?.freeReport||state?.reportGenerated)&&(state?.tier==='paid'||state?.tier==='coach');}
-function goAssessment(){if(!state){show('Login');return;}if(!state.freeReport){show('Free');$('freeIntroNote').textContent=flow==='premium'?'Seven short questions, plus one if you are exploring, create your free snapshot.':'These brief questions create your free career snapshot.';}else if(isAssessmentPaid())show(state.reportGenerated?'Toolkit':'Paid');else if(flow==='premium')show('Upgrade');else show('Snapshot');paint();}
+function goAssessment(){if(!state){show('Login');return;}if(!state.freeReport){show('Free');$('freeIntroNote').textContent='Your responses create a personalised career snapshot. You can review and change your answers before generating it.';}else if(isAssessmentPaid())show(state.reportGenerated?'Toolkit':'Paid');else if(flow==='premium')show('Upgrade');else show('Snapshot');paint();}
 function goPremium(){setFlow('premium');if(!state){show('Login');return;}if(state.freeReport){goAssessment();return;}show('Free');paint();}
-function goCoach(){if(!state){show('Login');return;}if(!state.freeReport&&!state.reportGenerated){notice('Complete your free career discovery and snapshot first to activate Career Buddy.');show('Free');paint();return;}if(isCoachActive())show('Coach');else show('CoachOffer');paint();}
+function goCoach(){if(!state){show('Login');return;}if(!state.freeReport&&!state.reportGenerated){show('Free');paint();notice('Complete your free career snapshot before starting Career Buddy coaching.');return;}if(isCoachActive())show('Coach');else show('CoachOffer');paint();}
 async function choose(next){setFlow(next);if(!state){show('Login');return;}await run(async()=>{state=(await api('setJourney',{journey:next})).state;notice('');goAssessment();});}
 function paint(){if(!state)return;const s=current;
  if(s==='Free')paintQuestion(true);
@@ -81,7 +81,7 @@ async function run(work){
  if(loading)return;
  loading=true;syncBusyControls();$('processingOverlay')?.classList.remove('hidden');$('processingTitle').textContent='Processing';$('processingText').textContent='Saving your progress…';
  try{await work();}
- catch(e){if(current==='Paid'){preparationError=e.message;paintPaidAssessment();}notice(e.message,true);}
+ catch(e){notice(e.message,true);}
  finally{loading=false;syncBusyControls();$('processingOverlay')?.classList.add('hidden');}
 }
 function addList(root,heading,items){
@@ -105,13 +105,25 @@ function paintPaidAssessment(){
  $('paidCounter').textContent=total?`${answered} of ${total} scenario questions completed`:(a.preparationStep?`Question preparation ${a.preparationStep} of 3 complete`:'Questions not prepared yet');
  host.replaceChildren();
   if(!a.started){
-  host.append(el('h2','','Assess your most important role skills'),el('p','muted','You will answer 12–15 realistic multiple-choice questions covering 4–5 essential technical and soft skills. Three questions will test each skill. No typing or self-rating required.'));
-  host.append(el('p','report-progress-note','Preparing your role-specific assessment usually takes 2–3 minutes, and occasionally longer. Your progress is saved after each stage. Please keep this tab open.'));
-  host.append(el('p','micro','Three preparation stages protect your progress if the connection is interrupted.'));
-  if(a.preparationStep){host.append(el('p','muted',`${a.preparationStep} of 3 preparation stages complete. Your previous results are saved.`));}
-  if(assessmentPreparing)host.append(el('p','report-progress-note',assessmentPrepText||'Preparing your role-specific questions…')); 
-  if(preparationError){host.append(el('p','question-error',preparationError));}
-  const b=el('button','primary',a.preparationStep?'Retry / resume preparation →':'Prepare my competency assessment →');b.dataset.asyncAction='1';b.disabled=loading||assessmentPreparing;b.onclick=prepareAssessment;host.append(b);return;
+  const completed=Math.max(0,Math.min(2,Number(a.preparationStep||0)));
+  const steps=[
+   'Identifying the essential skills for your chosen role',
+   'Creating the first set of workplace scenarios',
+   'Preparing and reviewing the remaining scenarios'
+  ];
+  host.append(el('h2','','Your role-specific assessment'));
+  host.append(el('p','muted','Your assessment will have 12–15 multiple-choice scenarios covering 4–5 important skills.'));
+  const status=el('div','assessment-stage-status');
+  status.setAttribute('role','status');
+  status.append(el('strong','',assessmentPreparing?`Preparing step ${Math.min(completed+1,3)} of 3`:completed?`Step ${completed} of 3 completed`:'Ready to prepare your assessment'));
+  status.append(el('p','',assessmentPreparing?steps[completed]+'…':completed===2?'Your first question set is saved. The final set is next.':completed===1?'Your role competencies are saved. Question preparation is next.':'Preparing the questions usually takes 2–3 minutes and may sometimes take longer.'));
+  if(!assessmentPreparing&&completed)status.append(el('p','micro',
+   Number(a.savedQuestionCount||0)>0?`${a.savedQuestionCount} questions saved. You can continue without starting over.`:'Your completed steps are saved. You can continue without starting over.'));
+  host.append(status);
+  if(preparationError)host.append(el('p','question-error',preparationError));
+  const text=assessmentPreparing?'Preparing…':preparationError?'Try again':completed?'Continue preparation':'Prepare my assessment';
+  const b=el('button','primary',text);b.dataset.asyncAction='1';b.disabled=loading||assessmentPreparing;b.onclick=prepareAssessment;host.append(b);
+  return;
  }
  if(a.finished){
   host.append(el('h2','','Your competency assessment is complete.'),el('p','muted',`You answered ${total} scenario questions across ${a.competencies.length} essential skills. Your report will combine these responses with your career profile.`));
@@ -139,15 +151,20 @@ async function prepareAssessment(){
   for(let step=0;step<3;step++){
    if(state?.assessment?.started)break;
    const progress=Number(state?.assessment?.preparationStep||0);
-   assessmentPrepText=`Preparing assessment: stage ${Math.min(progress+1,3)} of 3. Usually 2–3 minutes in total; you may navigate while it runs.`;
+   assessmentPrepText=`Preparing step ${Math.min(progress+1,3)} of 3. Your completed progress is saved.`;
    if(current==='Paid')paintPaidAssessment();
    const response=await api('assessmentStart',{requestId:uuid()});
    state=response.state;
    if(current==='Paid')paintPaidAssessment();
   }
-  if(!state?.assessment?.started)throw Error('Preparation was paused. Resume it to continue.');
+  if(!state?.assessment?.started)throw Error('Preparation is paused. Select Continue preparation to resume.');
   assessmentPrepText='';
- }catch(e){preparationError=e.message;if(current==='Paid')notice(e.message,true);}
+ }catch(e){
+  // Refresh the saved stage after a rejected batch so the user sees exactly
+  // how much of their paid preparation was retained. No additional AI call.
+  try{state=(await api('state')).state;}catch{}
+  preparationError=e.message;
+ }
  finally{assessmentPreparing=false;if(current==='Paid'){paintPaidAssessment();toPageStart('Paid');}}
 }
 
@@ -372,7 +389,7 @@ async function activate(packId,couponId){
     state=verified.state;afterPurchase(packId,verified.notice);
    }
   }else if(state?.paymentMode==='razorpay_test'){
-   notice('Opening Razorpay Test Mode checkout. No real money will be charged.');
+   notice('Opening secure checkout in test mode.');
    const order=await api('testCheckout',{packId,couponCode,requestId:uuid()});
    state.pendingTestCheckout={orderId:order.checkout.orderId};syncPaymentLabels();
    const payment=await openTestCheckout(order.checkout);
@@ -430,7 +447,7 @@ async function generateDetailed(){
   }
   reportProgressText='Report preparation is continuing. Return here to check its status.';
  }catch(e){
-  reportProgressText='Report preparation paused. Your completed assessment has been saved; select Resume report generation.';
+  reportProgressText='Report preparation was interrupted. Your completed answers are saved; you can resume here.';
   if(current==='Paid')notice(e.message,true);
  }finally{reportPolling=false;if(current==='Paid')paintPaidAssessment();}
 }

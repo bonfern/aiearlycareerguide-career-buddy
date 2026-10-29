@@ -70,9 +70,11 @@ function safeState(s){
  if(!s.freeReport&&Number(s.profile?.freeIntakeVersion||0)<21){s={...s,profile:applyFreeAnswers({}, {}, []),quickAnswers:{},quickAnswerExtras:{},quickSkipped:[],quickHistory:[]};}
  const paid=isAssessmentPaid(s),coaching=isPaid(s),free=freeReadiness(s.profile||{});const rem=Math.max(0,s.credits||0);
  const assessment=paid?assessmentProgress(s.assessmentBank,s.assessmentAnswers||[]):{total:0,answered:0,finished:false,question:null};
- return {id:s.id,email:s.email||'',mode:publicLiveMode()?'public-live':paymentMode()==='razorpay_live'?'private-live':'preview',version:'5.24',checkoutReady:liveCheckoutReady(),journeyPreference:s.journeyPreference||'free',coachingEligible:Boolean(s.freeReport||s.report),tier:paid?'paid':coaching?'coach':'free',paymentsEnabled:paymentMode()==='razorpay_live'?liveConfigured():testPaymentEnabled(),paymentMode:paymentMode(),
+ return {id:s.id,email:s.email||'',mode:publicLiveMode()?'public-live':paymentMode()==='razorpay_live'?'private-live':'preview',version:'5.25',checkoutReady:liveCheckoutReady(),journeyPreference:s.journeyPreference||'free',coachingEligible:Boolean(s.freeReport||s.report),tier:paid?'paid':coaching?'coach':'free',paymentsEnabled:paymentMode()==='razorpay_live'?liveConfigured():testPaymentEnabled(),paymentMode:paymentMode(),
   profile:s.profile||{},guided:guidedProgress(s.profile||{},s.quickAnswers||{},s.quickSkipped||[],'free'),
-  assessment:{...assessment,started:Boolean(s.assessmentBank),preparationStep:s.assessmentDraft?.stage||0,competencies:s.assessmentBank?.competencies?.map(c=>({name:c.name,type:c.type}))||[]},
+  assessment:{...assessment,started:Boolean(s.assessmentBank),preparationStep:s.assessmentDraft?.stage||0,
+   savedQuestionCount:(s.assessmentDraft?.batches||[]).reduce((n,b)=>n+(Array.isArray(b)?b.length:Array.isArray(b?.questions)?b.questions.length:0),0)+(s.assessmentDraft?.partialQuestions?.length||0),
+   competencies:s.assessmentBank?.competencies?.map(c=>({name:c.name,type:c.type}))||[]},
   quickHistory:(s.quickHistory||[]).slice(-3),credits:rem,creditsGranted:s.creditsGranted||0,
   expiresAt:new Date(s.expiresAt).toISOString(),warning:coaching?creditWarning(rem):'',expired:coaching&&now()>s.expiresAt,
   freeReportReady:free.ready&&freeIntakeComplete(s.quickAnswers||{},s.quickSkipped||[]),freeReadiness:free,freeReport:s.freeReport||null,reportReady:paid&&assessment.finished,readiness:paid?{ready:assessment.finished,completed:assessment.answered,total:assessment.total,missing:assessment.finished?[]:['Complete the role-specific competency assessment']}:{ready:false,missing:[]},
@@ -359,7 +361,7 @@ async function startAssessment(req,res){
   const role=bankIdentity(s.profile?.targetRole);
   const draft=s.assessmentDraft?.roleKey===role.key?s.assessmentDraft:null;
   // One stage per request; avoids multi-model-call serverless timeouts.
-  tx.update(ref,{busy:{id:key,until:now()+100000}});return {role,draft};
+  tx.update(ref,{busy:{id:key,until:now()+180000}});return {role,draft};
  });
  if(start.existing)return out(res,200,{state:safeState(start.existing),completed:true});
  try{
@@ -377,10 +379,15 @@ async function startAssessment(req,res){
      const snap=await tx.get(ref),s=snap.data();if(!s||s.busy?.id!==key)return;
      let totals=s.usageSummary;
      for(const usage of failedUsage){totals=updatedUsage(totals,usage);tx.set(store.collection('buddyPreviewUsage').doc(usage.id),{...usage,sessionId:ref.id,charged:false,validationFailed:true});}
-     tx.update(ref,{busy:null,usageSummary:totals});
+     const pending=e.draft&&Number(e.draft.stage)===Number(start.draft?.stage||0)
+      ?{...e.draft,roleKey:start.role.key,role:start.role.role}:null;
+     tx.update(ref,{busy:null,usageSummary:totals,...(pending?{assessmentDraft:pending}:{})});
     }).catch(err=>console.error('Could not record failed bank usage:',err?.message));
-    console.warn('Career Buddy competency generation rejected:',JSON.stringify({roleKey:start.role.key,stage:start.draft?.stage||0,errors:e.attempts||[],calls:chargedResponses.length,kind:e.name||'Error'}));
-    fail(502,'The next question batch did not pass quality checks. Earlier stages are saved. Select Retry preparation to continue.');
+    console.warn('Career Buddy competency generation rejected:',JSON.stringify({roleKey:start.role.key,stage:start.draft?.stage||0,errors:e.attempts||[],calls:chargedResponses.length,kind:e.name||'Error',retainedQuestions:e.draft?.partialQuestions?.length||0}));
+    const allUnavailable=(e.attempts||[]).length>0&&(e.attempts||[]).every(x=>/unavailable|timed out/i.test(x.reason||''));
+    fail(allUnavailable?503:502,allUnavailable
+      ?'Assessment preparation is temporarily unavailable. Your progress is saved. Please try again.'
+      :'We could not complete this question set. Your progress is saved. Please select Try again.');
    }
    bank=stageResult.bank||null;
    usageItems=stageResult.usages.map((u,i)=>usageRecord(`${key}-prepare-${i}`,'competency-bank-generation',u));
