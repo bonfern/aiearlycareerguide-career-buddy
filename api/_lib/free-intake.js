@@ -1,48 +1,57 @@
-/* V5.19 Free Career Discovery: exactly 13 low-cost, structured questions.
-   All selections are user-reported, never verified skills. No LLM calls during intake. */
+/* V5.21: seven core questions, with one interest question only for users
+   who are exploring. All three-choice answers are self-reported; no AI during intake. */
+export const FREE_INTAKE_VERSION=21;
 export const FREE_QUESTIONS=Object.freeze([
  {id:'careerStage',kind:'single',text:'Where are you in your career journey right now?',options:['School Student','College / University Student','Early Career (0-3 years)','Mid-Career Professional (4-10 years)','Experienced Professional (10+ years)','Manager / Team Leader','Senior Leader / Executive','Returning to Work After a Break','Other']},
- {id:'careerSituation',kind:'multi',text:'What best describes your current career situation?',options:['I want to grow in my current role','I want a promotion','I want to switch to a different role','I want to move to a different industry','I want to earn more',"I'm struggling to get interview calls","I'm getting interviews but not job offers","I'm unsure about my next career move",'I want to move into a leadership role','I want to start my own business or freelance','Other'],maxSelections:11},
- {id:'interestFields',kind:'multi',text:'Which fields or subjects interest you the most?',options:['Technology & Software','Data & Analytics','Artificial Intelligence (AI)','Finance & Accounting','Sales & Business Development','Marketing','Operations & Supply Chain','Project Management','Human Resources','Customer Experience','Product Management','Consulting','Design & Creativity','Education & Training','Healthcare','Research','Entrepreneurship','Other'],maxSelections:5},
- {id:'personalStrengths',kind:'multi',text:'What do you consider to be your biggest strengths?',options:['Solving problems','Analyzing data and information','Communicating ideas clearly','Leading and motivating others','Building relationships and networks','Creative thinking','Attention to detail','Planning and organizing work','Making decisions','Negotiating and influencing others','Technical expertise','Teaching or mentoring others','Research and investigation','Sales and persuasion','Other'],maxSelections:5},
- {id:'enjoyedWork',kind:'multi',text:'Which types of work do you enjoy the most?',options:['Solving complex challenges','Working with data and numbers','Creating new ideas or solutions','Leading people and teams','Helping customers or clients','Teaching, coaching, or mentoring','Building technology or digital solutions','Managing projects and deadlines','Influencing business decisions','Learning and researching new topics','Other'],maxSelections:3},
- {id:'workEnvironment',kind:'multi',text:'What kind of work environment helps you perform at your best?',options:['Structured and organized','Fast-paced and dynamic','Team-oriented and collaborative','Independent and flexible','Customer-facing','Remote or hybrid working','Leadership-focused','Innovation and experimentation','Other'],maxSelections:3},
- {id:'educationLevel',kind:'single',text:'What is your highest level of education or qualification?',options:['High School','Diploma',"Bachelor's Degree","Master's Degree",'MBA','Professional Certification(s)','Doctorate / PhD','Other']},
- {id:'existingSkills',kind:'text',text:'What skills, tools, certifications, or technologies do you currently have experience with?',placeholder:'e.g. Excel, Python, SAP, Power BI, Six Sigma, marketing, sales',maxLength:500,minLength:2,optional:true,skipLabel:'No experience yet / Not applicable'},
- {id:'careerAmbition',kind:'single',text:'What is your biggest career goal for the next 2–3 years?',options:['Get promoted','Earn a higher salary','Move into leadership','Become a recognised expert in my field','Change careers','Move into a new industry','Find a stable and secure role','Start a business','Build future-ready skills','Other']},
- {id:'learningTime',kind:'single',text:'How much time can you realistically dedicate each week to learning and developing new skills?',options:['Less than 1 hour','1-3 hours','4-6 hours','7-10 hours','More than 10 hours','Other']},
- {id:'changeComfort',kind:'single',text:'How comfortable are you with stepping outside your comfort zone to pursue new career opportunities?',options:['Not comfortable at all','Slightly comfortable','Moderately comfortable','Very comfortable','Extremely comfortable','Other']},
- {id:'careerValues',kind:'multi',text:'What matters most to you in your career?',options:['Higher income','Leadership opportunities','Job security','Flexible working arrangements','Meaningful and impactful work','Innovation and creativity','Healthy work-life balance','Starting my own business','International or global opportunities','Continuous learning and growth','Recognition and influence','Other'],maxSelections:3},
- {id:'targetGoalRole',kind:'text',text:'What specific career goal or role would you like to pursue?',placeholder:'e.g. Data Analyst, Software Engineer, Lead a team, or Still exploring',maxLength:90,minLength:3}
+ {id:'targetGoalRole',kind:'text',text:'What specific career role or direction are you aiming for?',placeholder:'e.g. Data Analyst, Project Manager, or Still exploring',maxLength:100,minLength:3},
+ {id:'careerPriorities',kind:'multi',text:'What are your top career priorities for the next 2–3 years?',options:['Grow in my current role','Get promoted','Earn a higher salary','Change to a different role','Move into a new industry','Move into leadership','Build future-ready skills','Find my first job or internship','Find a stable and secure role','Start a business or freelance','Return to work after a break','Other'],maxSelections:3},
+ {id:'interestFields',kind:'multi',conditional:'exploring',text:'Which career fields interest you most?',options:['Technology & Software','Data & Analytics','Artificial Intelligence (AI)','Finance & Accounting','Sales & Business Development','Marketing','Operations & Supply Chain','Project Management','Human Resources','Customer Experience','Product Management','Consulting','Design & Creativity','Education & Training','Healthcare','Research','Entrepreneurship','Other'],maxSelections:3},
+ {id:'personalStrengths',kind:'multi',text:'What are your top three strengths or skills?',options:['Solving problems','Analysing data and information','Communicating ideas clearly','Leading and motivating others','Building relationships and networks','Creative thinking','Attention to detail','Planning and organising work','Making decisions','Negotiating and influencing','Technical expertise','Teaching or mentoring','Research and investigation','Sales and persuasion','Other'],maxSelections:3,detailLabel:'Optional: Name tools, certifications, or one task where you used a skill',detailPlaceholder:'e.g. Built Excel reports, learned Python, completed a college design project',detailMaxLength:300},
+ {id:'educationLevel',kind:'single',text:'What is your highest education or qualification?',options:['High School','Diploma',"Bachelor's Degree","Master's Degree",'MBA','Professional Certification(s)','Doctorate / PhD','Other']},
+ {id:'careerBarriers',kind:'multi',text:'What are your biggest barriers to reaching your career goal?',options:['Missing technical or job-specific skills','Limited hands-on experience','Unclear career path or requirements','Need a qualification or certification','Not getting interview calls','Getting interviews but no offers','Limited time for learning','Limited money for training','Lack of confidence or support','Not sure what is holding me back','No major barrier right now','Other'],maxSelections:3},
+ {id:'learningTime',kind:'single',text:'How much time can you realistically spend on career development each week?',options:['Less than 1 hour','1-3 hours','4-6 hours','7-10 hours','More than 10 hours','Other']}
 ]);
 export const FREE_QUESTION_IDS=Object.freeze(FREE_QUESTIONS.map(q=>q.id));
 export const FREE_BY_ID=Object.freeze(Object.fromEntries(FREE_QUESTIONS.map(q=>[q.id,q])));
-export function freeAnswered(answers={},skips=[]){return FREE_QUESTION_IDS.filter(id=>Object.hasOwn(answers,id)||skips.includes(id));}
-export function freeIntakeComplete(answers={},skips=[]){return freeAnswered(answers,skips).length===FREE_QUESTION_IDS.length;}
+export function isExploringGoal(value=''){
+ const s=String(value||'').trim().toLowerCase().replace(/[.!?]+$/,'');
+ return /^(?:still exploring|exploring|not sure|unsure|undecided|i don.t know|no specific role yet|open to options|not decided yet|career exploration)$/.test(s);
+}
+export function activeFreeQuestions(answers={}){
+ return FREE_QUESTIONS.filter(q=>q.conditional!=='exploring'||isExploringGoal(answers.targetGoalRole));
+}
+export function freeAnswered(answers={},skips=[]){
+ return activeFreeQuestions(answers).filter(q=>Object.hasOwn(answers,q.id)||skips.includes(q.id)).map(q=>q.id);
+}
+export function freeIntakeComplete(answers={},skips=[]){return freeAnswered(answers,skips).length===activeFreeQuestions(answers).length;}
+const flat=v=>String(v||'').replace(/\s+/g,' ').trim();
 export function applyFreeAnswers(answers={},extras={},skips=[]){
- const resolved=id=>{const v=answers[id];const other=extras[id]||'';return (Array.isArray(v)?v:[v]).filter(x=>typeof x==='string').map(x=>x==='Other'?other:x).filter(Boolean);};
+ const resolved=id=>{
+  const v=answers[id],other=typeof extras[id]==='string'?extras[id]:'';
+  return (Array.isArray(v)?v:[v]).filter(x=>typeof x==='string').map(x=>x==='Other'?other:x).map(flat).filter(Boolean);
+ };
  const single=id=>resolved(id)[0]||'';
- const interests=resolved('interestFields'),stage=single('careerStage'),skills=skips.includes('existingSkills')?'':single('existingSkills');
- const initialGoal=single('careerAmbition')||resolved('careerSituation')[0]||'Explore career options';
- const statedTarget=single('targetGoalRole');
- const isExploring=/^(?:still exploring|not sure|unsure|undecided|exploring|i don.t know|no specific role yet)$/i.test(statedTarget);
- const goalOnly=/^(?:get promoted|earn (?:more|a higher salary)|move into leadership|find a (?:stable|secure) role|build (?:future.ready )?skills|change careers|move into a new industry|start (?:a|my) business)$/i.test(statedTarget);
- const hasSpecificTarget=Boolean(statedTarget&&!isExploring&&!goalOnly);
- const isStudent=/student/i.test(stage);
- const experience=/^Early Career/.test(stage)?'0–3 years':/^Mid-Career/.test(stage)?'4–10 years':/^Experienced/.test(stage)?'10+ years':isStudent?'No experience yet':'Not specified';
- const directions=interests.length?interests.slice(0,2).join(' and '):'general career opportunities';
- // These are interest areas, NOT confirmed target job titles. Premium requires a role selection.
+ const stage=single('careerStage'),target=single('targetGoalRole'),exploring=isExploringGoal(target);
+ const interests=exploring?resolved('interestFields').slice(0,3):[];
+ const strengths=resolved('personalStrengths').slice(0,3);
+ const priorities=resolved('careerPriorities').slice(0,3);
+ const barriers=resolved('careerBarriers').slice(0,3);
+ const skillDetail=flat(extras.strengthEvidence).slice(0,300);
+ const selfReportedTools=skillDetail.split(/[,;\n]/).map(s=>s.trim()).filter(Boolean).slice(0,8);
+ const isStudent=/student/i.test(stage),experience=/^Early Career/.test(stage)?'0–3 years':/^Mid-Career/.test(stage)?'4–10 years':/^Experienced/.test(stage)?'10+ years':isStudent?'No experience yet':'Not specified';
+ const initialGoal=priorities.length?priorities.join('; '):'Explore career options';
+ const direction=exploring?`Career fields in ${interests.join(' and ')||'exploration'}`:target||'Career direction to explore';
  return {
-  freeIntakeVersion:19,careerStage:stage,employmentStatus:stage,
-  careerSituations:resolved('careerSituation'),interestFields:interests,personalStrengths:resolved('personalStrengths'),
-  enjoyedWork:resolved('enjoyedWork'),workEnvironment:resolved('workEnvironment'),educationLevel:single('educationLevel'),
-  existingSkills:skills,careerAmbition:initialGoal,learningTime:single('learningTime'),changeComfort:single('changeComfort'),
-  careerValues:resolved('careerValues'),additionalContext:skips.includes('additionalContext')?'':single('additionalContext'),targetGoalRole:statedTarget,
-  experience,goal:hasSpecificTarget?`${initialGoal}; target: ${statedTarget}`:isExploring?initialGoal:statedTarget||initialGoal,
-  targetRole:hasSpecificTarget?statedTarget:`Career paths in ${directions}`,assessmentTargetRole:'',currentRole:stage||'Career exploration',
-  roleExperience:skills?skills.split(/[,;\n]/).map(s=>s.trim()).filter(Boolean).slice(0,12):[],
-  skills:skills?skills.split(/[,;\n]/).map(s=>s.trim()).filter(Boolean).slice(0,12):[],
-  responsibilities:[],gaps:[],achievements:[],constraints:single('learningTime')?`Learning time per week: ${single('learningTime')}`:'',
-  industry:interests[0]||'',timeframe:'2–3 years',applicationDepth:'',evidenceExample:''
+  freeIntakeVersion:FREE_INTAKE_VERSION,careerStage:stage,employmentStatus:stage,
+  careerSituations:priorities,careerPriorities:priorities,interestFields:interests,personalStrengths:strengths,
+  careerBarriers:barriers,educationLevel:single('educationLevel'),existingSkills:skillDetail,
+  careerAmbition:initialGoal,learningTime:single('learningTime'),targetGoalRole:target,
+  experience,goal:exploring?initialGoal:`${initialGoal}; target: ${target||'not selected'}`,
+  targetRole:direction,assessmentTargetRole:'',currentRole:stage||'Career exploration',
+  roleExperience:selfReportedTools,skills:selfReportedTools,skillEvidence:skillDetail,
+  responsibilities:[],gaps:barriers,achievements:[],constraints:single('learningTime')?`Learning time per week: ${single('learningTime')}`:'',
+  industry:interests[0]||'',timeframe:'2–3 years',applicationDepth:'',evidenceExample:'',
+  // Legacy fields are intentionally clear: no inferred workplace experience.
+  enjoyedWork:[],workEnvironment:[],changeComfort:'',careerValues:[],additionalContext:''
  };
 }

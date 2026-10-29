@@ -51,7 +51,7 @@ function show(screen){
 function setFlow(next){flow=next;try{sessionStorage.setItem('buddy-v53-intent',next);}catch{}}
 function isAssessmentPaid(){return state?.tier==='paid';}
 function isCoachActive(){return Boolean(state?.freeReport||state?.reportGenerated)&&(state?.tier==='paid'||state?.tier==='coach');}
-function goAssessment(){if(!state){show('Login');return;}if(!state.freeReport){show('Free');$('freeIntroNote').textContent=flow==='premium'?'Thirteen short questions create your free career snapshot.':'These brief questions create your free career snapshot.';}else if(isAssessmentPaid())show(state.reportGenerated?'Toolkit':'Paid');else if(flow==='premium')show('Upgrade');else show('Snapshot');paint();}
+function goAssessment(){if(!state){show('Login');return;}if(!state.freeReport){show('Free');$('freeIntroNote').textContent=flow==='premium'?'Seven short questions, plus one if you are exploring, create your free snapshot.':'These brief questions create your free career snapshot.';}else if(isAssessmentPaid())show(state.reportGenerated?'Toolkit':'Paid');else if(flow==='premium')show('Upgrade');else show('Snapshot');paint();}
 function goCoach(){if(!state){show('Login');return;}if(!state.freeReport&&!state.reportGenerated){notice('Complete your free career discovery and snapshot first to activate Career Buddy.');show('Free');paint();return;}if(isCoachActive())show('Coach');else show('CoachOffer');paint();}
 async function choose(next){setFlow(next);if(!state){show('Login');return;}await run(async()=>{state=(await api('setJourney',{journey:next})).state;notice('');goAssessment();});}
 function paint(){if(!state)return;const s=current;
@@ -148,7 +148,7 @@ async function answerPaid(questionId,choice){await run(async()=>{
  notice('');paintPaidAssessment();toPageStart('Paid');
 });}
 function paintQuestion(free){const name=free?'free':'paid',host=$(name+'Question'),guided=state.guided||{},q=guided.question;
- const progress=(guided.completed||0)/(guided.total||10);$(name+'Progress').style.width=`${Math.round(100*progress)}%`;$(name+'Counter').textContent=`${guided.completed||0} of ${guided.total||10} topics completed`;
+ const progress=(guided.completed||0)/(guided.total||7);$(name+'Progress').style.width=`${Math.round(100*progress)}%`;$(name+'Counter').textContent=`${guided.completed||0} of ${guided.total||7} topics completed`;
  host.replaceChildren();
  if(!q){const ready=free?state.freeReportReady:state.reportReady;host.append(el('h2','',free?'Your free discovery questions are complete.':ready?'Your detailed report is ready to generate.':'A little more context is needed.'));
   host.append(el('p','muted',free?(state.freeReportReady?'Create your concise snapshot. You can download it now or at any time in My reports.':'A required area is incomplete. Please review the missing details before requesting a snapshot.'):ready?'Your initial detailed report is included and does not cost a chat interaction.':'You can use paid coaching to provide additional examples and clarify any missing areas.'));
@@ -159,16 +159,18 @@ function paintQuestion(free){const name=free?'free':'paid',host=$(name+'Question
  const choices=el('div','answers'),inputs=[];
  const draft=free&&freeBackDraft?.id===q.id?freeBackDraft:null;
  const multiLimit=q.kind==='multi'?(q.maxSelections||4):null;
- const countLabel=q.id==='careerSituation'?'Select all that apply':`Select up to ${multiLimit}`;
+ const countLabel=`Select up to ${multiLimit}`;
  const selectedCount=q.kind==='multi'?el('p','micro',`${countLabel} · 0 selected`):null;
  if(selectedCount)host.append(selectedCount);
  if(q.kind!=='text'){
   for(const op of q.options||[]){const row=el('label','answer');const input=document.createElement('input');input.type=q.kind==='multi'?'checkbox':'radio';input.name='answerOption';input.value=op;if(draft)input.checked=Array.isArray(draft.value)?draft.value.includes(op):draft.value===op;row.append(input,el('span','',op));choices.append(row);inputs.push(input);}
   host.append(choices);
  }
- let txt=null,other=null;
+ let txt=null,other=null,detail=null;
  if(q.kind==='text'){txt=el('textarea');txt.id='answerText';txt.maxLength=q.maxLength||300;txt.placeholder=q.placeholder||'A short answer is enough';txt.rows=3;if(draft)txt.value=String(draft.value||'');host.append(txt,el('div','help-text',q.id==='targetGoalRole'?'A specific role helps us personalise your snapshot. If you have not decided, enter Still exploring.':q.example?'One specific project, task or learning activity is enough. If you have no example yet, choose Skip.':`Up to ${txt.maxLength} characters. Avoid sharing contact details.`));}
- else {other=el('input');other.type='text';other.maxLength=120;other.placeholder='Please specify briefly';other.className='hidden';if(draft){other.value=draft.other||'';other.classList.toggle('hidden',!inputs.some(x=>x.checked&&x.value==='Other'));if(selectedCount)selectedCount.textContent=`${countLabel} · ${inputs.filter(x=>x.checked).length} selected`;}host.append(other);for(const input of inputs)input.onchange=()=>{
+ else {other=el('input');other.type='text';other.maxLength=120;other.placeholder='Please specify briefly';other.className='hidden';if(draft){other.value=draft.other||'';other.classList.toggle('hidden',!inputs.some(x=>x.checked&&x.value==='Other'));if(selectedCount)selectedCount.textContent=`${countLabel} · ${inputs.filter(x=>x.checked).length} selected`;}host.append(other);
+  if(q.detailLabel){const detailLabel=el('label','help-text',q.detailLabel);detail=el('textarea');detail.id='strengthEvidence';detail.rows=2;detail.maxLength=q.detailMaxLength||300;detail.placeholder=q.detailPlaceholder||'Optional example or relevant tool';if(draft)detail.value=draft.detail||'';host.append(detailLabel,detail);}
+  for(const input of inputs)input.onchange=()=>{
   if(q.kind==='multi'&&input.checked){
    if(input.value==='No hands-on experience yet'){inputs.forEach(x=>{if(x!==input)x.checked=false;});}
    else{const none=inputs.find(x=>x.value==='No hands-on experience yet');if(none)none.checked=false;}
@@ -181,10 +183,10 @@ function paintQuestion(free){const name=free?'free':'paid',host=$(name+'Question
  const row=el('div','question-actions'),error=el('div','question-error');
  if(free&&(guided.completed||0)>0){const back=el('button','secondary','← Previous');back.type='button';back.dataset.asyncAction='1';back.disabled=loading;back.onclick=rewindFree;row.append(back);}else if(!q.optional)row.append(el('span','micro','You can change earlier answers before generating the free snapshot.'));
  if(q.optional){const skip=el('button','secondary',q.skipLabel||'Skip');skip.type='button';skip.dataset.asyncAction='1';skip.disabled=loading;skip.onclick=()=>sendQuick(q,true);row.append(skip);}
- const submit=el('button','primary','Continue →');submit.onclick=()=>{let value=q.kind==='text'?txt.value.trim():q.kind==='multi'?inputs.filter(x=>x.checked).map(x=>x.value):(inputs.find(x=>x.checked)?.value||'');if(!value||Array.isArray(value)&&!value.length){error.textContent=q.optional?'Enter your answer or choose the skip option.':'Choose an answer to continue.';return;}if(q.kind==='multi'&&value.length>(q.maxSelections||4)){error.textContent=`Select up to ${q.maxSelections||4} options.`;return;}if(q.kind==='multi'&&value.length<(q.minSelections||1)){error.textContent=`Choose at least ${q.minSelections||1} options.`;return;}if(q.kind!=='text'&&(Array.isArray(value)?value.includes('Other'):value==='Other')&&!other?.value?.trim()){error.textContent='Please describe your Other selection.';other?.focus();return;}sendQuick(q,false,value,other?.value?.trim()||'');};row.append(submit);host.append(row,error);
+ const submit=el('button','primary','Continue →');submit.onclick=()=>{let value=q.kind==='text'?txt.value.trim():q.kind==='multi'?inputs.filter(x=>x.checked).map(x=>x.value):(inputs.find(x=>x.checked)?.value||'');if(!value||Array.isArray(value)&&!value.length){error.textContent=q.optional?'Enter your answer or choose the skip option.':'Choose an answer to continue.';return;}if(q.kind==='multi'&&value.length>(q.maxSelections||4)){error.textContent=`Select up to ${q.maxSelections||4} options.`;return;}if(q.kind==='multi'&&value.length<(q.minSelections||1)){error.textContent=`Choose at least ${q.minSelections||1} options.`;return;}if(q.kind!=='text'&&(Array.isArray(value)?value.includes('Other'):value==='Other')&&!other?.value?.trim()){error.textContent='Please describe your Other selection.';other?.focus();return;}sendQuick(q,false,value,other?.value?.trim()||'',detail?.value?.trim()||'');};row.append(submit);host.append(row,error);
 }
 async function rewindFree(){await run(async()=>{const v=await api('quickBack',{});state=v.state;freeBackDraft=v.draft||null;notice('You can update your answer.');paintQuestion(true);toPageStart('Free');});}
-async function sendQuick(q,skip,value,other=''){await run(async()=>{const v=await api('quick',{questionId:q.id,skip,value,other,requestId:uuid()});state=v.state;freeBackDraft=null;notice('');paint();toPageStart(current);});}
+async function sendQuick(q,skip,value,other='',detail=''){await run(async()=>{const v=await api('quick',{questionId:q.id,skip,value,other,detail,requestId:uuid()});state=v.state;freeBackDraft=null;notice('');paint();toPageStart(current);});}
 // Existing saved V5.10 snapshots are still usable. Bring their two role-guidance
 // preparation examples into the one consolidated 'What we need to check next' section.
 function freeChecks(r={}){
@@ -201,8 +203,10 @@ function paintSnapshot(){const r=state.freeReport||{},view=$('snapshotSummary');
   // user-reported exposure. Assessment limitations appear at the bottom.
   view.append(el('h3','','Your goal and starting point'),el('p','',r.profileSummary||''));
   addList(view,'Skills important for your target role',(r.targetCompetencies||[]));
-  addList(view,'Skills you told us you have used',r.reportedExposure?.length?r.reportedExposure:['No hands-on exposure selected yet.']);
+  addList(view,'Strengths you selected',r.reportedStrengths?.length?r.reportedStrengths:['No strengths selected yet.']);
+  addList(view,'Tools or practical examples you mentioned',r.reportedExposure?.length?r.reportedExposure:['No specific tools or work examples provided.']);
   view.append(el('h3','','Your transferable advantage'),el('p','',r.transferableAdvantage||''));
+  if(r.careerOpportunities?.length)addList(view,'Career opportunities worth exploring',r.careerOpportunities);
   view.append(el('h3','','Your career alignment'),el('p','',r.careerAlignment||''));
   addList(view,'Your next best moves',r.nextBestMoves||[]);
   addList(view,'What a deeper assessment could reveal',r.furtherAssessment||[]);
@@ -412,8 +416,10 @@ function openFree(){
  if(r.version>=5){
   host.append(el('h3','','Your goal and starting point'),el('p','',r.profileSummary||''));
   addList(host,'Skills relevant to your career direction',r.targetCompetencies||[]);
-  addList(host,'Skills you reported using',r.reportedExposure?.length?r.reportedExposure:['No practical skills were listed yet.']);
+  addList(host,'Strengths you selected',r.reportedStrengths?.length?r.reportedStrengths:['No strengths selected yet.']);
+  addList(host,'Tools or examples you mentioned',r.reportedExposure?.length?r.reportedExposure:['No specific tools or examples provided.']);
   host.append(el('h3','','Your transferable advantage'),el('p','',r.transferableAdvantage||''));
+  if(r.careerOpportunities?.length)addList(host,'Career opportunities worth exploring',r.careerOpportunities);
   host.append(el('h3','','Your career alignment'),el('p','',r.careerAlignment||''));
   addList(host,'Your next best moves',r.nextBestMoves||[]);
   addList(host,'What a deeper assessment could reveal',r.furtherAssessment||[]);

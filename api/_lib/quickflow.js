@@ -2,7 +2,7 @@
    Answers update the same structured career profile used by AI coaching.
    Quick selections are free in this owner-preview version (no AI call). */
 import {mergeProfile,looksLikeEvidence} from './domain.js';
-import {FREE_QUESTIONS,FREE_BY_ID,FREE_QUESTION_IDS,freeIntakeComplete,freeAnswered,applyFreeAnswers} from './free-intake.js';
+import {FREE_QUESTIONS,FREE_BY_ID,FREE_QUESTION_IDS,activeFreeQuestions,freeIntakeComplete,freeAnswered,applyFreeAnswers} from './free-intake.js';
 
 // Curated role-specific competencies keep free screening deterministic and inexpensive.
 // The 'Other' response is available for roles beyond these broad categories.
@@ -96,11 +96,11 @@ function adaptQuestion(q,p={}){
 }
 function publicQuestion(q){
  if(!q)return null;
- const {id,kind,text,options,maxSelections,minSelections,maxLength,minLength,placeholder,optional,example,skipLabel}=q;
- return {id,kind,text,options:options||[],maxSelections:maxSelections||1,minSelections:minSelections||1,maxLength:maxLength||OTHER_TEXT_LIMIT,minLength:minLength||1,placeholder:placeholder||'',optional:!!optional,example:!!example,skipLabel:skipLabel||'Skip'};
+ const {id,kind,text,options,maxSelections,minSelections,maxLength,minLength,placeholder,optional,example,skipLabel,detailLabel,detailPlaceholder,detailMaxLength}=q;
+ return {id,kind,text,options:options||[],maxSelections:maxSelections||1,minSelections:minSelections||1,maxLength:maxLength||OTHER_TEXT_LIMIT,minLength:minLength||1,placeholder:placeholder||'',optional:!!optional,example:!!example,skipLabel:skipLabel||'Skip',detailLabel:detailLabel||'',detailPlaceholder:detailPlaceholder||'',detailMaxLength:detailMaxLength||0};
 }
 export function guidedProgress(p={},answers={},skips=[],phase='paid'){
- const questionSet=phase==='free'?FREE_QUESTIONS:QUESTIONS.filter(q=>!['applicationDepth','evidenceExample'].includes(q.id));
+ const questionSet=phase==='free'?activeFreeQuestions(answers):QUESTIONS.filter(q=>!['applicationDepth','evidenceExample'].includes(q.id));
  const isDone=q=>phase==='free'?(Object.hasOwn(answers,q.id)||skips.includes(q.id)):(answeredByProfile(q,p)||Object.hasOwn(answers,q.id)||skips.includes(q.id));
  const completed=questionSet.filter(isDone).length;
  const next=questionSet.find(q=>!isDone(q));
@@ -142,8 +142,14 @@ export function validateQuickAnswer(q,raw){
  if(unique.length!==selections.length)throw new Error('Select each option only once.');
  if(unique.length<(q.minSelections||1)||unique.length>(q.maxSelections||1))throw new Error(`Select ${q.minSelections||1} to ${q.maxSelections||1} options.`);
  if(unique.includes(NO_EXPERIENCE)&&unique.length!==1)throw new Error('Choose No hands-on experience yet on its own.');
+ if(q.id==='careerBarriers'&&unique.includes('No major barrier right now')&&unique.length!==1)throw new Error('Select No major barrier right now on its own.');
  if(unique.includes('Other'))other=sanitizeText(raw?.other,2,OTHER_TEXT_LIMIT);
- return {value:q.kind==='multi'?unique:unique[0],other};
+ let detail='';
+ if(q.id==='personalStrengths'&&String(raw?.detail||'').trim()) {
+  detail=sanitizeText(raw.detail,3,300);
+  if(isObviousNonsense(detail))throw new Error('Please provide a meaningful tool or example, or leave this optional field empty.');
+ }
+ return {value:q.kind==='multi'?unique:unique[0],other,detail};
 }
 export function addQuickAnswer(profile,q,answer){
  const v=answer.value,other=answer.other;
@@ -185,9 +191,10 @@ export function rewindFreeAnswers(answers={},extras={},profile={},skips=[]){
  const previousId=order.at(-1);
  const remaining={...answers};delete remaining[previousId];
  const remainingExtras={...extras};delete remainingExtras[previousId];
+ if(previousId==='personalStrengths')delete remainingExtras.strengthEvidence;
  const remainingSkips=skips.filter(id=>id!==previousId);
  const rebuilt=applyFreeAnswers(remaining,remainingExtras,remainingSkips);
- return {previousId,previousValue:answers[previousId]||'',previousOther:extras[previousId]||'',answers:remaining,extras:remainingExtras,skips:remainingSkips,profile:rebuilt};
+ return {previousId,previousValue:answers[previousId]||'',previousOther:extras[previousId]||'',previousDetail:previousId==='personalStrengths'?(extras.strengthEvidence||''):'',answers:remaining,extras:remainingExtras,skips:remainingSkips,profile:rebuilt};
 }
 export function displayQuickAnswer(q,answer){
  if(q.kind==='text')return answer.value;

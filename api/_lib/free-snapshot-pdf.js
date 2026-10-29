@@ -21,11 +21,13 @@ export function buildFreeSnapshotPdf(snapshot={}){
  if(snapshot.version>=5){
   section('1. Your career goal and starting point',[snapshot.profileSummary||'Your goal and starting point.']);
   section('Skills important for your target role',snapshot.targetCompetencies||[],true);
-  section('Skills you report having used',snapshot.reportedExposure?.length?snapshot.reportedExposure:['No hands-on exposure selected yet.'],true);
+  section('Strengths you selected',snapshot.reportedStrengths?.length?snapshot.reportedStrengths:['No strengths selected yet.'],true);
+  section('Tools or examples you mentioned',snapshot.reportedExposure?.length?snapshot.reportedExposure:['No specific tools or work examples provided.'],true);
   section('2. Your transferable advantage',[snapshot.transferableAdvantage||'Further examples would help make a more specific connection.']);
-  section('3. Your career alignment',[snapshot.careerAlignment||'Your responses give an initial picture of how your skills connect with your goal.']);
-  section('4. Your next best moves',snapshot.nextBestMoves||[],true);
-  section('5. What a deeper assessment could reveal',snapshot.furtherAssessment||[],true);
+  if(snapshot.careerOpportunities?.length)section('3. Career opportunities worth exploring',snapshot.careerOpportunities,true);
+  section('4. Your career alignment',[snapshot.careerAlignment||'Your responses give an initial picture of how your skills connect with your goal.']);
+  section('5. Your next best moves',snapshot.nextBestMoves||[],true);
+  section('6. What a deeper assessment could reveal',snapshot.furtherAssessment||[],true);
   draw('This free snapshot interprets your own answers. It is not a verified competency score.',{size:9,max:100});
   draw('Further scenario-based evaluation is optional and available through Premium.',{size:9,max:100});
  }else{

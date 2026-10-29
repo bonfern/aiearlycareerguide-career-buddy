@@ -1,3 +1,4 @@
+import {isExploringGoal} from './free-intake.js';
 export const MESSAGE_LIMIT=1200;
 export const PACKS=Object.freeze({
  intro:{label:'Career Buddy Intro Coaching',priceInr:149,credits:12,days:14},
@@ -16,7 +17,7 @@ export function validateMessage(v){
 export const EMPTY_PROFILE=Object.freeze({
  employmentStatus:'',currentRole:'',industry:'',experience:'',goal:'',targetRole:'',timeframe:'',
  responsibilities:[],roleExperience:[],achievements:[],skills:[],gaps:[],constraints:'',applicationDepth:'',evidenceExample:'',
- freeIntakeVersion:0,careerStage:'',careerSituations:[],interestFields:[],personalStrengths:[],enjoyedWork:[],workEnvironment:[],educationLevel:'',existingSkills:'',careerAmbition:'',learningTime:'',changeComfort:'',careerValues:[],additionalContext:'',targetGoalRole:''
+ freeIntakeVersion:0,careerStage:'',careerSituations:[],careerPriorities:[],careerBarriers:[],skillEvidence:'',interestFields:[],personalStrengths:[],enjoyedWork:[],workEnvironment:[],educationLevel:'',existingSkills:'',careerAmbition:'',learningTime:'',changeComfort:'',careerValues:[],additionalContext:'',targetGoalRole:''
 });
 const text=(v,max=240)=>typeof v==='string'?v.replace(/\s+/g,' ').trim().slice(0,max):'';
 function uniqueArr(old, incoming){
@@ -54,6 +55,15 @@ export function looksLikeEvidence(v){
 export function freeReadiness(p={}){
  const missing=[];
  const ok=v=>typeof v==='string'&&v.trim().length>=3;
+ if(p.freeIntakeVersion>=21){
+  const ok=v=>typeof v==='string'&&v.trim().length>=2;
+  if(!ok(p.careerStage)||!ok(p.targetGoalRole))missing.push('Your career stage and direction');
+  if(!Array.isArray(p.careerPriorities)||!p.careerPriorities.length)missing.push('Career priorities');
+  if(isExploringGoal(p.targetGoalRole)&&(!Array.isArray(p.interestFields)||!p.interestFields.length))missing.push('Career interests');
+  if(!Array.isArray(p.personalStrengths)||!p.personalStrengths.length||!ok(p.educationLevel))missing.push('Strengths and education');
+  if(!Array.isArray(p.careerBarriers)||!p.careerBarriers.length||!ok(p.learningTime))missing.push('Barriers and learning time');
+  return {ready:missing.length===0,missing,completed:5-missing.length,total:5};
+ }
  if(p.freeIntakeVersion>=18){
   const ok=v=>typeof v==='string'&&v.trim().length>=2;
   if(!ok(p.careerStage)||!Array.isArray(p.careerSituations)||!p.careerSituations.length)missing.push('Career stage and situation');

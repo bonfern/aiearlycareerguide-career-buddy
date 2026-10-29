@@ -1,0 +1,1 @@
+Historical V5.19 assertions for the superseded 13-question flow; kept for traceability but not executed by the current V5.21 npm test command. The replacement tests are tests/v5-21-focused-discovery.test.js.
