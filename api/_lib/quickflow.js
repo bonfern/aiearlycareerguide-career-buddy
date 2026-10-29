@@ -105,7 +105,7 @@ export function guidedProgress(p={},answers={},skips=[],phase='paid'){
  const completed=questionSet.filter(isDone).length;
  const next=questionSet.find(q=>!isDone(q));
  return {completed,total:questionSet.length,question:publicQuestion(next?(phase==='free'?next:adaptQuestion(next,p)):null),finished:!next,
-  skipped:skips.filter(id=>!!known[id])};
+  skipped:skips.filter(id=>phase==='free'?FREE_QUESTION_IDS.includes(id):Boolean(known[id]))};
 }
 // Cheap, deterministic checks. Do not attempt to infer truth or competence here.
 export function isObviousNonsense(v){
@@ -131,7 +131,7 @@ export function validateQuickAnswer(q,raw){
  let value,other='';
  if(q.kind==='text'){
   const value=sanitizeText(raw?.value,q.minLength,q.maxLength);
-  if(['existingSkills','additionalContext'].includes(q.id)&&isObviousNonsense(value))throw new Error('Please enter meaningful information or choose the skip option.');
+  if(['existingSkills','additionalContext','targetGoalRole'].includes(q.id)&&isObviousNonsense(value))throw new Error(q.id==='targetGoalRole'?'Enter a meaningful career goal or role, or type Still exploring.':'Please enter meaningful information or choose the skip option.');
   if(q.example&&isObviousNonsense(value))throw new Error('Please describe a real project, task or learning activity, or select Skip if you have no example yet.');
   if(q.example&&!looksLikeEvidence(value))throw new Error('Please give one specific task, project or learning activity you actually completed, or select Skip.');
   return {value,other:''};

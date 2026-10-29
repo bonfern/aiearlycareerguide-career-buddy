@@ -16,7 +16,7 @@ export function validateMessage(v){
 export const EMPTY_PROFILE=Object.freeze({
  employmentStatus:'',currentRole:'',industry:'',experience:'',goal:'',targetRole:'',timeframe:'',
  responsibilities:[],roleExperience:[],achievements:[],skills:[],gaps:[],constraints:'',applicationDepth:'',evidenceExample:'',
- freeIntakeVersion:0,careerStage:'',careerSituations:[],interestFields:[],personalStrengths:[],enjoyedWork:[],workEnvironment:[],educationLevel:'',existingSkills:'',careerAmbition:'',learningTime:'',changeComfort:'',careerValues:[],additionalContext:''
+ freeIntakeVersion:0,careerStage:'',careerSituations:[],interestFields:[],personalStrengths:[],enjoyedWork:[],workEnvironment:[],educationLevel:'',existingSkills:'',careerAmbition:'',learningTime:'',changeComfort:'',careerValues:[],additionalContext:'',targetGoalRole:''
 });
 const text=(v,max=240)=>typeof v==='string'?v.replace(/\s+/g,' ').trim().slice(0,max):'';
 function uniqueArr(old, incoming){
@@ -54,13 +54,14 @@ export function looksLikeEvidence(v){
 export function freeReadiness(p={}){
  const missing=[];
  const ok=v=>typeof v==='string'&&v.trim().length>=3;
- if(p.freeIntakeVersion===18){
+ if(p.freeIntakeVersion>=18){
   const ok=v=>typeof v==='string'&&v.trim().length>=2;
   if(!ok(p.careerStage)||!Array.isArray(p.careerSituations)||!p.careerSituations.length)missing.push('Career stage and situation');
   if(!Array.isArray(p.interestFields)||!p.interestFields.length||!Array.isArray(p.personalStrengths)||!p.personalStrengths.length)missing.push('Interests and strengths');
   if(!Array.isArray(p.enjoyedWork)||!p.enjoyedWork.length||!Array.isArray(p.workEnvironment)||!p.workEnvironment.length)missing.push('Work preferences');
   if(!ok(p.educationLevel)||!ok(p.careerAmbition)||!ok(p.learningTime)||!ok(p.changeComfort)||!Array.isArray(p.careerValues)||!p.careerValues.length)missing.push('Education, goal, time, comfort and values');
-  return {ready:missing.length===0,missing,completed:4-missing.length,total:4};
+  if(p.freeIntakeVersion>=19&&!ok(p.targetGoalRole))missing.push('Target career goal or role');
+  return {ready:missing.length===0,missing,completed:(p.freeIntakeVersion>=19?5:4)-missing.length,total:p.freeIntakeVersion>=19?5:4};
  }
  if(!ok(p.employmentStatus)||!ok(p.currentRole)||!ok(p.experience))missing.push('Your current situation, education or role, and relevant experience (including none)');
  if(!ok(p.goal)||!ok(p.targetRole))missing.push('Career goal and target role');
@@ -74,7 +75,7 @@ export function checkPackEligibility(session={},packId){
  if(packId==='intro'&&!session.freeReport)throw new Error('Complete your free career snapshot before starting Career Buddy coaching.');
  if(packId==='intro'&&hasCoaching)throw new Error('The introductory coaching pack is for new coaching users. Choose a refill.');
  if(packId==='starter'&&!session.freeReport)throw new Error('Complete the free snapshot before unlocking the detailed assessment.');
- if(packId==='starter'&&session.profile?.freeIntakeVersion===18&&!session.profile.assessmentTargetRole)throw new Error('Choose a specific job role for the detailed assessment before purchasing.');
+ if(packId==='starter'&&session.profile?.freeIntakeVersion>=18&&!session.profile.assessmentTargetRole)throw new Error('Choose a specific job role for the detailed assessment before purchasing.');
  if(packId==='starter'&&tier==='paid')throw new Error('Use a refill pack for additional coaching.');
  if(['standard','extended'].includes(packId)&&!hasCoaching)throw new Error('Start with a coaching intro or detailed assessment pack.');
  if(['standard','extended'].includes(packId)&&!session.freeReport)throw new Error('Complete your free career snapshot before purchasing coaching refills.');

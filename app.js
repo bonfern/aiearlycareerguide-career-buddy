@@ -56,6 +56,7 @@ function goCoach(){if(!state){show('Login');return;}if(!state.freeReport&&!state
 async function choose(next){setFlow(next);if(!state){show('Login');return;}await run(async()=>{state=(await api('setJourney',{journey:next})).state;notice('');goAssessment();});}
 function paint(){if(!state)return;const s=current;
  if(s==='Free')paintQuestion(true);
+ if(s==='Upgrade'){const role=state.profile?.targetGoalRole||'';const field=$('assessmentRole');if(field&&!field.value&&role&&!/^(?:still exploring|not sure|unsure|undecided|exploring|get promoted|earn a higher salary|move into leadership|build future-ready skills)$/i.test(role))field.value=role;}
  if(s==='Paid')paintPaidAssessment();
  if(s==='Snapshot')paintSnapshot();
 
@@ -166,7 +167,7 @@ function paintQuestion(free){const name=free?'free':'paid',host=$(name+'Question
   host.append(choices);
  }
  let txt=null,other=null;
- if(q.kind==='text'){txt=el('textarea');txt.id='answerText';txt.maxLength=q.maxLength||300;txt.placeholder=q.placeholder||'A short answer is enough';txt.rows=3;if(draft)txt.value=String(draft.value||'');host.append(txt,el('div','help-text',q.example?'One specific project, task or learning activity is enough. If you have no example yet, choose Skip.':`Up to ${txt.maxLength} characters. Avoid sharing contact details.`));}
+ if(q.kind==='text'){txt=el('textarea');txt.id='answerText';txt.maxLength=q.maxLength||300;txt.placeholder=q.placeholder||'A short answer is enough';txt.rows=3;if(draft)txt.value=String(draft.value||'');host.append(txt,el('div','help-text',q.id==='targetGoalRole'?'A specific role helps us personalise your snapshot. If you have not decided, enter Still exploring.':q.example?'One specific project, task or learning activity is enough. If you have no example yet, choose Skip.':`Up to ${txt.maxLength} characters. Avoid sharing contact details.`));}
  else {other=el('input');other.type='text';other.maxLength=120;other.placeholder='Please specify briefly';other.className='hidden';if(draft){other.value=draft.other||'';other.classList.toggle('hidden',!inputs.some(x=>x.checked&&x.value==='Other'));if(selectedCount)selectedCount.textContent=`${countLabel} · ${inputs.filter(x=>x.checked).length} selected`;}host.append(other);for(const input of inputs)input.onchange=()=>{
   if(q.kind==='multi'&&input.checked){
    if(input.value==='No hands-on experience yet'){inputs.forEach(x=>{if(x!==input)x.checked=false;});}
@@ -321,7 +322,7 @@ function afterPurchase(packId,statusMessage=''){
 async function activate(packId,couponId){
  await run(async()=>{
   const couponCode=$(couponId)?.value?.trim()||'';
-  if(packId==='starter'&&state?.profile?.freeIntakeVersion===18){
+  if(packId==='starter'&&state?.profile?.freeIntakeVersion>=18){
    const role=$('assessmentRole')?.value?.trim()||'';
    if(role.length<3)throw Error('Please enter the specific job role you want assessed.');
    state=(await api('setAssessmentRole',{role})).state;
@@ -405,7 +406,25 @@ async function submitChat(event){event.preventDefault();const input=$('chatInput
  });}
 function download(kind,format='pdf'){window.location.assign(`${servicePath()}?action=download&kind=${encodeURIComponent(kind)}&format=${encodeURIComponent(format)}`);}
 function openDialog(title){$('dialogDownload').onclick=()=>reportKind==='resume-review'?downloadResumeReview(state.resumeReviews.at(-1).id):download(reportKind);$('dialogTitle').textContent=title;$('reportContent').replaceChildren();$('reportDialog').showModal();$('reportDialog').scrollTop=0;$('reportContent').scrollTop=0;return $('reportContent');}
-function openFree(){if(!state.freeReport)return;reportKind='free';const r=state.freeReport,host=openDialog('Your Free Career Snapshot');host.append(el('h3','','1. Your professional profile'),el('p','',r.profileSummary||''));addList(host,'2. Skills your target role needs',r.targetCompetencies);host.append(el('p','snapshot-disclaimer','The free snapshot does not include competency testing. A detailed scenario-based evaluation is available separately through the optional paid assessment.'));addList(host,'3. What we need to check next (paid assessment)',freeChecks(r));if((r.version||0)<4)host.append(el('p','micro','You can refresh this snapshot for simpler, more practical guidance.'));}
+function openFree(){
+ if(!state.freeReport)return;
+ reportKind='free';const r=state.freeReport,host=openDialog('Your Free Career Snapshot');
+ if(r.version>=5){
+  host.append(el('h3','','Your goal and starting point'),el('p','',r.profileSummary||''));
+  addList(host,'Skills relevant to your career direction',r.targetCompetencies||[]);
+  addList(host,'Skills you reported using',r.reportedExposure?.length?r.reportedExposure:['No practical skills were listed yet.']);
+  host.append(el('h3','','Your transferable advantage'),el('p','',r.transferableAdvantage||''));
+  host.append(el('h3','','Your career alignment'),el('p','',r.careerAlignment||''));
+  addList(host,'Your next best moves',r.nextBestMoves||[]);
+  addList(host,'What a deeper assessment could reveal',r.furtherAssessment||[]);
+  host.append(el('p','snapshot-disclaimer','Your free snapshot interprets self-reported information; competency scores require further assessment.'));
+ }else{
+  host.append(el('h3','','Your professional profile'),el('p','',r.profileSummary||''));
+  addList(host,'Skills relevant to your career direction',r.targetCompetencies||[]);
+  addList(host,'What a deeper assessment could reveal',freeChecks(r));
+ }
+}
+
 function openDetailed(){if(!state.report)return;reportKind='report';const r=state.report,host=openDialog('Career Action & Skill Development Report');host.append(el('h3','','Your career objective'),el('p','',r.goalPath?.headline||''),el('h3','','Career summary'),el('p','',r.summary||''));
  for(const [title,items] of [['Technical capability priorities',r.capabilityFocus?.technical],['Leadership and soft-skill priorities',r.capabilityFocus?.behavioural]]){host.append(el('h3','',title));for(const x of items||[])host.append(el('h4','',x.name),el('p','',`${x.currentCompetency} | ${x.priority}. ${x.firstAction}`));}
  host.append(el('h3','','Career actions'));for(const a of r.goalPath?.careerActions||[])host.append(el('h4','',a.title),el('p','',a.action),el('p','',`Expected outcome: ${a.outcome}`));

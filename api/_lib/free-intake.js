@@ -1,4 +1,4 @@
-/* V5.18 Free Career Discovery: exactly 13 low-cost, structured questions.
+/* V5.19 Free Career Discovery: exactly 13 low-cost, structured questions.
    All selections are user-reported, never verified skills. No LLM calls during intake. */
 export const FREE_QUESTIONS=Object.freeze([
  {id:'careerStage',kind:'single',text:'Where are you in your career journey right now?',options:['School Student','College / University Student','Early Career (0-3 years)','Mid-Career Professional (4-10 years)','Experienced Professional (10+ years)','Manager / Team Leader','Senior Leader / Executive','Returning to Work After a Break','Other']},
@@ -13,7 +13,7 @@ export const FREE_QUESTIONS=Object.freeze([
  {id:'learningTime',kind:'single',text:'How much time can you realistically dedicate each week to learning and developing new skills?',options:['Less than 1 hour','1-3 hours','4-6 hours','7-10 hours','More than 10 hours','Other']},
  {id:'changeComfort',kind:'single',text:'How comfortable are you with stepping outside your comfort zone to pursue new career opportunities?',options:['Not comfortable at all','Slightly comfortable','Moderately comfortable','Very comfortable','Extremely comfortable','Other']},
  {id:'careerValues',kind:'multi',text:'What matters most to you in your career?',options:['Higher income','Leadership opportunities','Job security','Flexible working arrangements','Meaningful and impactful work','Innovation and creativity','Healthy work-life balance','Starting my own business','International or global opportunities','Continuous learning and growth','Recognition and influence','Other'],maxSelections:3},
- {id:'additionalContext',kind:'text',text:"Is there anything else you'd like us to know about your career aspirations, preferences, or challenges?",placeholder:'Optional – add any details that may help us personalise your snapshot',maxLength:500,minLength:3,optional:true,skipLabel:'N/A'}
+ {id:'targetGoalRole',kind:'text',text:'What specific career goal or role would you like to pursue?',placeholder:'e.g. Data Analyst, Software Engineer, Lead a team, or Still exploring',maxLength:90,minLength:3}
 ]);
 export const FREE_QUESTION_IDS=Object.freeze(FREE_QUESTIONS.map(q=>q.id));
 export const FREE_BY_ID=Object.freeze(Object.fromEntries(FREE_QUESTIONS.map(q=>[q.id,q])));
@@ -24,17 +24,22 @@ export function applyFreeAnswers(answers={},extras={},skips=[]){
  const single=id=>resolved(id)[0]||'';
  const interests=resolved('interestFields'),stage=single('careerStage'),skills=skips.includes('existingSkills')?'':single('existingSkills');
  const initialGoal=single('careerAmbition')||resolved('careerSituation')[0]||'Explore career options';
+ const statedTarget=single('targetGoalRole');
+ const isExploring=/^(?:still exploring|not sure|unsure|undecided|exploring|i don.t know|no specific role yet)$/i.test(statedTarget);
+ const goalOnly=/^(?:get promoted|earn (?:more|a higher salary)|move into leadership|find a (?:stable|secure) role|build (?:future.ready )?skills|change careers|move into a new industry|start (?:a|my) business)$/i.test(statedTarget);
+ const hasSpecificTarget=Boolean(statedTarget&&!isExploring&&!goalOnly);
  const isStudent=/student/i.test(stage);
  const experience=/^Early Career/.test(stage)?'0–3 years':/^Mid-Career/.test(stage)?'4–10 years':/^Experienced/.test(stage)?'10+ years':isStudent?'No experience yet':'Not specified';
  const directions=interests.length?interests.slice(0,2).join(' and '):'general career opportunities';
  // These are interest areas, NOT confirmed target job titles. Premium requires a role selection.
  return {
-  freeIntakeVersion:18,careerStage:stage,employmentStatus:stage,
+  freeIntakeVersion:19,careerStage:stage,employmentStatus:stage,
   careerSituations:resolved('careerSituation'),interestFields:interests,personalStrengths:resolved('personalStrengths'),
   enjoyedWork:resolved('enjoyedWork'),workEnvironment:resolved('workEnvironment'),educationLevel:single('educationLevel'),
   existingSkills:skills,careerAmbition:initialGoal,learningTime:single('learningTime'),changeComfort:single('changeComfort'),
-  careerValues:resolved('careerValues'),additionalContext:skips.includes('additionalContext')?'':single('additionalContext'),
-  experience,goal:initialGoal,targetRole:`Career paths in ${directions}`,currentRole:stage||'Career exploration',
+  careerValues:resolved('careerValues'),additionalContext:skips.includes('additionalContext')?'':single('additionalContext'),targetGoalRole:statedTarget,
+  experience,goal:hasSpecificTarget?`${initialGoal}; target: ${statedTarget}`:isExploring?initialGoal:statedTarget||initialGoal,
+  targetRole:hasSpecificTarget?statedTarget:`Career paths in ${directions}`,assessmentTargetRole:'',currentRole:stage||'Career exploration',
   roleExperience:skills?skills.split(/[,;\n]/).map(s=>s.trim()).filter(Boolean).slice(0,12):[],
   skills:skills?skills.split(/[,;\n]/).map(s=>s.trim()).filter(Boolean).slice(0,12):[],
   responsibilities:[],gaps:[],achievements:[],constraints:single('learningTime')?`Learning time per week: ${single('learningTime')}`:'',
