@@ -1,9 +1,9 @@
 ## V5.17 – More insightful Free Career Discovery
 
-- Nine short free questions, including self-reported depth of experience and an optional 1–2 sentence example. Students without experience can indicate that honestly and skip the example.
+- Thirteen new free questions about career stage, situation, interest fields, strengths, enjoyed work, environment, education, skills, goals, learning time, change comfort, career priorities and optional context.
 - Empty, obviously nonsensical and vague self-praise responses are rejected before any AI call; other responses are treated as unverified statements. Previous and Skip remain available.
 - The free report now opens with the career goal, role-specific skills and which skills the user selected as having used. Transferable advantage, career alignment and two specific next moves follow. Questions about deeper assessment appear only at the bottom.
-- Reuses role-only cached competency guidance and adds **one short user-specific synthesis on the existing `OPENAI_MODEL`** when a new free report is generated; no model calls during the nine answers or navigation. Token usage is tracked as `free-personal-insight`.
+- Reuses role-only cached competency guidance and adds **one short user-specific synthesis on the existing `OPENAI_MODEL`** when a new free report is generated; no model calls during the 13 answers or navigation. Token usage is tracked as `free-personal-insight`.
 - The cached role guidance **never contains user-specific data**. Existing saved reports and payments remain unchanged.
 - Paid assessment questions, model settings, prices, coaching credits and Razorpay integration are unchanged.
 

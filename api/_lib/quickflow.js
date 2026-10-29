@@ -2,6 +2,7 @@
    Answers update the same structured career profile used by AI coaching.
    Quick selections are free in this owner-preview version (no AI call). */
 import {mergeProfile,looksLikeEvidence} from './domain.js';
+import {FREE_QUESTIONS,FREE_BY_ID,FREE_QUESTION_IDS,freeIntakeComplete,freeAnswered,applyFreeAnswers} from './free-intake.js';
 
 // Curated role-specific competencies keep free screening deterministic and inexpensive.
 // The 'Other' response is available for roles beyond these broad categories.
@@ -48,8 +49,7 @@ export const QUESTIONS=Object.freeze([
  {id:'achievement1',kind:'text',text:'What is one project or responsibility you have worked on?',placeholder:'e.g. Building an AI chatbot for HR queries',maxLength:QUICK_TEXT_LIMIT,minLength:18,example:true},
  {id:'achievement2',kind:'text',text:'What is another project or responsibility you handled?',placeholder:'e.g. Handling HR queries for employees',maxLength:QUICK_TEXT_LIMIT,minLength:18,example:true},
 ]);
-export const FREE_QUESTION_IDS=Object.freeze(['employmentStatus','goal','targetRole','currentRole','experience','roleExperience','gaps','applicationDepth','evidenceExample']);
-const known=Object.freeze(Object.fromEntries(QUESTIONS.map(q=>[q.id,q])));
+const known=Object.freeze(Object.fromEntries([...QUESTIONS,...FREE_QUESTIONS].map(q=>[q.id,q])));
 const norm=v=>String(v??'').trim();
 const nonempty=v=>typeof v==='string'&&v.trim().length>=2;
 export function answeredByProfile(q,p={}){
@@ -96,14 +96,15 @@ function adaptQuestion(q,p={}){
 }
 function publicQuestion(q){
  if(!q)return null;
- const {id,kind,text,options,maxSelections,minSelections,maxLength,minLength,placeholder,optional,example}=q;
- return {id,kind,text,options:options||[],maxSelections:maxSelections||1,minSelections:minSelections||1,maxLength:maxLength||OTHER_TEXT_LIMIT,minLength:minLength||1,placeholder:placeholder||'',optional:!!optional,example:!!example};
+ const {id,kind,text,options,maxSelections,minSelections,maxLength,minLength,placeholder,optional,example,skipLabel}=q;
+ return {id,kind,text,options:options||[],maxSelections:maxSelections||1,minSelections:minSelections||1,maxLength:maxLength||OTHER_TEXT_LIMIT,minLength:minLength||1,placeholder:placeholder||'',optional:!!optional,example:!!example,skipLabel:skipLabel||'Skip'};
 }
 export function guidedProgress(p={},answers={},skips=[],phase='paid'){
- const questionSet=phase==='free'?FREE_QUESTION_IDS.map(id=>known[id]):QUESTIONS.filter(q=>!['applicationDepth','evidenceExample'].includes(q.id));
- const completed=questionSet.filter(q=>answeredByProfile(q,p)||Object.hasOwn(answers,q.id)||skips.includes(q.id)).length;
- const next=questionSet.find(q=>!answeredByProfile(q,p)&&!Object.hasOwn(answers,q.id)&&!skips.includes(q.id));
- return {completed,total:questionSet.length,question:publicQuestion(next?adaptQuestion(next,p):null),finished:!next,
+ const questionSet=phase==='free'?FREE_QUESTIONS:QUESTIONS.filter(q=>!['applicationDepth','evidenceExample'].includes(q.id));
+ const isDone=q=>phase==='free'?(Object.hasOwn(answers,q.id)||skips.includes(q.id)):(answeredByProfile(q,p)||Object.hasOwn(answers,q.id)||skips.includes(q.id));
+ const completed=questionSet.filter(isDone).length;
+ const next=questionSet.find(q=>!isDone(q));
+ return {completed,total:questionSet.length,question:publicQuestion(next?(phase==='free'?next:adaptQuestion(next,p)):null),finished:!next,
   skipped:skips.filter(id=>!!known[id])};
 }
 // Cheap, deterministic checks. Do not attempt to infer truth or competence here.
@@ -130,6 +131,7 @@ export function validateQuickAnswer(q,raw){
  let value,other='';
  if(q.kind==='text'){
   const value=sanitizeText(raw?.value,q.minLength,q.maxLength);
+  if(['existingSkills','additionalContext'].includes(q.id)&&isObviousNonsense(value))throw new Error('Please enter meaningful information or choose the skip option.');
   if(q.example&&isObviousNonsense(value))throw new Error('Please describe a real project, task or learning activity, or select Skip if you have no example yet.');
   if(q.example&&!looksLikeEvidence(value))throw new Error('Please give one specific task, project or learning activity you actually completed, or select Skip.');
   return {value,other:''};
@@ -178,28 +180,13 @@ export function addQuickAnswer(profile,q,answer){
 // Rebuild from saved selections rather than merging into stale arrays. This is
 // local validation only: backtracking makes no model calls or coaching charges.
 export function rewindFreeAnswers(answers={},extras={},profile={},skips=[]){
- const order=FREE_QUESTION_IDS.filter(id=>Object.hasOwn(answers,id)||skips.includes(id));
+ const order=freeAnswered(answers,skips);
  if(!order.length)return null;
  const previousId=order.at(-1);
  const remaining={...answers};delete remaining[previousId];
  const remainingExtras={...extras};delete remainingExtras[previousId];
  const remainingSkips=skips.filter(id=>id!==previousId);
- let rebuilt={employmentStatus:'',currentRole:'',experience:'',goal:'',targetRole:'',roleExperience:[],responsibilities:[],skills:[],gaps:[],achievements:[],constraints:'',industry:'',timeframe:'',applicationDepth:'',evidenceExample:''};
- for(const id of FREE_QUESTION_IDS){
-  if(!Object.hasOwn(remaining,id))continue;
-  const base=QUESTIONS.find(item=>item.id===id);
-  const q=publicQuestion(adaptQuestion(base,rebuilt));
-  // Sessions saved before V5.11 retained the resolved Other text only in profile.
-  // Recover it when possible rather than making existing users restart the form.
-  let other=remainingExtras[id]||'';
-  const hasOther=Array.isArray(remaining[id])?remaining[id].includes('Other'):remaining[id]==='Other';
-  if(hasOther&&!other){
-   if(id==='roleExperience')other=(profile.roleExperience||[]).find(x=>x!==NO_EXPERIENCE&&!q.options.includes(x))||'';
-   if(id==='gaps')other=(profile.gaps||[]).find(x=>x&&!q.options.includes(x))||'';
-  }
-  const answer=validateQuickAnswer(q,{value:remaining[id],other});
-  rebuilt=addQuickAnswer(rebuilt,q,answer);
- }
+ const rebuilt=applyFreeAnswers(remaining,remainingExtras,remainingSkips);
  return {previousId,previousValue:answers[previousId]||'',previousOther:extras[previousId]||'',answers:remaining,extras:remainingExtras,skips:remainingSkips,profile:rebuilt};
 }
 export function displayQuickAnswer(q,answer){
@@ -211,3 +198,4 @@ export function validateSkip(q){
  if(!q||!q.optional)throw new Error('This information is needed for your career profile. Please answer using the options provided.');
  return q.id;
 }
+export {FREE_QUESTION_IDS,FREE_QUESTIONS,freeIntakeComplete,applyFreeAnswers};
