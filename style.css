@@ -158,3 +158,10 @@ dialog{max-width:min(850px,calc(100vw - 24px));width:100%;max-height:94dvh;overf
 .coupon-verify-row .micro{max-width:90%;margin:0}
 .report-progress-note{border:1px solid #cde4e4;background:#f2faf9;border-radius:12px;padding:12px 14px;margin:14px 0;color:#1c5261;font-size:13px}
 @media(max-width:700px){.topbar-inner{gap:8px}.topbar nav{width:100%;flex-basis:100%;justify-content:flex-start!important;margin-left:0;gap:6px}.nav-button{font-size:11px;padding:9px 8px}#topnav{flex-wrap:wrap}}
+
+/* V5.25: a single, accessible assessment-preparation status instead of repeated tips. */
+.assessment-stage-status{background:#f0f6f7;border:1px solid #ccdee2;border-radius:16px;padding:18px 20px;color:#153955;margin:18px 0 14px}
+.assessment-stage-status strong{color:#132548;font-size:1rem}
+.assessment-stage-status p{margin:8px 0 0;line-height:1.5}
+.assessment-stage-status .micro{margin-top:8px;font-size:.84rem}
+@media(max-width:480px){.assessment-stage-status{padding:15px 16px}}
