@@ -182,3 +182,23 @@ dialog{max-width:min(850px,calc(100vw - 24px));width:100%;max-height:94dvh;overf
 .processing-card{max-width:460px;align-items:flex-start}.processing-card>div{min-width:0}.processing-card #processingExtra .task-steps{margin:12px 0 0}
 @media(max-width:480px){.task-progress-panel{padding:15px 14px}.processing-card{padding:17px;gap:12px}}
 @media(prefers-reduced-motion:reduce){.task-spinner{animation:none}}
+/* V5.28: consistent report identity, helpfulness feedback and sample preview. */
+.report-brand{display:flex;align-items:center;gap:13px;background:#102344;color:white;border-radius:12px;padding:12px 14px;margin:0 0 18px;font-weight:700}
+.report-brand img{width:115px;max-width:38%;height:auto;background:white;padding:4px;border-radius:7px}
+.dialog-brand-logo{width:104px;max-width:30%;height:auto;object-fit:contain;background:#fff;border-radius:5px;padding:2px}
+.dialog-header{display:flex;align-items:center;gap:12px}
+.free-role-skills>li{margin-bottom:15px}.free-role-skills li p{margin:4px 0 3px 0}
+.ranked-career-paths li{line-height:1.65;margin-bottom:13px}
+.sample-report-link{display:block;margin:16px 0;font-weight:650;color:#166b62}
+a.sample-report-link{display:inline-block;text-decoration:underline}
+.premium-inclusions li{margin:7px 0}
+.feedback-slot{margin:22px 0}.feedback-card{background:#f7fafb;border:1px solid #d8e4e9;border-radius:14px;padding:16px;display:grid;gap:9px;max-width:680px}
+.feedback-card h3{font-size:1.08rem;margin:0}.feedback-card .micro{margin:0}
+.feedback-card label{display:grid;gap:6px;font-size:.91rem}.feedback-card select,.feedback-card textarea,.feedback-chat-form select,.feedback-chat-form textarea{width:100%;box-sizing:border-box;max-width:100%;border:1px solid #c8d8e3;border-radius:8px;padding:10px;font:inherit;background:white;color:#142143}
+.feedback-stars{display:flex;gap:3px}.feedback-star{border:0;background:transparent;padding:2px 8px;font-size:29px;color:#bb8e18;cursor:pointer}.feedback-star:focus-visible,.feedback-quick:focus-visible{outline:3px solid #cca316}
+.feedback-card button.secondary{width:max-content;max-width:100%}
+.chat-feedback{border-top:1px solid #e6edf2;margin-top:8px;padding-top:7px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.feedback-quick{border:1px solid #d7e3e8;background:#fff;border-radius:7px;font-size:.78rem;padding:6px 9px;cursor:pointer}
+.feedback-chat-details,.feedback-chat-form{display:grid;gap:8px;width:100%;max-width:460px}
+.feedback-chat-form button{width:max-content}
+@media(max-width:580px){.dialog-brand-logo{width:75px}.report-brand img{width:88px}.feedback-star{font-size:25px;padding:3px 6px}}

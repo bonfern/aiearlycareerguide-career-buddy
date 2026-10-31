@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "rewrites": [{"source":"/admin/feedback","destination":"/feedback-admin.html"}],
   "functions": { "api/service.js": { "maxDuration": 240 } },
   "headers": [
     {"source":"/(.*)","headers":[

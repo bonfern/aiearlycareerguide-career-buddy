@@ -1,3 +1,5 @@
+> **Latest release:** V5.28 — see [V5_28_RELEASE_NOTES.md](V5_28_RELEASE_NOTES.md) for changes, owner dashboard setup and test results.
+
 **Latest release: V5.26.** See `V5_26_PREMIUM_NAVIGATION_FIX.md` for the Premium Assessment navigation fix and `FIRESTORE_COUPONS_GUIDE.md` for coupons.
 
 # AI Early Career Guide — Career Buddy V5.26

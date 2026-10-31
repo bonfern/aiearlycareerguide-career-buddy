@@ -1,4 +1,4 @@
-/* Career Buddy V5.27: honest task progress and single report caveat. */
+/* Career Buddy V5.28: honest task progress and single report caveat. */
 const $=id=>document.getElementById(id);
 const APP_BASE=window.location.pathname.startsWith('/professionals/') || window.location.pathname==='/professionals' ? '/professionals' : '';
 const servicePath=()=>`${APP_BASE}/api/service`;
@@ -45,6 +45,7 @@ function show(screen){
  if(current!==screen)notice(''); // Notices belong to their originating screen.
  current=screen;for(const name of screens)$('screen'+name).classList.toggle('hidden',name!==screen);
  $('topnav').classList.toggle('hidden',!state);
+ $('feedbackAdminLink')?.classList.toggle('hidden',!state?.feedbackAdmin);
  $('testerTools').classList.toggle('hidden',!state||state.mode!=='preview');$('signedEmail').textContent=state?.email?`Verified as ${state.email}`:'';
  syncPaymentLabels(); // Scoped payment recovery UI cannot float above unrelated screens.
  toPageStart(screen);
@@ -286,23 +287,47 @@ function freeChecks(r={}){
  return checks;
 }
 // V5.22: concise FREE report. Premium continues to own scored gaps and development plans.
+const PREMIUM_INCLUSIONS=[
+ '12–15 role-specific scenario and knowledge questions across 4–5 essential technical and behavioural skills.',
+ 'Results for assessed competencies, expected role standards and priority skills to strengthen.',
+ 'Skill-by-skill development actions, subskills, real-world exercises and evidence-building tasks.',
+ 'Personalised career progression actions, progress indicators and a 30/60/90-day development plan.',
+ 'Learning guidance with free resources, optional courses and certifications.',
+ 'Role-specific interview questions, assessed topics and answer-preparation frameworks.',
+ '40 Career Buddy coaching credits to continue working on your goals.'
+];
+function reportBrand(host,title){const brand=el('div','report-brand');const logo=el('img');logo.src='./brand-logo.webp';logo.alt='AI Early Career Guide';brand.append(logo,el('div','','Career Buddy · '+title));host.append(brand);}
+function premiumTeaser(host){
+ host.append(el('h3','','Want to know more? Try our Premium Assessment.'));
+ host.append(el('p','','Your free snapshot explores career direction. Premium evaluates role-specific judgement and creates a practical development report.'));
+ host.append(el('h4','','What a Premium Assessment evaluates and includes'));
+ const list=el('ul','premium-inclusions');for(const item of PREMIUM_INCLUSIONS)list.append(el('li','',item));host.append(list);
+ host.append(el('p','micro','Optional resume review is available within paid coaching for five credits; it is not automatically included in the Premium report.'));
+ const link=el('a','sample-report-link','Preview a sample Premium Assessment report (PDF) ↗');link.href='./sample-premium-report.pdf';link.target='_blank';link.rel='noopener';host.append(link);
+}
 function renderFocusedFreeSnapshot(host,r){
+ reportBrand(host,'Free Career Snapshot');
  host.append(el('h3','','1. Your career profile'),el('p','',r.profileSummary||''));
  host.append(el('h3','','Your transferable advantage'),el('p','',r.transferableAdvantage||''));
  host.append(el('h3','','Four important skills for your target direction'));
- const skills=el('ul','free-role-skills');for(const skill of (r.targetCompetencies||[]).slice(0,4)){const item=el('li');item.append(el('strong','',skill.title),document.createTextNode(' — '+(skill.bullets?.[0]||'A relevant foundational skill.')));skills.append(item);}host.append(skills);
+ const skills=el('ul','free-role-skills');for(const skill of (r.targetCompetencies||[]).slice(0,4)){
+  const item=el('li');item.append(el('strong','',skill.title));
+  for(const detail of (skill.bullets||[]).slice(0,2))item.append(el('p','',detail));skills.append(item);
+ }host.append(skills);
  host.append(el('h3','','2. Three career pathways to explore'));
  const paths=el('ol','ranked-career-paths');for(const path of (r.careerOpportunities||[]).slice(0,3))paths.append(el('li','',path));host.append(paths);
  host.append(el('h3','','3. Your three immediate next moves'));
  const actions=el('ol','ranked-career-actions');for(const action of (r.nextBestMoves||[]).slice(0,3))actions.append(el('li','',action));host.append(actions);
- host.append(el('h3','','4. What a Premium Assessment evaluates'));
- const checks=el('ul');for(const item of (r.furtherAssessment||[]).slice(0,3))checks.append(el('li','',item));host.append(checks);
+ premiumTeaser(host);
  host.append(el('p','snapshot-disclaimer','Your free snapshot is based on self-reported answers, not tested competency scores.'));
 }
+
 function paintSnapshot(){const r=state.freeReport||{},view=$('snapshotSummary');view.replaceChildren();
+ renderFeedbackSlot('feedbackFree','free');
  if(!state.freeReport){view.append(el('p','','Finish the free discovery first.'));return;}
  if(r.version>=6){renderFocusedFreeSnapshot(view,r);}
  else if(r.version>=5){
+  reportBrand(view,'Free Career Snapshot');
   // Opening section intentionally contains ONLY goal, target-role skills and
   // user-reported exposure. Assessment limitations appear at the bottom.
   view.append(el('h3','','Your goal and starting point'),el('p','',r.profileSummary||''));
@@ -316,13 +341,13 @@ function paintSnapshot(){const r=state.freeReport||{},view=$('snapshotSummary');
   addList(view,'What a deeper assessment could reveal',r.furtherAssessment||[]);
   view.append(el('p','snapshot-disclaimer','This free snapshot interprets your own answers. It is not a verified competency score; the optional Premium Assessment evaluates role-specific decisions in greater depth.'));
  }else{
-  view.append(el('h3','','Your professional profile'),el('p','',r.profileSummary||''));
+  reportBrand(view,'Free Career Snapshot');view.append(el('h3','','Your professional profile'),el('p','',r.profileSummary||''));
   addList(view,'Skills your target role needs',(r.targetCompetencies||[]));
   addList(view,'What we need to check next (Premium Assessment)',freeChecks(r));
   view.append(el('p','snapshot-disclaimer','Your saved snapshot is based on self-reported answers; it is not a verified competency score.'));
  }
 }
-function paintToolkit(){$('remainingNote').textContent=`${state.credits||0} Career Buddy coaching credits remaining. Your report is saved under My reports.`;}
+function paintToolkit(){renderFeedbackSlot('feedbackPremium','premium');$('remainingNote').textContent=`${state.credits||0} Career Buddy coaching credits remaining. Your report is saved under My reports.`;}
 // These are drafted locally from THIS USER'S saved career data. They consume no
 // tokens and are never stored in the shared role-guidance cache.
 function coachOpeningQuestions(s){
@@ -360,6 +385,29 @@ function paintCoachPrompts(){
   b.replaceChildren(document.createTextNode(suggestion.label+' '),el('span','','↗'));
  }
 }
+function feedbackForm(stage,anchor=''){
+ const block=el('section','feedback-card');block.setAttribute('aria-label','Share feedback');
+ block.append(el('h3','',stage==='free'?'How useful was this snapshot?':'How helpful was this Premium Assessment?'));
+ block.append(el('p','micro','Optional feedback. Your comments are private and help us improve Career Buddy.'));
+ let rating=0;const stars=el('div','feedback-stars');
+ const starButtons=[];for(let i=1;i<=5;i++){const b=el('button','feedback-star','☆');b.type='button';b.title=`${i} out of 5`;b.setAttribute('aria-label',b.title);b.onclick=()=>{rating=i;for(const [j,button] of starButtons.entries()){button.textContent=j<i?'★':'☆';button.setAttribute('aria-pressed',String(j<i));}};starButtons.push(b);stars.append(b);}block.append(stars);
+ const label=el('label','','What could we improve?');const category=el('select');for(const [value,title] of [['content','Content accuracy or relevance'],['depth','More detailed guidance'],['technical','Technical experience'],['other','Other feedback']]){const opt=el('option','',title);opt.value=value;category.append(opt);}label.append(category);block.append(label);
+ const comment=el('textarea');comment.placeholder='Optional comments (max 1,000 characters)';comment.maxLength=1000;comment.rows=2;comment.setAttribute('aria-label','Optional feedback comments');block.append(comment);
+ const status=el('p','micro');status.setAttribute('role','status');const submit=el('button','secondary','Send feedback');submit.type='button';submit.onclick=async()=>{
+  if(!rating){status.textContent='Please select a rating first.';return;}submit.disabled=true;status.textContent='Saving feedback…';
+  try{await api('feedbackSubmit',{stage,anchor,rating,category:category.value,comment:comment.value});status.textContent='Thank you. Your feedback has been saved.';submit.textContent='Update feedback';}
+  catch(e){status.textContent='Unable to save feedback: '+e.message;}finally{submit.disabled=false;}
+ };block.append(submit,status);return block;
+}
+function renderFeedbackSlot(id,stage){const host=$(id);if(!host)return;host.replaceChildren(feedbackForm(stage));}
+function chatFeedback(anchor){
+ const box=el('div','chat-feedback');box.append(el('span','micro','Was this response helpful?'));
+ const status=el('span','micro');status.setAttribute('role','status');
+ async function send(rating){up.disabled=down.disabled=true;status.textContent='Saving…';try{await api('feedbackSubmit',{stage:'chat',anchor,rating,category:'content',comment:''});status.textContent='Thank you for your feedback.';}catch(e){status.textContent=e.message;}finally{up.disabled=down.disabled=false;}}
+ const up=el('button','feedback-quick','👍 Helpful'),down=el('button','feedback-quick','👎 Not helpful');up.type=down.type='button';up.onclick=()=>send(5);down.onclick=()=>{const details=el('div','feedback-chat-details');details.append(feedbackFormChat(anchor));box.replaceChildren(details);};
+ box.append(up,down,status);return box;
+}
+function feedbackFormChat(anchor){const host=el('div','feedback-chat-form');host.append(el('p','micro','How can this answer be improved? (Optional)'));const comment=el('textarea');comment.rows=2;comment.maxLength=1000;comment.placeholder='Tell us what was unclear or unhelpful';const category=el('select');for(const [v,t] of [['content','Not relevant or accurate'],['depth','Needs more detail'],['technical','Technical issue'],['other','Other']]){const o=el('option','',t);o.value=v;category.append(o);}const status=el('span','micro'),button=el('button','secondary','Submit feedback');button.type='button';button.onclick=async()=>{button.disabled=true;try{await api('feedbackSubmit',{stage:'chat',anchor,rating:1,category:category.value,comment:comment.value});status.textContent='Feedback saved. Thank you.';}catch(e){status.textContent=e.message;}finally{button.disabled=false;}};host.append(category,comment,button,status);return host;}
 function paintCoach(){
  const rem=Number(state.credits||0);
  $('resumeReviewOpen').disabled=loading||rem<5||Boolean(state.expired);
@@ -378,7 +426,7 @@ function paintCoach(){
   // Hide the generic account-welcome notification; keep actual coaching turns.
   for(const m of msgs.filter(m=>m.at||m.role==='user')){
    const row=el('div',`message ${m.role==='user'?'user':'assistant'}`);
-   row.append(el('small','',m.role==='user'?'YOU':'CAREER BUDDY'),el('span','',m.content));pane.append(row);
+   row.append(el('small','',m.role==='user'?'YOU':'CAREER BUDDY'),el('span','',m.content));if(m.role==='assistant'&&m.at)row.append(chatFeedback(String(m.at)));pane.append(row);
   }
   pane.scrollTop=pane.scrollHeight;
  }
@@ -536,7 +584,7 @@ async function submitResumeReview(){await run(async()=>{
  notice('Resume review complete. Five credits were used.');
  },{title:'Preparing your resume review',message:'Analysing your resume for role relevance and practical improvements. This can take around a minute or longer.',stages:['Resume received','Assessing content and role relevance','Saving actionable feedback']});}
 function downloadResumeReview(id){window.location.assign(`${servicePath()}?action=download&kind=resume-review&format=pdf&id=${encodeURIComponent(id||'')}`);}
-function openResumeReview(item){if(!item?.review)return;reportKind='resume-review';const r=item.review,host=openDialog('Career Buddy – Resume Review');
+function openResumeReview(item){if(!item?.review)return;reportKind='resume-review';const r=item.review,host=openDialog('Career Buddy – Resume Review');reportBrand(host,'Resume Review');
  host.append(el('h3','',r.headline||'Your resume review'));
  addList(host,'What is working',r.strengths);addList(host,'Missing evidence and information',r.missingDetails);
  addList(host,'Recommended corrections',r.corrections);
@@ -554,7 +602,7 @@ function openFree(){
  reportKind='free';const r=state.freeReport,host=openDialog('Your Free Career Snapshot');
  if(r.version>=6){renderFocusedFreeSnapshot(host,r);}
  else if(r.version>=5){
-  host.append(el('h3','','Your goal and starting point'),el('p','',r.profileSummary||''));
+  reportBrand(host,'Free Career Snapshot');host.append(el('h3','','Your goal and starting point'),el('p','',r.profileSummary||''));
   addList(host,'Skills relevant to your career direction',r.targetCompetencies||[]);
   addList(host,'Strengths you selected',r.reportedStrengths?.length?r.reportedStrengths:['No strengths selected yet.']);
   addList(host,'Tools or examples you mentioned',r.reportedExposure?.length?r.reportedExposure:['No specific tools or examples provided.']);
@@ -565,13 +613,13 @@ function openFree(){
   addList(host,'What a deeper assessment could reveal',r.furtherAssessment||[]);
   host.append(el('p','snapshot-disclaimer','Your free snapshot interprets self-reported information; competency scores require further assessment.'));
  }else{
-  host.append(el('h3','','Your professional profile'),el('p','',r.profileSummary||''));
+  reportBrand(host,'Free Career Snapshot');host.append(el('h3','','Your professional profile'),el('p','',r.profileSummary||''));
   addList(host,'Skills relevant to your career direction',r.targetCompetencies||[]);
   addList(host,'What a deeper assessment could reveal',freeChecks(r));
  }
 }
 
-function openDetailed(){if(!state.report)return;reportKind='report';const r=state.report,host=openDialog('Career Action & Skill Development Report');const scope=el('div','report-scope-callout');scope.append(el('strong','','How to interpret this report'),el('p','',REPORT_SCOPE_NOTE));host.append(scope);host.append(el('h3','','Your career objective'),el('p','',r.goalPath?.headline||''),el('h3','','Career summary'),el('p','',r.summary||''));
+function openDetailed(){if(!state.report)return;reportKind='report';const r=state.report,host=openDialog('Career Action & Skill Development Report');reportBrand(host,'Premium Assessment Report');const scope=el('div','report-scope-callout');scope.append(el('strong','','How to interpret this report'),el('p','',REPORT_SCOPE_NOTE));host.append(scope);host.append(el('h3','','Your career objective'),el('p','',r.goalPath?.headline||''),el('h3','','Career summary'),el('p','',r.summary||''));
  for(const [title,items] of [['Technical capability priorities',r.capabilityFocus?.technical],['Leadership and soft-skill priorities',r.capabilityFocus?.behavioural]]){host.append(el('h3','',title));for(const x of items||[])host.append(el('h4','',x.name),el('p','',`${cleanAssessedResult(x.currentCompetency)} | ${x.priority}. ${x.firstAction}`));}
  host.append(el('h3','','Career actions'));for(const a of r.goalPath?.careerActions||[])host.append(el('h4','',a.title),el('p','',a.action),el('p','',`Expected outcome: ${a.outcome}`));
  host.append(el('h3','','Skill-by-skill plan'));for(const x of r.skillAssessments||[]){host.append(el('h4','',x.name),el('p','',`Role expectation: ${x.targetBenchmark}`),el('p','',`Scenario assessment result: ${cleanAssessedResult(x.currentCompetency)}`),el('p','',`Development focus: ${x.gap}`));addList(host,'Action steps',x.actions);host.append(el('p','',`Evidence task: ${x.practiceTask}`),el('p','',`Improvement indicator: ${x.successIndicator}`));}
