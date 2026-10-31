@@ -165,3 +165,20 @@ dialog{max-width:min(850px,calc(100vw - 24px));width:100%;max-height:94dvh;overf
 .assessment-stage-status p{margin:8px 0 0;line-height:1.5}
 .assessment-stage-status .micro{margin-top:8px;font-size:.84rem}
 @media(max-width:480px){.assessment-stage-status{padding:15px 16px}}
+
+/* V5.27: progress indicators based on actual saved server stages. */
+.task-progress-panel{border:1px solid #cde4e4;background:#f2faf9;border-radius:14px;padding:18px 20px;margin:16px 0;color:#173e55}
+.task-progress-heading{display:flex;align-items:center;gap:11px;font-size:16px;line-height:1.4}
+.task-time-note{font-size:13px;color:#415b70;line-height:1.5;margin:8px 0 10px}
+.task-steps{list-style:none;counter-reset:none;margin:12px 0;padding:0;display:grid;gap:10px}
+.task-step{display:flex;align-items:flex-start;gap:10px;font-size:13px;color:#607589;line-height:1.45}
+.task-step.complete{color:#1a7067}.task-step.active{color:#14385b;font-weight:650}.task-step.pending{color:#6a7d8d}
+.task-step-symbol{display:inline-grid;place-items:center;flex:0 0 21px;width:21px;height:21px;border-radius:50%;border:1px solid #cad8df;background:#fff;font-size:13px}
+.task-step.complete .task-step-symbol{background:#dbf4e9;border-color:#79b6a8}.task-step.active .task-step-symbol{background:#fff2d7;border-color:#b6a17b}
+.task-spinner{display:inline-block;flex:0 0 21px;width:21px;height:21px;border:3px solid #bedbd9;border-top-color:#247d7e;border-radius:50%;animation:spin .9s linear infinite}
+.task-live-message{margin:12px 0 4px;font-size:13px;color:#255469;line-height:1.5}
+.report-scope-callout{background:#f2f0ff;border-left:4px solid #6b54b1;padding:14px 16px;border-radius:8px;margin:12px 0 20px;line-height:1.6}
+.report-scope-callout strong{display:block;color:#302c61;margin-bottom:4px}.report-scope-callout p{margin:0;color:#353b5b}
+.processing-card{max-width:460px;align-items:flex-start}.processing-card>div{min-width:0}.processing-card #processingExtra .task-steps{margin:12px 0 0}
+@media(max-width:480px){.task-progress-panel{padding:15px 14px}.processing-card{padding:17px;gap:12px}}
+@media(prefers-reduced-motion:reduce){.task-spinner{animation:none}}

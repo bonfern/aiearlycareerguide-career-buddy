@@ -1,4 +1,4 @@
-/* Career Buddy V5.26: Premium Assessment answer-save/navigation fix. */
+/* Career Buddy V5.27: honest task progress and single report caveat. */
 const $=id=>document.getElementById(id);
 const APP_BASE=window.location.pathname.startsWith('/professionals/') || window.location.pathname==='/professionals' ? '/professionals' : '';
 const servicePath=()=>`${APP_BASE}/api/service`;
@@ -12,7 +12,7 @@ function browserId(){
 
 const screens=['Choose','Login','Free','Snapshot','Upgrade','Paid','Toolkit','CoachOffer','Coach','Refills','Reports'];
 let state=null,configured=false,privatePreview=true,flow='free',current='Choose',loading=false,reportKind='free',preparationError='',freeBackDraft=null;
-let reportPolling=false,reportProgressText='',assessmentPreparing=false,assessmentPrepText='';
+let reportPolling=false,reportProgressText='',reportPhase='starting',assessmentPreparing=false,assessmentPrepText='',activeProcessingTask=false;
 const uuid=()=>crypto.randomUUID();
 const money=n=>`₹${Number(n||0).toLocaleString('en-IN')}`;
 const el=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=String(text);return node;};
@@ -39,7 +39,7 @@ function toPageStart(stage=current,{focusHeading=true}={}){
   reset();
  });
 }
-function notice(text='',isError=false){if(loading&&text&&!isError&&$('processingText'))$('processingText').textContent=text.slice(0,170);$('notice').textContent=text;$('notice').className=text?`notice${isError?' error':''}`:'notice hidden';}
+function notice(text='',isError=false){if(loading&&!activeProcessingTask&&text&&!isError&&$('processingText'))$('processingText').textContent=text.slice(0,170);$('notice').textContent=text;$('notice').className=text?`notice${isError?' error':''}`:'notice hidden';}
 function show(screen){
  if(document.activeElement instanceof HTMLElement)document.activeElement.blur();
  if(current!==screen)notice(''); // Notices belong to their originating screen.
@@ -77,12 +77,47 @@ function syncBusyControls(){
   $('chatInput').disabled=blocked;$('chatSend').disabled=blocked;
  }
 }
-async function run(work){
+async function run(work,task=null){
  if(loading)return;
- loading=true;syncBusyControls();$('processingOverlay')?.classList.remove('hidden');$('processingTitle').textContent='Processing';$('processingText').textContent='Saving your progress…';
+ loading=true;activeProcessingTask=Boolean(task);syncBusyControls();$('processingOverlay')?.classList.remove('hidden');setProcessingInfo(task?.title||'Processing',task?.message||'Saving your progress…',task?.stages||[]);
  try{await work();}
  catch(e){notice(e.message,true);}
- finally{loading=false;syncBusyControls();$('processingOverlay')?.classList.add('hidden');}
+ finally{loading=false;activeProcessingTask=false;syncBusyControls();$('processingOverlay')?.classList.add('hidden');}
+}
+// Display only stages supported by the backend, not invented percentage progress.
+function taskSteps(items,active){
+ const list=el('ol','task-steps');
+ for(const [index,label] of items.entries()){
+  const status=index<active?'complete':index===active?'active':'pending';
+  const line=el('li',`task-step ${status}`);
+  line.append(el('span','task-step-symbol',status==='complete'?'✓':status==='active'?'◌':'·'),el('span','',label));
+  list.append(line);
+ }
+ return list;
+}
+function reportStage(){
+ if(reportPhase==='interview')return 1;
+ if(['queued','in_progress'].includes(reportPhase))return 2;
+ return 1; // Interview bank and model job have not yet been confirmed.
+}
+function reportProgressPanel(){
+ const panel=el('div','task-progress-panel');panel.setAttribute('role','status');panel.setAttribute('aria-live','polite');
+ const heading=el('div','task-progress-heading');heading.append(el('span','task-spinner'));
+ heading.append(el('strong','','Creating your personalised career report'));
+ panel.append(heading,el('p','task-time-note','Usually 2–3 minutes. Complex reports may take longer; please keep this page open.'));
+ panel.append(taskSteps(['Checking your completed assessment','Preparing role-specific interview topics','Writing your detailed report','Final checks and saving to My reports'],reportStage()));
+ panel.append(el('p','task-live-message',reportProgressText||'Starting report generation…'));
+ panel.append(el('p','micro','Your assessment answers are already saved. You can return to this screen to check the report.'));
+ return panel;
+}
+function cleanAssessedResult(value){return String(value||'').replace(/\s*This evaluates decision-making, not verified job performance\.?/gi,'').trim();}
+const REPORT_SCOPE_NOTE='This report combines your self-reported career information with results from role-specific scenario questions. Scenario answers assess professional judgement, not independently verified on-the-job performance. Use the recommendations as guidance and validate skills through real work examples.';
+function setProcessingInfo(title,message,stages=[]){
+ $('processingTitle').textContent=title;
+ $('processingText').textContent=message;
+ const extra=$('processingExtra');if(!extra)return;
+ extra.replaceChildren();
+ if(stages.length)extra.append(taskSteps(stages,1));
 }
 function addList(root,heading,items){
  root.append(el('h3','',heading));const ul=el('ul');
@@ -116,7 +151,9 @@ function paintPaidAssessment(){
   const status=el('div','assessment-stage-status');
   status.setAttribute('role','status');
   status.append(el('strong','',assessmentPreparing?`Preparing step ${Math.min(completed+1,3)} of 3`:completed?`Step ${completed} of 3 completed`:'Ready to prepare your assessment'));
-  status.append(el('p','',assessmentPreparing?steps[completed]+'…':completed===2?'Your first question set is saved. The final set is next.':completed===1?'Your role competencies are saved. Question preparation is next.':'Preparing the questions usually takes 2–3 minutes and may sometimes take longer.'));
+  status.append(el('p','',assessmentPreparing?steps[completed]+'…':completed===2?'Your first question set is saved. The final set is next.':completed===1?'Your role competencies are saved. Question preparation is next.':'You can start preparing your questions below.'));
+  if(assessmentPreparing){status.append(el('p','task-time-note','Usually 2–3 minutes in total. Longer requests may take additional time. Keep this page open.'));}
+  status.append(taskSteps(steps,completed));
   if(!assessmentPreparing&&completed)status.append(el('p','micro',
    Number(a.savedQuestionCount||0)>0?`${a.savedQuestionCount} questions saved. You can continue without starting over.`:'Your completed steps are saved. You can continue without starting over.'));
   host.append(status);
@@ -128,7 +165,7 @@ function paintPaidAssessment(){
  if(a.finished){
   host.append(el('h2','','Your competency assessment is complete.'),el('p','muted',`You answered ${total} scenario questions across ${a.competencies.length} essential skills. Your report will combine these responses with your career profile.`));
   const b=el('button','primary',reportPolling?'Report processing…':state?.reportPreparing?'Resume report generation →':'Generate my detailed career report →');b.dataset.asyncAction='1';b.disabled=reportPolling||loading;b.onclick=generateDetailed;host.append(b);
-  if(reportPolling||state?.reportPreparing)host.append(el('p','report-progress-note',reportProgressText||'Your report is being generated. You can visit Career Buddy or My reports while it runs. Return here to check progress.'));return;
+  if(reportPolling||state?.reportPreparing)host.append(reportProgressPanel());else host.append(el('p','micro','Generating the report usually takes 2–3 minutes, and may take longer for complex assessments. You will see live stage updates after starting.'));return;
  }
  const q=a.question;if(!q)return;
  host.append(el('p','eyebrow',`${q.competency} · ${q.kind==='knowledge'?'Applied knowledge':'Workplace scenario'}`));
@@ -354,7 +391,7 @@ function paintReports(){const host=$('reportsList');host.replaceChildren();funct
  if(state.freeReport){const b=el('button','secondary','Continue with Career Buddy →');b.onclick=goCoach;host.append(b);}
  if(!state.freeReport&&!state.reportGenerated&&!state.resumeReviews?.length)host.append(el('p','muted','Your reports will appear here after you generate them.'));
 }
-async function generateFree(){await run(async()=>{notice('Generating your short free snapshot…');state=(await api('freeReport',{requestId:uuid()})).state;notice('Your free snapshot is saved and ready to download.');show('Snapshot');paint();});}
+async function generateFree(){await run(async()=>{notice('Generating your short free snapshot…');state=(await api('freeReport',{requestId:uuid()})).state;notice('Your free snapshot is saved and ready to download.');show('Snapshot');paint();},{title:'Creating your free career snapshot',message:'Preparing your career profile and relevant skills. This may take a minute on slower requests.'});}
 let razorpayLibraryPromise=null;
 function loadRazorpayCheckout(){
  if(window.Razorpay)return Promise.resolve();
@@ -456,8 +493,8 @@ function syncPaymentLabels(){
 }
 async function generateDetailed(){
  if(reportPolling)return;
- reportPolling=true;
- reportProgressText='Your detailed report is being prepared. Progress is saved, and you can navigate elsewhere.';
+ reportPolling=true;reportPhase=state?.reportPreparing?'queued':'starting';
+ reportProgressText='Starting report generation. Your completed answers are saved.';
  if(current==='Paid')paintPaidAssessment();
  try{
   // A request either prepares a shared interview bank, starts one background
@@ -472,6 +509,7 @@ async function generateDetailed(){
     return;
    }
    if(!response.preparing)throw Error('Report processing was interrupted. Return to Premium Assessment to resume.');
+   reportPhase=response.phase||reportPhase;
    reportProgressText=response.notice||'Preparing your report…';
    if(current==='Paid')paintPaidAssessment();
    await new Promise(resolve=>setTimeout(resolve,5000));
@@ -496,7 +534,7 @@ async function submitResumeReview(){await run(async()=>{
  toggleResumeReview(false);paintCoach();
  const last=state.resumeReviews?.at(-1);if(last)openResumeReview(last);
  notice('Resume review complete. Five credits were used.');
- });}
+ },{title:'Preparing your resume review',message:'Analysing your resume for role relevance and practical improvements. This can take around a minute or longer.',stages:['Resume received','Assessing content and role relevance','Saving actionable feedback']});}
 function downloadResumeReview(id){window.location.assign(`${servicePath()}?action=download&kind=resume-review&format=pdf&id=${encodeURIComponent(id||'')}`);}
 function openResumeReview(item){if(!item?.review)return;reportKind='resume-review';const r=item.review,host=openDialog('Career Buddy – Resume Review');
  host.append(el('h3','',r.headline||'Your resume review'));
@@ -508,7 +546,7 @@ function openResumeReview(item){if(!item?.review)return;reportKind='resume-revie
 }
 async function submitChat(event){event.preventDefault();const input=$('chatInput'),message=input.value.trim();if(!message)return;await run(async()=>{if(message.length>1200)throw Error('Maximum 1,200 characters per message.');input.value='';$('chatCount').textContent='0 / 1,200 characters';const req=api('chat',{message,requestId:uuid()}); // Allow the user to see a waiting indicator without inventing a charged response.
  $('chatMessages').append(el('div','message','Career Buddy is preparing your response…'));try{state=(await req).state;notice('');paintCoach();}catch(e){input.value=message;paintCoach();throw e;}
- });}
+ },{title:'Career Buddy is preparing your answer',message:'Reviewing your question against your saved career context. Longer requests may take around a minute.'});}
 function download(kind,format='pdf'){window.location.assign(`${servicePath()}?action=download&kind=${encodeURIComponent(kind)}&format=${encodeURIComponent(format)}`);}
 function openDialog(title){$('dialogDownload').onclick=()=>reportKind==='resume-review'?downloadResumeReview(state.resumeReviews.at(-1).id):download(reportKind);$('dialogTitle').textContent=title;$('reportContent').replaceChildren();$('reportDialog').showModal();$('reportDialog').scrollTop=0;$('reportContent').scrollTop=0;return $('reportContent');}
 function openFree(){
@@ -533,17 +571,16 @@ function openFree(){
  }
 }
 
-function openDetailed(){if(!state.report)return;reportKind='report';const r=state.report,host=openDialog('Career Action & Skill Development Report');host.append(el('h3','','Your career objective'),el('p','',r.goalPath?.headline||''),el('h3','','Career summary'),el('p','',r.summary||''));
- for(const [title,items] of [['Technical capability priorities',r.capabilityFocus?.technical],['Leadership and soft-skill priorities',r.capabilityFocus?.behavioural]]){host.append(el('h3','',title));for(const x of items||[])host.append(el('h4','',x.name),el('p','',`${x.currentCompetency} | ${x.priority}. ${x.firstAction}`));}
+function openDetailed(){if(!state.report)return;reportKind='report';const r=state.report,host=openDialog('Career Action & Skill Development Report');const scope=el('div','report-scope-callout');scope.append(el('strong','','How to interpret this report'),el('p','',REPORT_SCOPE_NOTE));host.append(scope);host.append(el('h3','','Your career objective'),el('p','',r.goalPath?.headline||''),el('h3','','Career summary'),el('p','',r.summary||''));
+ for(const [title,items] of [['Technical capability priorities',r.capabilityFocus?.technical],['Leadership and soft-skill priorities',r.capabilityFocus?.behavioural]]){host.append(el('h3','',title));for(const x of items||[])host.append(el('h4','',x.name),el('p','',`${cleanAssessedResult(x.currentCompetency)} | ${x.priority}. ${x.firstAction}`));}
  host.append(el('h3','','Career actions'));for(const a of r.goalPath?.careerActions||[])host.append(el('h4','',a.title),el('p','',a.action),el('p','',`Expected outcome: ${a.outcome}`));
- host.append(el('h3','','Skill-by-skill plan'));for(const x of r.skillAssessments||[]){host.append(el('h4','',x.name),el('p','',`Role expectation: ${x.targetBenchmark}`),el('p','',`Available evidence: ${x.currentCompetency}`),el('p','',`Development focus: ${x.gap}`));addList(host,'Action steps',x.actions);host.append(el('p','',`Evidence task: ${x.practiceTask}`),el('p','',`Improvement indicator: ${x.successIndicator}`));}
+ host.append(el('h3','','Skill-by-skill plan'));for(const x of r.skillAssessments||[]){host.append(el('h4','',x.name),el('p','',`Role expectation: ${x.targetBenchmark}`),el('p','',`Scenario assessment result: ${cleanAssessedResult(x.currentCompetency)}`),el('p','',`Development focus: ${x.gap}`));addList(host,'Action steps',x.actions);host.append(el('p','',`Evidence task: ${x.practiceTask}`),el('p','',`Improvement indicator: ${x.successIndicator}`));}
  host.append(el('h3','','Other capabilities requiring assessment'));for(const x of r.additionalSkills||[])host.append(el('h4','',x.name),el('p','',x.expectation),el('p','',`Build: ${x.nextStep} · Verify: ${x.howToVerify}`));
  host.append(el('h3','','30 / 60 / 90-day execution plan'));for(const x of r.actionPlan||[])addList(host,`${x.period}: ${x.focus}`,x.actions);
  host.append(el('h3','','Progress and evidence checklist'));for(const x of r.progressChecklist||[])host.append(el('p','',`${x.skill}: ${x.deliverable} · ${x.evidence}`));
  addList(host,'Learning and professional development',[...(r.learningGuidance?.free||[]),...(r.learningGuidance?.paid||[]),...(r.learningGuidance?.certifications||[])]);
  host.append(el('h3','','Interview preparation'));for(const [i,x] of (r.interviewPreparation||[]).entries())host.append(el('h4','',`${i+1}. ${x.question}`),el('p','',`Assessed topic: ${x.whatEvaluated}`),el('p','',`Answer framework: ${x.answerFramework}`));
- 
- host.append(el('p','micro','The scenario assessment measures professional judgement, not verified work performance. Career history is self-reported.'));
+
 }
 async function init(){$('processingOverlay')?.classList.remove('hidden');$('processingText').textContent='Loading your saved career journey…';try{const config=await api('config');configured=!!config.configured;privatePreview=!!config.privatePreview;const codeRow=$('previewCodeRow');if(codeRow)codeRow.classList.toggle('hidden',!privatePreview);$('accessCode').required=privatePreview;if(!configured)notice('Career Buddy is not configured. Please contact support.',true);if(config.paymentConfigurationError)notice('Payment mode is configured but the required Razorpay keys are missing or invalid. Check Vercel settings.',true);try{state=(await api('state')).state;}catch{} }catch(e){notice(e.message,true);}if(state){flow=state.journeyPreference||'free';}show('Choose');$('processingOverlay')?.classList.add('hidden');}
 $('resumeReviewOpen').onclick=()=>toggleResumeReview(true);$('closeResumeReview').onclick=()=>toggleResumeReview(false);$('submitResumeReview').onclick=submitResumeReview;$('coachResumeText').oninput=()=>{$('resumeReviewChars').textContent=`${$('coachResumeText').value.length.toLocaleString()} / 16,000 characters`;};
