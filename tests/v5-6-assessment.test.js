@@ -68,7 +68,7 @@ test('scoring categories represent MCQ judgment, not claims of workplace validat
  const out=asProfessionalReport(report,{targetRole:'Director of Process Excellence'},ev);
  assert.equal(out.coverage.answered,12);assert.equal(out.coverage.assessed,4);
  assert.ok(out.skillAssessments.every(s=>s.correct===1&&s.tested===3));
- assert.ok(out.skillAssessments.every(s=>/decision-making, not verified job performance/.test(s.currentCompetency)));
+ assert.ok(out.skillAssessments.every(s=>! /not verified job performance/i.test(s.currentCompetency)));
  assert.ok(out.skillAssessments.every(s=>s.priority==='Build this first'));
  const pdf=buildReportPdf(out);assert.equal(pdf.toString('latin1',0,8),'%PDF-1.4');fs.writeFileSync('/mnt/data/Career_Buddy_V5_6_Graded_Report_Sample.pdf',pdf);
 });

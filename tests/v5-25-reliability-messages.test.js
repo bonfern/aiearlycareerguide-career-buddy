@@ -84,5 +84,5 @@ test('customer messaging uses one preparation status and reports stored partial 
  assert.doesNotMatch(app,/Three preparation stages protect your progress/);
  assert.match(service,/pending=e\.draft/);
  assert.match(service,/retainedQuestions/);
- assert.match(html,/app\.js\?v=5\.26/);
+ assert.match(html,/app\.js\?v=5\.27/);
 });

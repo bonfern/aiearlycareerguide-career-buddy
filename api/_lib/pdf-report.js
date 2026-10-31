@@ -8,6 +8,7 @@ const esc=s=>plain(s).replaceAll('\\','\\\\').replaceAll('(','\\(').replaceAll('
 function wrap(s,max=92){let row='',rows=[];for(const word of plain(s).split(' ')){if(row&&row.length+word.length+1>max){rows.push(row);row=word;}else row+=(row?' ':'')+word;}if(row)rows.push(row);return rows.length?rows:[''];}
 const pageWidth=595,pageHeight=842;
 const buffer=s=>Buffer.from(s,'latin1');
+const cleanAssessedResult=value=>String(value||'').replace(/\s*This evaluates decision-making, not verified job performance\.?/gi,'').trim();
 const friendlyPriority=s=>({'High development priority':'Start here','Development priority':'Work on this','Maintain and stretch':'Build on this strength','More assessment needed':'More practice needed'}[s]||s||'Review');
 
 export function buildReportPdf(report){
@@ -30,7 +31,11 @@ export function buildReportPdf(report){
   }}
  // First-page report title and direct career route.
  title('CAREER ACTION & SKILL DEVELOPMENT REPORT',1);
- lines('A direct route from your current position to your stated career goal',{size:10,color:C.muted});gap(9);
+ lines('A direct route from your current position to your stated career goal',{size:10,color:C.muted});gap(10);
+ // A single prominent limitation callout applies to every skill section.
+ ensure(83);rect(43,y-60,509,77,C.lavender);
+ lines('HOW TO INTERPRET THIS REPORT',{size:10,bold:true,color:C.purple,indent:9,max:84,leading:15});
+ lines('Based on self-reported career information and scenario question results. These questions assess professional judgement, not independently verified workplace performance. Validate recommendations through real examples.',{size:9,color:C.navy,indent:9,max:100,leading:13});gap(23);
  lines('YOUR GOAL',{size:9,bold:true,color:C.purple});lines(report.goalPath?.headline||report.targetRole||'Your next career move',{size:13,bold:true,max:73,leading:18});gap(9);
  const priorityItems=(items,limit=3)=>{const meaningful=(items||[]).filter(item=>item.priority!=='Maintain and stretch');const source=meaningful.length?meaningful:(items||[]);return source.slice(0,limit).map(item=>`${item.name} - ${item.status||friendlyPriority(item.priority)}`);};
  const quickGroups=[['TECHNICAL PRIORITIES',priorityItems(report.capabilityFocus?.technical||[])],['LEADERSHIP & SOFT SKILLS',priorityItems(report.capabilityFocus?.behavioural||[])],['CAREER ACTIONS TO TAKE',(report.goalPath?.careerActions||[]).slice(0,3).map(step=>step.title)]];
@@ -42,7 +47,7 @@ export function buildReportPdf(report){
  for(const [heading,items] of capabilityGroups){
   lines(heading,{size:9,bold:true,color:C.purple});
   if(!items.length){lines('No essential capabilities identified in this category.',{size:9,color:C.muted});gap(6);continue;}
-  for(const item of items){ensure(42);lines(item.name,{size:10,bold:true,max:90,leading:13});lines(`${item.currentCompetency||'Not assessed'} | ${item.status||friendlyPriority(item.priority)}`,{size:9,color:C.muted,max:93,leading:12});lines('First action: '+(item.firstAction||'Use the detailed skill plan below.'),{size:9,max:93,leading:12});gap(5);}
+  for(const item of items){ensure(42);lines(item.name,{size:10,bold:true,max:90,leading:13});lines(`${cleanAssessedResult(item.currentCompetency)||'Not assessed'} | ${item.status||friendlyPriority(item.priority)}`,{size:9,color:C.muted,max:93,leading:12});lines('First action: '+(item.firstAction||'Use the detailed skill plan below.'),{size:9,max:93,leading:12});gap(5);}
   gap(4);
  }
 
@@ -54,7 +59,7 @@ export function buildReportPdf(report){
  for(const s of report.skillAssessments||[]){
   ensure(72);title(s.name||'Essential skill');
   labelled('WHAT THE TARGET ROLE NEEDS',s.targetBenchmark);
-  labelled(s.tested?'YOUR SCENARIO ASSESSMENT RESULT':'CURRENT SELF-REPORTED EXPERIENCE',s.currentCompetency);
+  labelled(s.tested?'YOUR SCENARIO ASSESSMENT RESULT':'CURRENT SELF-REPORTED EXPERIENCE',cleanAssessedResult(s.currentCompetency));
   labelled('WHAT TO BUILD FURTHER',s.gap);
   if(s.subskillsNeedingWork?.length)labelled('SPECIFIC TOPICS TO PRACTISE',s.subskillsNeedingWork.join('; '));
   if(s.subskillsNotTested?.length)labelled('AREAS REQUIRING FURTHER VERIFICATION',s.subskillsNotTested.join('; '));
@@ -83,7 +88,7 @@ export function buildReportPdf(report){
   labelled('WHAT IS BEING EVALUATED',q.whatEvaluated);
   labelled('ANSWER PREPARATION FRAMEWORK',q.answerFramework);gap(5);
  }
- gap(8);lines('Important: this report is guidance based on your self-reported career information and examples. Multiple-choice questions assessed professional judgement, not on-the-job performance; self-reported experience remains unverified. Interview questions are illustrative, not employer-specific guarantees. Confirm course suitability and costs before enrolling.',{size:9,color:C.muted,max:105,leading:13});
+ gap(8);lines('Interview questions are illustrative; verify course suitability and costs before enrolling.',{size:9,color:C.muted,max:105,leading:13});
  flush();
  // Build a complete binary PDF with an embedded logo, brand-coloured page headers,
  // clickable resource links and correct byte offsets for JPEG streams.
