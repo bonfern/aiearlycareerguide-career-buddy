@@ -46,6 +46,7 @@ function show(screen){
  current=screen;for(const name of screens)$('screen'+name).classList.toggle('hidden',name!==screen);
  $('topnav').classList.toggle('hidden',!state);
  $('feedbackAdminLink')?.classList.toggle('hidden',!state?.feedbackAdmin);
+ $('analyticsAdminLink')?.classList.toggle('hidden',!state?.feedbackAdmin);
  $('testerTools').classList.toggle('hidden',!state||state.mode!=='preview');$('signedEmail').textContent=state?.email?`Verified as ${state.email}`:'';
  syncPaymentLabels(); // Scoped payment recovery UI cannot float above unrelated screens.
  toPageStart(screen);

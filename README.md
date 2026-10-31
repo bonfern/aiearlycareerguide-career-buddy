@@ -1,3 +1,5 @@
+**Latest: V5.29** — Owner email OTP login on both admin dashboards and `/admin/analytics` for production Free/Premium/Buddy usage and conversions. See `V5_29_RELEASE_NOTES.md`.
+
 > **Latest release:** V5.28 — see [V5_28_RELEASE_NOTES.md](V5_28_RELEASE_NOTES.md) for changes, owner dashboard setup and test results.
 
 **Latest release: V5.26.** See `V5_26_PREMIUM_NAVIGATION_FIX.md` for the Premium Assessment navigation fix and `FIRESTORE_COUPONS_GUIDE.md` for coupons.
