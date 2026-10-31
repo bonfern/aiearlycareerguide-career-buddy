@@ -2,7 +2,7 @@
 const $=id=>document.getElementById(id);
 const items=[];let cursor=null,loading=false;
 const api=async(action,body)=>{
- const response=await fetch(`./api/service?action=${action}`,{credentials:'same-origin',method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined});
+ const response=await fetch(`/api/service?action=${action}`,{credentials:'same-origin',method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined});
  const result=await response.json().catch(()=>({}));if(!response.ok)throw Error(result.error||`Request failed (${response.status})`);return result;
 };
 const node=(tag,text='',cls='')=>{const e=document.createElement(tag);if(text)e.textContent=text;if(cls)e.className=cls;return e;};
@@ -20,7 +20,7 @@ function render(){
  $('loadMore').hidden=!cursor;
 }
 async function loadMore(){if(loading)return;loading=true;$('loadMore').disabled=true;$('adminStatus').textContent='Loading feedback…';try{
- const url='./api/service?action=feedbackList'+(cursor?'&cursor='+encodeURIComponent(cursor):'');
+ const url='/api/service?action=feedbackList'+(cursor?'&cursor='+encodeURIComponent(cursor):'');
  const response=await fetch(url,{credentials:'same-origin'});const result=await response.json().catch(()=>({}));if(!response.ok)throw Error(result.error||'Access denied.');
  items.push(...(result.items||[]));cursor=result.nextCursor||null;$('adminContent').hidden=false;$('adminStatus').textContent='Feedback available for administrator review.';render();
  }catch(e){$('adminStatus').textContent=e.message;}finally{loading=false;$('loadMore').disabled=false;}}
