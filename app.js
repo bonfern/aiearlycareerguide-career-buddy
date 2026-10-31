@@ -1,4 +1,4 @@
-/* Career Buddy V5.28: honest task progress and single report caveat. */
+/* Career Buddy V5.30: repeat reviews, visible chat responses, credit status and coaching guide. */
 const $=id=>document.getElementById(id);
 const APP_BASE=window.location.pathname.startsWith('/professionals/') || window.location.pathname==='/professionals' ? '/professionals' : '';
 const servicePath=()=>`${APP_BASE}/api/service`;
@@ -12,6 +12,7 @@ function browserId(){
 
 const screens=['Choose','Login','Free','Snapshot','Upgrade','Paid','Toolkit','CoachOffer','Coach','Refills','Reports'];
 let state=null,configured=false,privatePreview=true,flow='free',current='Choose',loading=false,reportKind='free',preparationError='',freeBackDraft=null;
+let coachGuideFor=null,latestCoachReply=null,chatRetry=null,resumeReviewRetry=null;
 let reportPolling=false,reportProgressText='',reportPhase='starting',assessmentPreparing=false,assessmentPrepText='',activeProcessingTask=false;
 const uuid=()=>crypto.randomUUID();
 const money=n=>`₹${Number(n||0).toLocaleString('en-IN')}`;
@@ -43,6 +44,7 @@ function notice(text='',isError=false){if(loading&&!activeProcessingTask&&text&&
 function show(screen){
  if(document.activeElement instanceof HTMLElement)document.activeElement.blur();
  if(current!==screen)notice(''); // Notices belong to their originating screen.
+ if(screen!=='Coach')$('chatReplyNotice')?.classList.add('hidden');
  current=screen;for(const name of screens)$('screen'+name).classList.toggle('hidden',name!==screen);
  $('topnav').classList.toggle('hidden',!state);
  $('feedbackAdminLink')?.classList.toggle('hidden',!state?.feedbackAdmin);
@@ -77,6 +79,8 @@ function syncBusyControls(){
  if(current==='Coach'&&state){
   const blocked=loading||Number(state.credits||0)<=0||Boolean(state.expired);
   $('chatInput').disabled=blocked;$('chatSend').disabled=blocked;
+  // Never disable the resume entry point because of low credits: offer a refill instead.
+  $('resumeReviewOpen').disabled=loading;
  }
 }
 async function run(work,task=null){
@@ -367,7 +371,7 @@ function coachOpeningQuestions(s){
    focus?`How can I develop ${focus} to prepare for ${role}?`:
    `What should I do first to prepare for ${role}?`);
  return [
-  {label:'Review my resume · 5 credits',question:'resume-review'},
+  {label:'Skills to build',question:exploring?'What skills should I develop while exploring career directions?':`Which skills should I prioritise for ${role}?`},
   {label:'Prepare for interviews',question:exploring?'How should I prepare for interviews while exploring new career options?':`What interview questions should I practise for ${role}?`},
   {label:practised?'Show my experience':'Skills to build',question:practised?`How can I show my experience in ${practised} when applying for ${role}?`:`Which skills should I build first for ${role}?`},
   {label:'Create a 30-day plan',question:exploring?'What can I do over the next 30 days to choose a suitable career direction?':`Give me three practical actions for the next 30 days towards ${role}.`}
@@ -409,27 +413,70 @@ function chatFeedback(anchor){
  box.append(up,down,status);return box;
 }
 function feedbackFormChat(anchor){const host=el('div','feedback-chat-form');host.append(el('p','micro','How can this answer be improved? (Optional)'));const comment=el('textarea');comment.rows=2;comment.maxLength=1000;comment.placeholder='Tell us what was unclear or unhelpful';const category=el('select');for(const [v,t] of [['content','Not relevant or accurate'],['depth','Needs more detail'],['technical','Technical issue'],['other','Other']]){const o=el('option','',t);o.value=v;category.append(o);}const status=el('span','micro'),button=el('button','secondary','Submit feedback');button.type='button';button.onclick=async()=>{button.disabled=true;try{await api('feedbackSubmit',{stage:'chat',anchor,rating:1,category:category.value,comment:comment.value});status.textContent='Feedback saved. Thank you.';}catch(e){status.textContent=e.message;}finally{button.disabled=false;}};host.append(category,comment,button,status);return host;}
-function paintCoach(){
- const rem=Number(state.credits||0);
- $('resumeReviewOpen').disabled=loading||rem<5||Boolean(state.expired);
+function coachGuideStorageKey(){return `cb-coach-guide-v530:${String(state?.id||'guest').slice(0,120)}`;}
+function paintCoachGuide(){
+ if(coachGuideFor===state?.id)return;
+ coachGuideFor=state?.id;
+ try{$('coachGuide').open=localStorage.getItem(coachGuideStorageKey())!=='dismissed';}
+ catch{$('coachGuide').open=true;}
+}
+function dismissCoachGuide(){
+ $('coachGuide').open=false;
+ try{localStorage.setItem(coachGuideStorageKey(),'dismissed');}catch{}
+}
+function coachActivity(message='',kind=''){
+ const node=$('chatActivity');node.textContent=message;node.className=message?`coach-local-status ${kind}`:'coach-local-status hidden';
+}
+function viewLatestCoachReply(){
+ const pane=$('chatMessages'),latest=pane.querySelector('.message.assistant.latest-reply')||[...pane.querySelectorAll('.message.assistant')].at(-1);
+ pane.scrollTop=pane.scrollHeight;
+ if(latest)latest.scrollIntoView({block:'nearest',behavior:'smooth'});
+ $('chatReplyNotice').classList.add('hidden');
+}
+function paintCoach({newReply=false}={}){
+ const rem=Math.max(0,Number(state.credits||0)),expired=Boolean(state.expired);
+ paintCoachGuide();
+ $('resumeReviewOpen').textContent=state.resumeReviews?.length?'Review another resume · 5 credits':'Review my resume · 5 credits';
+ $('resumeReviewOpen').disabled=loading;
+ $('resumeReviewOpen').parentElement.classList.remove('hidden');
  $('coachCreditPill').textContent=`${rem} credit${rem===1?'':'s'} left · Refill`;
- const warn=state.warning||((rem<=0)?'Your coaching credits are exhausted. Refill to continue; previous messages remain visible.':state.expired?'Your pack has expired. Refill to continue; previous messages remain visible.':'');
- $('creditWarning').classList.toggle('hidden',rem>10&&!state.expired&&!warn.trim());
+ $('coachCreditInlineCount').textContent=`${rem} coaching credit${rem===1?'':'s'} remaining`;
+ $('coachCreditInlineBar').style.width=`${Math.max(0,Math.min(100,rem/(Number(state.creditsGranted)||40)*100))}%`;
+ $('coachCreditInline').classList.toggle('critical',rem<=5||expired);
+ $('coachCreditInline').classList.toggle('low',rem>5&&rem<=10&&!expired);
+ const warn=expired?'Your coaching access has expired. Refill to continue; previous messages remain available.':rem===0?'No credits left. Refill to continue; your previous work is saved.':rem<=5?`Only ${rem} credit${rem===1?'':'s'} left. A resume review needs 5 credits. Refill to keep going.`:rem<=10?`Running low: ${rem} credits remaining. Each chat reply uses 1 credit; each resume review uses 5.`:'';
+ $('creditWarning').classList.toggle('hidden',!warn);
  $('creditWarning').textContent=warn;
+ $('coachCreditInlineRefill').textContent=expired||rem<=10?'Refill now →':'Refill credits →';
  paintCoachPrompts();
- const msgs=state.messages||[];
- const hasConversation=msgs.some(m=>m.role==='user');
- // Show the resume tool as the first prompt, then as a persistent action in an active chat.
- $('resumeReviewOpen').parentElement.classList.toggle('hidden',!hasConversation);
+ const msgs=state.messages||[],reviews=state.resumeReviews||[];
+ const hasConversation=msgs.some(m=>m.role==='user')||reviews.length>0;
  $('coachPrompts').classList.toggle('hidden',hasConversation);
- const pane=$('chatMessages');pane.classList.toggle('hidden',!hasConversation);pane.replaceChildren();
+ const pane=$('chatMessages');
+ const wasHidden=pane.classList.contains('hidden');
+ const oldScrollTop=pane.scrollTop;
+ const nearBottom=wasHidden||pane.scrollHeight-pane.scrollTop-pane.clientHeight<=85;
+ pane.classList.toggle('hidden',!hasConversation);
+ pane.replaceChildren();
  if(hasConversation){
-  // Hide the generic account-welcome notification; keep actual coaching turns.
-  for(const m of msgs.filter(m=>m.at||m.role==='user')){
-   const row=el('div',`message ${m.role==='user'?'user':'assistant'}`);
-   row.append(el('small','',m.role==='user'?'YOU':'CAREER BUDDY'),el('span','',m.content));if(m.role==='assistant'&&m.at)row.append(chatFeedback(String(m.at)));pane.append(row);
+  const items=[...msgs.filter(m=>m.at||m.role==='user').map((m,index)=>({kind:'message',m,at:Number(m.at)||0,index})),...reviews.map((r,index)=>({kind:'resume',r,at:Number(r.createdAt)||0,index}))].sort((a,b)=>a.at-b.at||((a.kind==='resume')-(b.kind==='resume'))||a.index-b.index);
+  let highlighted=null;
+  for(const entry of items){
+   if(entry.kind==='resume'){
+    const row=el('div','message assistant resume-timeline-entry');
+    row.append(el('small','','CAREER BUDDY · RESUME REVIEW'),el('span','','Your resume review is ready. Review the suggestions, update your resume and request another review whenever you wish.'));
+    const b=el('button','secondary','View saved resume review');b.type='button';b.onclick=()=>openResumeReview(entry.r);row.append(b);pane.append(row);continue;
+   }
+   const m=entry.m,row=el('div',`message ${m.role==='user'?'user':'assistant'}`);
+   row.append(el('small','',m.role==='user'?'YOU':'CAREER BUDDY'),el('span','',m.content));
+   if(m.role==='assistant'&&m.at){row.append(chatFeedback(String(m.at)));
+    if(newReply&&String(m.at)===String(latestCoachReply)){row.classList.add('latest-reply');highlighted=row;}
+   }
+   pane.append(row);
   }
-  pane.scrollTop=pane.scrollHeight;
+  if(nearBottom)pane.scrollTop=pane.scrollHeight;
+  else pane.scrollTop=oldScrollTop;
+  if(newReply&&highlighted)$('chatReplyNotice').classList.remove('hidden');
  }
  syncBusyControls();
 }
@@ -570,20 +617,35 @@ async function generateDetailed(){
  }finally{reportPolling=false;if(current==='Paid')paintPaidAssessment();}
 }
 function toggleResumeReview(open){
+ if(open&&(Boolean(state?.expired)||Number(state?.credits||0)<5)){
+  show('Refills');paint();
+  notice('Resume review needs 5 active credits. Choose a refill to continue.');
+  return;
+ }
  $('resumeReviewPanel').classList.toggle('hidden',!open);
  if(open){$('resumeReviewPanel').scrollIntoView({block:'center',behavior:'smooth'});$('coachResumeText').focus({preventScroll:true});}
 }
-async function submitResumeReview(){await run(async()=>{
+async function submitResumeReview(){
+ const status=$('resumeReviewStatus');
  const resumeText=$('coachResumeText').value.trim();
- if(resumeText.length<120)throw Error('Paste at least 120 characters of resume text.');if(!$('resumeConsent').checked)throw Error('Please consent to processing your resume text for review.');
- if(Number(state?.credits||0)<5)throw Error('Resume review requires five credits. Please refill your pack.');
- notice('Reviewing your resume and identifying improvements…');
- const r=await api('reviewResume',{requestId:uuid(),resumeText,resumeConsent:true});state=r.state;
- $('coachResumeText').value='';$('resumeConsent').checked=false;$('resumeReviewChars').textContent='0 / 16,000 characters';
- toggleResumeReview(false);paintCoach();
- const last=state.resumeReviews?.at(-1);if(last)openResumeReview(last);
- notice('Resume review complete. Five credits were used.');
- },{title:'Preparing your resume review',message:'Analysing your resume for role relevance and practical improvements. This can take around a minute or longer.',stages:['Resume received','Assessing content and role relevance','Saving actionable feedback']});}
+ if(loading)return;
+ if(resumeReviewRetry?.resumeText!==resumeText)resumeReviewRetry={resumeText,requestId:uuid()};
+ status.classList.remove('hidden');status.classList.remove('error');status.textContent='Reviewing your resume. This can take a minute or longer…';
+ await run(async()=>{
+  if(resumeText.length<120)throw Error('Paste at least 120 characters of resume text.');
+  if(!$('resumeConsent').checked)throw Error('Please consent to processing your resume text for review.');
+  if(Number(state?.credits||0)<5||state?.expired)throw Error('Resume review requires five active credits. Please refill your pack.');
+  try{
+   const r=await api('reviewResume',{requestId:resumeReviewRetry.requestId,resumeText,resumeConsent:true});state=r.state;
+   resumeReviewRetry=null;
+   $('coachResumeText').value='';$('resumeConsent').checked=false;$('resumeReviewChars').textContent='0 / 16,000 characters';
+   toggleResumeReview(false);paintCoach();
+   const last=state.resumeReviews?.at(-1);if(last)openResumeReview(last);
+   notice('Resume review complete. Five credits were used. You may request another review.');
+   status.classList.add('hidden');
+  }catch(e){status.textContent=`Review not completed: ${e.message}. You can retry without submitting a new resume.`;status.classList.add('error');throw e;}
+ },{title:'Preparing your resume review',message:'Analysing your resume for role relevance and practical improvements. This can take around a minute or longer.',stages:['Resume received','Assessing content and role relevance','Saving actionable feedback']});
+}
 function downloadResumeReview(id){window.location.assign(`${servicePath()}?action=download&kind=resume-review&format=pdf&id=${encodeURIComponent(id||'')}`);}
 function openResumeReview(item){if(!item?.review)return;reportKind='resume-review';const r=item.review,host=openDialog('Career Buddy – Resume Review');reportBrand(host,'Resume Review');
  host.append(el('h3','',r.headline||'Your resume review'));
@@ -593,9 +655,29 @@ function openResumeReview(item){if(!item?.review)return;reportKind='resume-revie
  addList(host,'Your next actions',r.nextActions);
  $('dialogDownload').onclick=()=>downloadResumeReview(item.id);
 }
-async function submitChat(event){event.preventDefault();const input=$('chatInput'),message=input.value.trim();if(!message)return;await run(async()=>{if(message.length>1200)throw Error('Maximum 1,200 characters per message.');input.value='';$('chatCount').textContent='0 / 1,200 characters';const req=api('chat',{message,requestId:uuid()}); // Allow the user to see a waiting indicator without inventing a charged response.
- $('chatMessages').append(el('div','message','Career Buddy is preparing your response…'));try{state=(await req).state;notice('');paintCoach();}catch(e){input.value=message;paintCoach();throw e;}
- },{title:'Career Buddy is preparing your answer',message:'Reviewing your question against your saved career context. Longer requests may take around a minute.'});}
+async function submitChat(event){
+ event.preventDefault();
+ const input=$('chatInput'),message=input.value.trim();if(!message||loading)return;
+ if(message.length>1200){coachActivity('Maximum 1,200 characters per message.','error');return;}
+ const requestId=chatRetry?.message===message?chatRetry.requestId:uuid();
+ chatRetry={message,requestId};
+ loading=true;syncBusyControls();
+ input.value='';$('chatCount').textContent='0 / 1,200 characters';
+ const pane=$('chatMessages');pane.classList.remove('hidden');
+ pane.append(el('div','message user pending-message',message));
+ const spinner=el('div','message assistant pending-message');spinner.setAttribute('role','status');spinner.append(el('span','typing-indicator'),el('span','','Career Buddy is preparing your response…'));pane.append(spinner);
+ if(pane.scrollHeight-pane.scrollTop-pane.clientHeight<180)pane.scrollTop=pane.scrollHeight;
+ coachActivity('Career Buddy is preparing your response…','loading');$('chatReplyNotice').classList.add('hidden');
+ try{
+  const result=await api('chat',{message,requestId});state=result.state;chatRetry=null;
+  latestCoachReply=[...(state.messages||[])].reverse().find(m=>m.role==='assistant'&&m.at)?.at||null;
+  paintCoach({newReply:true});
+  coachActivity(`✓ New response received. ${state.credits} credit${state.credits===1?'':'s'} remaining. Select “View reply” if you need to jump to it.`,'success');
+ }catch(e){
+  input.value=message;$('chatCount').textContent=`${message.length.toLocaleString()} / 1,200 characters`;
+  paintCoach();coachActivity(`Unable to receive an answer: ${e.message}. Your question is saved here; retry when ready.`,'error');
+ }finally{loading=false;syncBusyControls();}
+}
 function download(kind,format='pdf'){window.location.assign(`${servicePath()}?action=download&kind=${encodeURIComponent(kind)}&format=${encodeURIComponent(format)}`);}
 function openDialog(title){$('dialogDownload').onclick=()=>reportKind==='resume-review'?downloadResumeReview(state.resumeReviews.at(-1).id):download(reportKind);$('dialogTitle').textContent=title;$('reportContent').replaceChildren();$('reportDialog').showModal();$('reportDialog').scrollTop=0;$('reportContent').scrollTop=0;return $('reportContent');}
 function openFree(){
@@ -653,7 +735,10 @@ async function verifyCoupon(packId,inputId,statusId){
 $('checkStarterCoupon').onclick=()=>verifyCoupon('starter','starterCoupon','starterCouponStatus');$('checkIntroCoupon').onclick=()=>verifyCoupon('intro','introCoupon','introCouponStatus');
 $('snapshotDownload').onclick=()=>download('free');$('snapshotView').onclick=openFree;$('snapshotUpgrade').onclick=async()=>{await choose('premium');};$('snapshotCoach').onclick=goCoach;$('backSnapshot').onclick=()=>{show('Snapshot');paint();};$('activateStarter').onclick=()=>activate('starter','starterCoupon');$('activateIntro').onclick=()=>activate('intro','introCoupon');
 $('viewDetailed').onclick=openDetailed;$('downloadDetailed').onclick=()=>download('report');$('toolkitCoach').onclick=goCoach;
-$('coachCreditPill').onclick=()=>{show('Refills');paint();};
+$('coachCreditPill').onclick=$('coachCreditInlineRefill').onclick=()=>{show('Refills');paint();};
+$('chatViewReply').onclick=viewLatestCoachReply;
+$('coachGuideDismiss').onclick=dismissCoachGuide;
+$('coachGuide').querySelector('summary').addEventListener('click',()=>{if($('coachGuide').open)try{localStorage.setItem(coachGuideStorageKey(),'dismissed');}catch{}});
 for(const button of document.querySelectorAll('[data-coach-prompt]')){
  button.onclick=()=>{const input=$('chatInput');if(button.dataset.coachPrompt==='resume-review'){toggleResumeReview(true);return;}if(input.disabled)return;input.value=button.dataset.coachPrompt;input.dispatchEvent(new Event('input'));input.focus({preventScroll:true});};
 }

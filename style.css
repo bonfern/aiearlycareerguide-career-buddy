@@ -202,3 +202,32 @@ a.sample-report-link{display:inline-block;text-decoration:underline}
 .feedback-chat-details,.feedback-chat-form{display:grid;gap:8px;width:100%;max-width:460px}
 .feedback-chat-form button{width:max-content}
 @media(max-width:580px){.dialog-brand-logo{width:75px}.report-brand img{width:88px}.feedback-star{font-size:25px;padding:3px 6px}}
+
+/* V5.30 – coaching guidance, always-available resume action, clear replies and nearby credits. */
+.coach-guide{border:1px solid #bedbd6;background:#f3faf8;border-radius:13px;padding:14px 17px;margin:14px 0;color:#203e45}
+.coach-guide summary{font-weight:750;font-size:14px;cursor:pointer;line-height:1.55}
+.coach-guide summary:focus-visible{outline:2px solid #1c7771;outline-offset:4px}
+.coach-guide-body{font-size:12.5px;line-height:1.65;padding:10px 0 0}
+.coach-guide-body p{margin:0 0 8px}.coach-guide-body ul{padding-left:20px;margin:8px 0 12px}.coach-guide-body li{margin:5px 0}
+.coach-guide-body .secondary{min-height:37px;padding:8px 14px}
+.coach-actions{margin:12px 0 14px}.coach-actions .secondary{min-height:44px}
+.chat-form{position:sticky;bottom:8px;z-index:6;box-shadow:0 5px 20px #10234412}
+.coach-credit-inline{border-radius:11px;background:#f0f8f5;border:1px solid #c7e4d7;padding:10px 12px;margin-bottom:13px}
+.coach-credit-inline.low{background:#fffaf0;border-color:#eed69e}.coach-credit-inline.critical{background:#fff4e9;border-color:#e9bd9f}
+.coach-credit-top{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12px}
+.coach-refill-link{border:0;padding:6px;background:transparent;color:#0c5f59;text-decoration:underline;font-size:12px;font-weight:750;white-space:nowrap}
+.coach-credit-track{height:5px;border-radius:999px;background:#dce7e2;overflow:hidden;margin-top:7px}
+.coach-credit-fill{height:100%;background:#16875e;border-radius:999px;transition:width .15s}
+.coach-credit-inline.low .coach-credit-fill{background:#be8315}.coach-credit-inline.critical .coach-credit-fill{background:#c15d42}
+.coach-credit-inline .credit-warning{margin:8px 0 0;font-size:11px;line-height:1.45;font-weight:650;padding:6px 9px}
+.coach-local-status{font-size:12px;line-height:1.5;margin:8px 0;padding:9px 11px;border:1px solid #c2e1da;border-radius:9px;background:#edfaf6;color:#245c50}
+.coach-local-status.hidden{display:none}.coach-local-status.error{background:#fff2f0;color:#8a2e28;border-color:#e6c4be}
+.coach-local-status.loading{background:#eff5fc;color:#2e587d;border-color:#cee0f0}
+.typing-indicator{display:inline-block;width:13px;height:13px;border:2px solid #d5e6e8;border-top-color:#16875e;border-radius:50%;animation:spin .8s linear infinite;margin-right:9px;vertical-align:middle}
+.chat-reply-notice{position:fixed;right:18px;bottom:18px;z-index:40;display:flex;align-items:center;gap:13px;flex-wrap:wrap;max-width:calc(100vw - 36px);padding:11px 14px;border-radius:12px;background:#143c42;color:#fff;border:1px solid #368e7d;box-shadow:0 14px 32px #10234455;font-size:12px}
+.chat-reply-notice .secondary{padding:8px 12px;min-height:34px;background:#fff;color:#12474a}
+.message.assistant.latest-reply{border:2px solid #2a977b;background:#effbf6;box-shadow:0 0 0 3px #2a977b18}
+.message.resume-timeline-entry{background:#f0f8ff;border-color:#cddfed}
+.message.resume-timeline-entry .secondary{display:block;margin-top:10px;min-height:36px;padding:8px 12px}
+@media(max-width:600px){.chat-form{bottom:0;border-radius:12px}.chat-reply-notice{right:9px;left:9px;bottom:10px}.coach-guide{padding:12px}.coach-credit-top{gap:5px;font-size:11px}}
+@media(prefers-reduced-motion:reduce){.typing-indicator{animation:none}.coach-credit-fill{transition:none}}

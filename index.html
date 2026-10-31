@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><meta name="theme-color" content="#102344"/><meta name="description" content="Career Buddy by AI Early Career Guide - career discovery, assessment, and coaching"/><title>Career Buddy | AI Early Career Guide</title><link rel="icon" href="./favicon.ico"/><link rel="stylesheet" href="./style.css?v=5.29"/><script defer src="./app.js?v=5.29"></script></head>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><meta name="theme-color" content="#102344"/><meta name="description" content="Career Buddy by AI Early Career Guide - career discovery, assessment, and coaching"/><title>Career Buddy | AI Early Career Guide</title><link rel="icon" href="./favicon.ico"/><link rel="stylesheet" href="./style.css?v=5.30"/><script defer src="./app.js?v=5.30"></script></head>
 <body>
  <header class="topbar"><div class="topbar-inner"><a href="https://www.aiearlycareerguide.com/" class="brand" aria-label="AI Early Career Guide"><img src="./brand-logo.webp" alt="AI Early Career Guide"/></a><span class="product">Career Buddy</span><a class="site-home" href="https://www.aiearlycareerguide.com/">← Main website</a><span class="testing">PROFESSIONAL CAREER GUIDANCE</span><nav id="topnav" class="hidden" aria-label="Account navigation"><button type="button" id="homeButton" class="nav-button">Home</button><button type="button" id="premiumNavButton" class="nav-button">Premium Assessment</button><button type="button" id="coachNavButton" class="nav-button">Career Buddy</button><button type="button" id="myReportsButton" class="nav-button">My reports</button><a id="feedbackAdminLink" href="/admin/feedback" class="nav-button hidden">Feedback dashboard</a><a id="analyticsAdminLink" href="/admin/analytics" class="nav-button hidden">Business analytics</a><button type="button" id="signOutButton" class="nav-button">Sign out</button></nav></div></header>
  <main class="main">
@@ -16,12 +16,21 @@
    <div class="flow-meta"><span class="eyebrow">CAREER BUDDY</span><button id="coachCreditPill" class="pill clickable" type="button">0 interactions</button></div>
    <h1 class="chat-title">What would you like help with?</h1>
    <p class="muted chat-subtitle">Career Buddy uses your saved career context to help with roles, interviews and career decisions.</p>
-   <p id="creditWarning" class="credit-warning hidden" role="status"></p>
+   <details id="coachGuide" class="coach-guide"><summary>Start here: How to make the most of Career Buddy</summary>
+    <div class="coach-guide-body"><p>Career Buddy remembers your saved career direction and helps you turn questions into practical next steps. For better answers, mention your role, goal and relevant experience.</p>
+     <ul><li><strong>Explore roles and skills:</strong> ask what your target role involves and which skills to prioritise.</li>
+      <li><strong>Plan your next move:</strong> ask for development actions, courses or a 30-day learning plan.</li>
+      <li><strong>Prepare for interviews:</strong> practise role-specific questions and strengthen real examples.</li>
+      <li><strong>Improve your resume:</strong> submit a resume for feedback, revise it and request another review as often as you have enough credits.</li>
+      <li><strong>Continue the conversation:</strong> ask follow-up questions instead of starting from scratch.</li></ul>
+     <p class="micro">A completed chat response uses 1 credit; each completed resume review uses 5 credits. AI guidance is not a guarantee of employment.</p>
+     <button id="coachGuideDismiss" class="secondary" type="button">Got it — start coaching</button>
+    </div></details>
    <div class="coach-actions"><button id="resumeReviewOpen" class="secondary" type="button">Review my resume · 5 credits</button></div>
    <div id="coachPrompts" class="coach-prompts" aria-label="Suggested career questions">
     <p class="prompt-heading" id="coachContextNote">Based on your saved assessment.</p><p class="muted small">Choose a suggested question or ask your own.</p>
     <div class="coach-prompt-grid">
-     <button type="button" class="coach-prompt" data-coach-prompt="resume-review">Review my resume · 5 credits <span aria-hidden="true">↗</span></button>
+     <button type="button" class="coach-prompt" data-coach-prompt="What skills should I prioritise for my next career move?">Skills to build <span aria-hidden="true">↗</span></button>
      <button type="button" class="coach-prompt" data-coach-prompt="How can I prepare for an interview for a management role?">Prepare for interviews <span aria-hidden="true">↗</span></button>
      <button type="button" class="coach-prompt" data-coach-prompt="How do I change careers without starting from zero?">Show my experience <span aria-hidden="true">↗</span></button>
      <button type="button" class="coach-prompt" data-coach-prompt="How do I demonstrate readiness for a promotion?">Create a 30-day plan <span aria-hidden="true">↗</span></button>
@@ -32,11 +41,16 @@
     <label for="coachResumeText">Your resume (up to 16,000 characters)</label>
     <textarea id="coachResumeText" rows="8" maxlength="16000" placeholder="Paste your existing resume text. You can remove phone numbers or addresses."></textarea>
     <label class="consent-choice review-consent" for="resumeConsent"><input id="resumeConsent" type="checkbox"/><span>I consent to this resume text being processed for AI feedback. I understand that names, phone numbers and addresses may be included if I do not remove them first. <a href="./privacy.html" target="_blank" rel="noopener">Privacy information</a>.</span></label><div class="review-footer"><span id="resumeReviewChars" class="micro">0 / 16,000 characters</span><button type="button" id="submitResumeReview" class="primary" data-async-action="1">Review resume · 5 credits</button></div>
-    <p class="micro">Five credits are used only after a completed review. This does not rewrite your resume.</p>
+    <p id="resumeReviewStatus" class="coach-local-status hidden" role="status" aria-live="polite"></p>
+    <p class="micro">You can request another review after revising your resume. Five credits are used only after each successful review. This does not rewrite your resume.</p>
    </section>
    <div id="recentResumeReview" class="hidden review-result"></div>
    <div id="chatMessages" class="messages hidden" role="log" aria-live="polite"></div>
-   <form id="chatForm" class="chat-form"><label for="chatInput" class="chat-label">Your career question</label>
+   <div id="chatReplyNotice" class="chat-reply-notice hidden" role="status" aria-live="polite"><span>✓ New Career Buddy response received.</span><button type="button" id="chatViewReply" class="secondary">View reply ↓</button></div>
+   <form id="chatForm" class="chat-form">
+    <div id="coachCreditInline" class="coach-credit-inline" aria-label="Coaching credit balance"><div class="coach-credit-top"><strong id="coachCreditInlineCount">Credits remaining</strong><button id="coachCreditInlineRefill" type="button" class="coach-refill-link">Refill credits →</button></div><div class="coach-credit-track"><div id="coachCreditInlineBar" class="coach-credit-fill"></div></div><p id="creditWarning" class="credit-warning hidden" role="status"></p></div>
+    <p id="chatActivity" class="coach-local-status hidden" role="status" aria-live="polite"></p>
+    <label for="chatInput" class="chat-label">Your career question</label>
     <textarea id="chatInput" rows="2" maxlength="1200" placeholder="e.g. How can I move into a Director role?"></textarea>
     <div class="composer-foot"><span id="chatCount">0 / 1,200 characters</span><button id="chatSend" class="primary" type="submit">Send question →</button></div>
    </form><p class="micro">A completed coaching answer uses one credit. Resume review uses five; failed requests do not use credits.</p>

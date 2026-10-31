@@ -1,3 +1,7 @@
+## V5.30 coaching experience update
+
+This release builds on V5.29 and improves repeat resume reviews (5 credits each), chat loading/reply visibility, composer-side low-credit notices, and a collapsible coaching guide. See [V5_30_RELEASE_NOTES.md](V5_30_RELEASE_NOTES.md) for the implementation, tests and deployment checklist. No pricing, scoring or payment rules were changed.
+
 **Latest: V5.29** — Owner email OTP login on both admin dashboards and `/admin/analytics` for production Free/Premium/Buddy usage and conversions. See `V5_29_RELEASE_NOTES.md`.
 
 > **Latest release:** V5.28 — see [V5_28_RELEASE_NOTES.md](V5_28_RELEASE_NOTES.md) for changes, owner dashboard setup and test results.
