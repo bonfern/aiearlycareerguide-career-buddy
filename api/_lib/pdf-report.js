@@ -31,6 +31,7 @@ export function buildReportPdf(report){
   }}
  // First-page report title and direct career route.
  title('CAREER ACTION & SKILL DEVELOPMENT REPORT',1);
+ if(report.sampleReport){lines('ILLUSTRATIVE SAMPLE - FICTIONAL PROFILE - NOT A CUSTOMER ASSESSMENT',{size:9,bold:true,color:C.purple,max:90});gap(4);}
  lines('A direct route from your current position to your stated career goal',{size:10,color:C.muted});gap(10);
  // A single prominent limitation callout applies to every skill section.
  ensure(83);rect(43,y-60,509,77,C.lavender);

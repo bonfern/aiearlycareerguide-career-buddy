@@ -70,7 +70,7 @@ test('Career Buddy naming and logo are consistent across main and informational 
  for(const page of ['know-more','faq','privacy','terms','refund','contact']){
   const source=fs.readFileSync(new URL(`../${page}.html`,import.meta.url),'utf8');
   assert.match(source,/brand-logo\.webp/);
-  assert.match(source,/info\.css\?v=5\.16/);
+  assert.match(source,/info\.css\?v=5\.28/);
   assert.match(source,/Career Buddy/);
   assert.doesNotMatch(source,/Ayesha/i);
  }

@@ -1,10 +1,13 @@
+import {REPORT_BRAND_LOGO} from './report-brand.js';
 /* Career Buddy free snapshot: lightweight, A4, downloadable, content-safe PDF. */
 function clean(x){return String(x??'').replace(/\s+/g,' ').trim().replace(/[^\x20-\x7E]/g,c=>({'–':'-','—':'-','•':'-','’':"'",'₹':'INR'}[c]||' ')).replace(/[()\\]/g,c=>'\\'+c);}
 function lines(str,max=93){const out=[];let line='';for(const word of clean(str).split(' ')){if(line&&line.length+word.length+1>max){out.push(line);line=word;}else line+=(line?' ':'')+word;}if(line)out.push(line);return out;}
 export function buildFreeSnapshotPdf(snapshot={}){
  let y=780;let current=[],pages=[];
+ const logo=()=>current.push('q 158 0 0 45 388 738 cm /BrandLogo Do Q');
+ logo();
  const footer=()=>{current.push('0.84 0.88 0.92 RG 46 65 m 549 65 l S',`BT /R 8 Tf 0.42 0.46 0.56 rg 1 0 0 1 48 50 Tm (AI Early Career Guide | Career Buddy | Free Career Snapshot) Tj ET`);};
- const newPage=()=>{if(current.length){footer();pages.push(current);}current=[];y=780;if(pages.length){current.push('BT /B 9 Tf 0.06 0.42 0.29 rg 1 0 0 1 48 783 Tm (AI EARLY CAREER GUIDE | Free Career Snapshot continued) Tj ET');y=752;}};
+ const newPage=()=>{if(current.length){footer();pages.push(current);}current=[];y=780;logo();if(pages.length){current.push('BT /B 9 Tf 0.06 0.42 0.29 rg 1 0 0 1 48 783 Tm (AI EARLY CAREER GUIDE | Free Career Snapshot continued) Tj ET');y=752;}};
  const draw=(text,opts={})=>{const {size=10.5,bold=false,color='0.08 0.16 0.31',max=92}=opts;for(const line of lines(text,max)){if(y<92)newPage();current.push(`BT /${bold?'B':'R'} ${size} Tf ${color} rg 1 0 0 1 48 ${y} Tm (${line}) Tj ET`);y-=size+6;}};
  draw('AI EARLY CAREER GUIDE',{size:12,bold:true,color:'0.06 0.42 0.29'});y-=9;draw('Your Free Career Snapshot',{size:21,bold:true,max:55});y-=7;draw('A preliminary starting point for your professional journey',{size:10,color:'0.45 0.5 0.6'});y-=22;
  const section=(name,arr,list=false)=>{
@@ -22,11 +25,17 @@ export function buildFreeSnapshotPdf(snapshot={}){
   // V5.22: Free is exploration, not a paid evaluation. Two compact A4 pages.
   section('1. Your career profile',[snapshot.profileSummary||'Your current career direction.']);
   section('Your transferable advantage',[snapshot.transferableAdvantage||'Your selected strengths can help you identify suitable starting points.']);
-  section('Four important skills for your target direction',(snapshot.targetCompetencies||[]).slice(0,4).map(skill=>`${skill.title}: ${skill.bullets?.[0]||'A relevant foundational skill.'}`),true);
+  section('Four important skills for your target direction',(snapshot.targetCompetencies||[]).slice(0,4).map(skill=>({title:skill.title,bullets:(skill.bullets||[]).slice(0,2)})),true);
   section('2. Three career pathways to explore',(snapshot.careerOpportunities||[]).slice(0,3).map((p,i)=>`${i+1}. ${p}`));
   newPage();
   section('3. Your three immediate next moves',(snapshot.nextBestMoves||[]).slice(0,3).map((m,i)=>`${i+1}. ${m}`));
-  section('4. What a Premium Assessment evaluates',(snapshot.furtherAssessment||[]).slice(0,3),true);
+  section('Want to know more? Try our Premium Assessment.',[
+    'What a Premium Assessment evaluates: 12-15 role-specific scenario and knowledge questions across 4-5 essential competencies.',
+    'What the report includes: competency results, technical and behavioural priorities, skill-by-skill gaps, action steps and practical evidence tasks.',
+    'Development guidance: 30/60/90-day plan, progress checklist, learning and certification suggestions, and role-specific interview preparation.',
+    'Premium also includes 40 Career Buddy coaching credits. Resume review is an optional separate coaching tool using five credits.',
+    'Preview the illustrative sample report: https://aiearlycareerguide-career-buddy.vercel.app/sample-premium-report.pdf'
+  ],true);
   draw('Free discovery is based on your answers and does not measure competency scores.',{size:9,max:100});
  }else if(snapshot.version>=5){
   section('1. Your career goal and starting point',[snapshot.profileSummary||'Your goal and starting point.']);
@@ -49,9 +58,10 @@ export function buildFreeSnapshotPdf(snapshot={}){
   draw('These checks are not included in the free snapshot. A paid assessment is optional.',{size:9,max:100});
  }
  footer();pages.push(current);
- const objects=[null],add=s=>(objects.push(s),objects.length-1),root=add(''),kidsRoot=add('');const regular=add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');const bold=add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');const kids=[];
- for(const cmds of pages){const stream=cmds.join('\n');const content=add(`<< /Length ${Buffer.byteLength(stream,'latin1')} >>\nstream\n${stream}\nendstream`);kids.push(add(`<< /Type /Page /Parent ${kidsRoot} 0 R /MediaBox [0 0 595 842] /Resources << /Font << /R ${regular} 0 R /B ${bold} 0 R >> >> /Contents ${content} 0 R >>`));}
+ const objects=[null],add=s=>(objects.push(s),objects.length-1),root=add(''),kidsRoot=add('');const regular=add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');const bold=add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');
+ const jpg=Buffer.from(REPORT_BRAND_LOGO.jpegBase64,'base64');const logoId=add(Buffer.concat([Buffer.from(`<< /Type /XObject /Subtype /Image /Width ${REPORT_BRAND_LOGO.width} /Height ${REPORT_BRAND_LOGO.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpg.length} >>\nstream\n`,'latin1'),jpg,Buffer.from('\nendstream','latin1')]));const kids=[];
+ for(const cmds of pages){const stream=cmds.join('\n');const content=add(`<< /Length ${Buffer.byteLength(stream,'latin1')} >>\nstream\n${stream}\nendstream`);kids.push(add(`<< /Type /Page /Parent ${kidsRoot} 0 R /MediaBox [0 0 595 842] /Resources << /Font << /R ${regular} 0 R /B ${bold} 0 R >> /XObject << /BrandLogo ${logoId} 0 R >> >> /Contents ${content} 0 R >>`));}
  objects[kidsRoot]=`<< /Type /Pages /Kids [${kids.map(k=>k+' 0 R').join(' ')}] /Count ${kids.length} >>`;objects[root]=`<< /Type /Catalog /Pages ${kidsRoot} 0 R >>`;
- const buffers=[Buffer.from('%PDF-1.4\n')],offsets=[0];let n=buffers[0].length;for(let i=1;i<objects.length;i++){offsets[i]=n;const b=Buffer.from(`${i} 0 obj\n${objects[i]}\nendobj\n`,'latin1');buffers.push(b);n+=b.length;}
+ const buffers=[Buffer.from('%PDF-1.4\n')],offsets=[0];let n=buffers[0].length;for(let i=1;i<objects.length;i++){offsets[i]=n;const b=Buffer.concat([Buffer.from(`${i} 0 obj\n`,'latin1'),Buffer.isBuffer(objects[i])?objects[i]:Buffer.from(objects[i],'latin1'),Buffer.from('\nendobj\n','latin1')]);buffers.push(b);n+=b.length;}
  let last=`xref\n0 ${objects.length}\n0000000000 65535 f \n`;for(let i=1;i<objects.length;i++)last+=`${String(offsets[i]).padStart(10,'0')} 00000 n \n`;last+=`trailer\n<< /Size ${objects.length} /Root ${root} 0 R >>\nstartxref\n${n}\n%%EOF`;buffers.push(Buffer.from(last,'latin1'));return Buffer.concat(buffers);
 }

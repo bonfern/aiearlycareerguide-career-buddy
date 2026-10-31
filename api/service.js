@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import {FEEDBACK_COLLECTION,isFeedbackAdmin,parseFeedback,feedbackId,canRateFeedback,publicFeedback} from './_lib/feedback.js';
 import {browserClaimKey,browserAccess,browserClaimFromSnapshot} from './_lib/free-browser.js';
 import {verificationMessage,CONSENT_VERSION} from './_lib/auth-email.js';
 import {PACKS,EMPTY_PROFILE,validateMessage,mergeProfile,reportReadiness,freeReadiness,computeOffer,checkPackEligibility,creditWarning,estimateUsage,validId} from './_lib/domain.js';
@@ -70,7 +71,7 @@ function safeState(s){
  if(!s.freeReport&&Number(s.profile?.freeIntakeVersion||0)<21){s={...s,profile:applyFreeAnswers({}, {}, []),quickAnswers:{},quickAnswerExtras:{},quickSkipped:[],quickHistory:[]};}
  const paid=isAssessmentPaid(s),coaching=isPaid(s),free=freeReadiness(s.profile||{});const rem=Math.max(0,s.credits||0);
  const assessment=paid?assessmentProgress(s.assessmentBank,s.assessmentAnswers||[]):{total:0,answered:0,finished:false,question:null};
- return {id:s.id,email:s.email||'',mode:publicLiveMode()?'public-live':paymentMode()==='razorpay_live'?'private-live':'preview',version:'5.25',checkoutReady:liveCheckoutReady(),journeyPreference:s.journeyPreference||'free',coachingEligible:Boolean(s.freeReport||s.report),tier:paid?'paid':coaching?'coach':'free',paymentsEnabled:paymentMode()==='razorpay_live'?liveConfigured():testPaymentEnabled(),paymentMode:paymentMode(),
+ return {id:s.id,email:s.email||'',feedbackAdmin:isFeedbackAdmin(s.email),mode:publicLiveMode()?'public-live':paymentMode()==='razorpay_live'?'private-live':'preview',version:'5.28',checkoutReady:liveCheckoutReady(),journeyPreference:s.journeyPreference||'free',coachingEligible:Boolean(s.freeReport||s.report),tier:paid?'paid':coaching?'coach':'free',paymentsEnabled:paymentMode()==='razorpay_live'?liveConfigured():testPaymentEnabled(),paymentMode:paymentMode(),
   profile:s.profile||{},guided:guidedProgress(s.profile||{},s.quickAnswers||{},s.quickSkipped||[],'free'),
   assessment:{...assessment,started:Boolean(s.assessmentBank),preparationStep:s.assessmentDraft?.stage||0,
    savedQuestionCount:(s.assessmentDraft?.batches||[]).reduce((n,b)=>n+(Array.isArray(b)?b.length:Array.isArray(b?.questions)?b.questions.length:0),0)+(s.assessmentDraft?.partialQuestions?.length||0),
@@ -1017,6 +1018,48 @@ async function reviewResume(req,res){
   return out(res,200,{state:result});
  }catch(e){await release(ref,key);throw e;}
 }
+// Feedback never costs coaching credits and never copies report contents or chat transcripts.
+async function submitFeedback(req,res){
+ const body=jsonBody(req);let value;
+ try{value=parseFeedback(body);}catch(e){fail(400,e.message);}
+ const {store,s}=await getSession(req);
+ if(!canRateFeedback(s,value.stage,value.anchor))fail(403,'Complete this stage before giving feedback.');
+ const id=feedbackId(s.id,value.stage,value.anchor),ref=store.collection(FEEDBACK_COLLECTION).doc(id);
+ const existing=await ref.get(),blocked=await store.collection('buddyFeedbackSuppressedV1').doc(id).get();
+ if(blocked.exists||existing.exists&&existing.data().status==='hidden')fail(403,'This feedback has been moderated and cannot be resubmitted.');
+ if(existing.exists&&now()-Number(existing.data().updatedAt||0)<3000)fail(429,'Your feedback was just saved. Please try updating it after a moment.');
+ const record={...value,sessionId:s.id,email:s.email||'',updatedAt:now(),createdAt:existing.exists?existing.data().createdAt:now(),status:'visible'};
+ // One document per completed report/answer. Subsequent submissions edit, not spam.
+ await ref.set(record);
+ out(res,200,{ok:true,feedback:publicFeedback({id,...record})});
+}
+async function feedbackAdmin(req,res,action){
+ const {store,s}=await getSession(req);
+ if(!isFeedbackAdmin(s.email))fail(403,'Administrator access required.');
+ if(action==='feedbackList'){
+  const limit=100,after=String(req.query?.cursor||'').trim();
+  let query=store.collection(FEEDBACK_COLLECTION).orderBy('createdAt','desc').limit(limit);
+  if(after){if(!/^[a-f0-9]{48}$/.test(after))fail(400,'Invalid page cursor.');const cursor=await store.collection(FEEDBACK_COLLECTION).doc(after).get();if(!cursor.exists)fail(400,'Page cursor expired.');query=query.startAfter(cursor);}
+  const results=await query.get();
+  const items=results.docs.map(d=>({id:d.id,...publicFeedback(d.data()),createdAt:d.data().createdAt,email:d.data().email||'',reviewedAt:d.data().reviewedAt||null}));
+  return out(res,200,{items,nextCursor:results.size===limit?results.docs.at(-1).id:null});
+ }
+ const body=jsonBody(req),id=String(body.id||'');
+ if(!/^[a-f0-9]{48}$/.test(id))fail(400,'Invalid feedback reference.');
+ const ref=store.collection(FEEDBACK_COLLECTION).doc(id),doc=await ref.get();if(!doc.exists)fail(404,'Feedback not found.');
+ const operation=String(body.operation||'');
+ if(!['hide','restore','delete','review','unreview'].includes(operation))fail(400,'Unknown moderation action.');
+ // Audit moderation without copying offensive text or private career information.
+ const batch=store.batch();
+ const at=now();batch.set(store.collection('buddyFeedbackModerationAuditV1').doc(),{feedbackId:id,operation,admin:s.email,at,stage:doc.data().stage});
+ if(operation==='delete'){
+  batch.set(store.collection('buddyFeedbackSuppressedV1').doc(id),{at,reason:'owner-delete'});
+  batch.delete(ref);
+ }else if(operation==='review'||operation==='unreview')batch.update(ref,{reviewedAt:operation==='review'?at:null,reviewedBy:operation==='review'?s.email:null});
+ else batch.update(ref,{status:operation==='hide'?'hidden':'visible',moderatedAt:at});
+ await batch.commit();
+ out(res,200,{ok:true});
+}
 async function downloadDocument(req,res){
  const kind=String(req.query.kind||''),format=String(req.query.format||'pdf');
  if(!['free','report','resume-review'].includes(kind)||!['pdf','docx'].includes(format))fail(400,'Unsupported download type.');
@@ -1058,6 +1101,9 @@ export default async function handler(req,res){
   
   if(action==='download'&&req.method==='GET')return await downloadDocument(req,res);
   if(action==='state'&&req.method==='GET')return await ownerState(req,res);
+  if(action==='feedbackSubmit'&&req.method==='POST')return await submitFeedback(req,res);
+  if(action==='feedbackList'&&req.method==='GET')return await feedbackAdmin(req,res,action);
+  if(action==='feedbackModerate'&&req.method==='POST')return await feedbackAdmin(req,res,action);
   if(action==='setJourney'&&req.method==='POST')return await setJourney(req,res);
   if(action==='setAssessmentRole'&&req.method==='POST')return await setAssessmentRole(req,res);
   if(action==='chat'&&req.method==='POST')return await chat(req,res);

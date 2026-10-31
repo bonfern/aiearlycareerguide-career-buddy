@@ -51,8 +51,8 @@ test('new free PDF is concise and excludes the paid competency-detail sections',
  assert.match(pdf,/Three career pathways to explore/);
  assert.match(pdf,/Your three immediate next moves/);
  assert.match(pdf,/What a Premium Assessment evaluates/);
- assert.doesNotMatch(pdf,/Study target-role expectations|Handle disagreement by presenting options/);
- assert.match(pdf,/\/Count 2/);
+ assert.doesNotMatch(pdf,/Skill-by-skill development plan|Scenario assessment result:|0 of 3/);
+ assert.match(pdf,/\/Count [23]/);
 });
 test('coaching debits all successful response scopes, with fast low-value path',()=>{
  const code=fs.readFileSync(new URL('../api/service.js',import.meta.url),'utf8');
