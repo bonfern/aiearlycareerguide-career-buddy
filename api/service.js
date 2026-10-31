@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import {validateAnalyticsParams,summarizeCareerAnalytics} from './_lib/analytics.js';
 import {FEEDBACK_COLLECTION,isFeedbackAdmin,parseFeedback,feedbackId,canRateFeedback,publicFeedback} from './_lib/feedback.js';
 import {browserClaimKey,browserAccess,browserClaimFromSnapshot} from './_lib/free-browser.js';
 import {verificationMessage,CONSENT_VERSION} from './_lib/auth-email.js';
@@ -71,7 +72,7 @@ function safeState(s){
  if(!s.freeReport&&Number(s.profile?.freeIntakeVersion||0)<21){s={...s,profile:applyFreeAnswers({}, {}, []),quickAnswers:{},quickAnswerExtras:{},quickSkipped:[],quickHistory:[]};}
  const paid=isAssessmentPaid(s),coaching=isPaid(s),free=freeReadiness(s.profile||{});const rem=Math.max(0,s.credits||0);
  const assessment=paid?assessmentProgress(s.assessmentBank,s.assessmentAnswers||[]):{total:0,answered:0,finished:false,question:null};
- return {id:s.id,email:s.email||'',feedbackAdmin:isFeedbackAdmin(s.email),mode:publicLiveMode()?'public-live':paymentMode()==='razorpay_live'?'private-live':'preview',version:'5.28',checkoutReady:liveCheckoutReady(),journeyPreference:s.journeyPreference||'free',coachingEligible:Boolean(s.freeReport||s.report),tier:paid?'paid':coaching?'coach':'free',paymentsEnabled:paymentMode()==='razorpay_live'?liveConfigured():testPaymentEnabled(),paymentMode:paymentMode(),
+ return {id:s.id,email:s.email||'',feedbackAdmin:isFeedbackAdmin(s.email),mode:publicLiveMode()?'public-live':paymentMode()==='razorpay_live'?'private-live':'preview',version:'5.29',checkoutReady:liveCheckoutReady(),journeyPreference:s.journeyPreference||'free',coachingEligible:Boolean(s.freeReport||s.report),tier:paid?'paid':coaching?'coach':'free',paymentsEnabled:paymentMode()==='razorpay_live'?liveConfigured():testPaymentEnabled(),paymentMode:paymentMode(),
   profile:s.profile||{},guided:guidedProgress(s.profile||{},s.quickAnswers||{},s.quickSkipped||[],'free'),
   assessment:{...assessment,started:Boolean(s.assessmentBank),preparationStep:s.assessmentDraft?.stage||0,
    savedQuestionCount:(s.assessmentDraft?.batches||[]).reduce((n,b)=>n+(Array.isArray(b)?b.length:Array.isArray(b?.questions)?b.questions.length:0),0)+(s.assessmentDraft?.partialQuestions?.length||0),
@@ -142,6 +143,53 @@ async function verifyEmailCode(req,res){
  const isHttps=String(req.headers['x-forwarded-proto']||'https').split(',')[0].trim()==='https';
  res.setHeader('Set-Cookie',`${COOKIE}=${signCookie(id,process.env.PREVIEW_SESSION_SECRET)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${30*86400}${isHttps?'; Secure':''}`);
  return out(res,200,{state:safeState(s)});
+}
+// Owner dashboards use their own verification UI, but the same signed HttpOnly
+// cookie and consent/security checks as the main application.
+async function adminRequestCode(req,res){
+ const body=jsonBody(req);
+ let email;try{email=normalizeEmail(body.email);}catch(e){fail(400,e.message);}
+ if(!isFeedbackAdmin(email))fail(403,'This email is not an authorised dashboard administrator.');
+ return requestEmailCode(req,res);
+}
+async function adminVerifyCode(req,res){
+ const body=jsonBody(req);
+ let email;try{email=normalizeEmail(body.email);}catch(e){fail(400,e.message);}
+ if(!isFeedbackAdmin(email))fail(403,'This email is not an authorised dashboard administrator.');
+ return verifyEmailCode(req,res);
+}
+async function adminState(req,res){
+ const {s}=await getSession(req);
+ if(!isFeedbackAdmin(s.email))fail(403,'This verified email does not have administrator access. Sign in with an allowlisted address.');
+ return out(res,200,{ok:true,email:s.email});
+}
+// Read-only analytics: select the source fields needed for aggregation, then
+// return aggregate values only. Fail visibly if data grows beyond safe scan size.
+async function projectedCollection(store,collection,fields){
+ const pageSize=400,cap=20000,items=[];
+ let after=null;
+ while(true){
+  let q=store.collection(collection).select(...fields).orderBy('__name__').limit(pageSize);
+  if(after)q=q.startAfter(after);
+  const snap=await q.get();
+  for(const doc of snap.docs)items.push({id:doc.id,...doc.data()});
+  if(items.length>cap)fail(503,'Analytics dataset exceeds the current safe reporting limit. Please contact the site administrator to enable scalable reporting.');
+  if(snap.docs.length<pageSize)break;
+  after=snap.docs.at(-1);
+ }
+ return items;
+}
+async function analyticsAdmin(req,res){
+ const {store,s}=await getSession(req);
+ if(!isFeedbackAdmin(s.email))fail(403,'Administrator access required.');
+ let opts;try{opts=validateAnalyticsParams(req.query);}catch(e){fail(400,e.message);}
+ if(paymentMode()!=='razorpay_live')return out(res,200,{...summarizeCareerAnalytics({},opts),notice:'Not in live payment mode: production-only analytics have no data in this environment.'});
+ const [sessions,payments,complimentary]=await Promise.all([
+  projectedCollection(store,'buddyLiveEmailSessions',['freeReportAt','reportGeneratedAt','messages','lastCoachReplyAt']),
+  projectedCollection(store,'buddyLivePayments',['sessionId','packId','granted','status','grantedAt','amountPaise']),
+  projectedCollection(store,'buddyLiveComplimentaryGrants',['sessionId','packId','priceInr','at'])
+ ]);
+ return out(res,200,summarizeCareerAnalytics({sessions,payments,complimentary},opts));
 }
 async function setAssessmentRole(req,res){
  const body=jsonBody(req),role=typeof body.role==='string'?body.role.replace(/\s+/g,' ').trim():'';
@@ -270,10 +318,10 @@ async function chat(req,res){
    const profile=scope==='career'?mergeProfile(s.profile,facts):s.profile;
    const t=now();const messages=[...(s.messages||[]),{role:'user',content:msg,at:t},{role:'assistant',content:reply,at:t}].slice(-160);
    const credits=s.credits-1;
-   const next={...s,profile,messages,credits,offtopicCount:(s.offtopicCount||0)+(scope==='offtopic'?1:0),busy:null,
+   const next={...s,profile,messages,credits,lastCoachReplyAt:t,offtopicCount:(s.offtopicCount||0)+(scope==='offtopic'?1:0),busy:null,
      usageSummary:usage?updatedUsage(s.usageSummary,usage):s.usageSummary};
    next.lastRequest={id:key,response:safeState(next)};
-   tx.update(ref,{profile,messages,credits,offtopicCount:next.offtopicCount,busy:null,usageSummary:next.usageSummary,lastRequest:next.lastRequest});
+   tx.update(ref,{profile,messages,credits,lastCoachReplyAt:t,offtopicCount:next.offtopicCount,busy:null,usageSummary:next.usageSummary,lastRequest:next.lastRequest});
    tx.set(store.collection('buddyPreviewUsage').doc(key),{
      ...(usage||{id:key,type:'coach-local-redirect',model:'local',inputTokens:0,outputTokens:0,totalTokens:0,usdCost:0,inrCost:0,createdAt:t}),
      sessionId:s.id,charged:true,creditsDeducted:1,scope,cacheHit:!!localReply});
@@ -1093,6 +1141,11 @@ export default async function handler(req,res){
   if(publicLiveMode() && ['mockPurchase','testCheckout','testPaymentVerify','testPaymentStatus','ownerReset'].includes(action))fail(404,'Route not found.');
   if(action==='config'&&req.method==='GET')return out(res,200,{configured:configured(),privatePreview:accessCodeRequired(),mode:publicLiveMode()?'verified-email-public-live':paymentMode()==='razorpay_live'?'verified-email-private-live':'verified-email-owner-preview',paymentsEnabled:paymentMode()==='razorpay_live'?liveConfigured():testPaymentEnabled(),checkoutReady:liveCheckoutReady(),paymentMode:paymentMode(),paymentConfigurationError:(paymentMode()==='razorpay_test'&&!testPaymentEnabled())||(paymentMode()==='razorpay_live'&&!liveConfigured()),freeReportsDailyCap:Number(process.env.FREE_REPORT_DAILY_LIMIT||25)});
   if(!configured())fail(503,'Career Buddy has not been configured correctly.');
+  if(action==='adminConfig'&&req.method==='GET')return out(res,200,{configured:configured(),adminEnabled:Boolean((process.env.FEEDBACK_ADMIN_EMAILS||'').trim()),privatePreview:accessCodeRequired(),consentVersion:CONSENT_VERSION});
+  if(action==='adminRequestCode'&&req.method==='POST')return await adminRequestCode(req,res);
+  if(action==='adminVerifyCode'&&req.method==='POST')return await adminVerifyCode(req,res);
+  if(action==='adminState'&&req.method==='GET')return await adminState(req,res);
+  if(action==='analyticsSummary'&&req.method==='GET')return await analyticsAdmin(req,res);
   if(action==='requestCode'&&req.method==='POST')return await requestEmailCode(req,res);
   if(action==='verifyCode'&&req.method==='POST')return await verifyEmailCode(req,res);
   if(action==='logout'&&req.method==='POST')return await signOut(req,res);

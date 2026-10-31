@@ -5,10 +5,10 @@ import re,base64
 root=Path(__file__).resolve().parents[1]
 html=(root/'feedback-admin.html').read_text();styles=(root/'info.css').read_text()+'\n'+(root/'feedback-admin.css').read_text()
 html=re.sub(r'<link[^>]*rel="stylesheet"[^>]*>','',html)
-html=re.sub(r'<script defer src="\./feedback-admin\.js[^\"]*"></script>','',html)
-html=html.replace('<base href="/">','<base href="https://feedback.example/">')
+html=re.sub(r'<script defer src="(?:\./|/)feedback-admin\.js[^\"]*"></script>','',html)
+html=html.replace('<head>','<head><base href="https://feedback.example/">')
 logo='data:image/webp;base64,'+base64.b64encode((root/'brand-logo.webp').read_bytes()).decode()
-html=html.replace('./brand-logo.webp',logo).replace('</head>','<style>'+styles+'</style></head>')
+html=html.replace('/brand-logo.webp',logo).replace('</head>','<style>'+styles+'</style></head>')
 html=html.replace('</body>','<script>'+(root/'feedback-admin.js').read_text()+'</script></body>')
 with sync_playwright() as pw:
  browser=pw.chromium.launch(headless=True,executable_path='/usr/bin/chromium',args=['--no-sandbox'])
