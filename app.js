@@ -1,4 +1,4 @@
-/* Career Buddy V5.25: resilient assessment preparation, clean journey messaging. */
+/* Career Buddy V5.26: Premium Assessment answer-save/navigation fix. */
 const $=id=>document.getElementById(id);
 const APP_BASE=window.location.pathname.startsWith('/professionals/') || window.location.pathname==='/professionals' ? '/professionals' : '';
 const servicePath=()=>`${APP_BASE}/api/service`;
@@ -140,9 +140,40 @@ function paintPaidAssessment(){
  }
  host.append(group);
  const error=el('div','question-error'),actions=el('div','question-actions');
- const b=el('button','primary','Save answer and continue →');b.dataset.asyncAction='1';b.disabled=loading;
- b.onclick=()=>{const pick=inputs.find(x=>x.checked);if(!pick){error.textContent='Select one option to continue.';return;}answerPaid(q.id,Number(pick.value));};
+ error.setAttribute('role','alert');
+ for(const input of inputs)input.onchange=()=>{error.textContent='';};
+ const b=el('button','primary','Save answer and continue →');b.type='button';b.dataset.asyncAction='1';b.disabled=loading;
+ b.onclick=()=>{
+  if(loading)return;
+  const pick=inputs.find(x=>x.checked);
+  if(!pick){error.textContent='Select one option to continue.';return;}
+  void answerPaid(q.id,Number(pick.value),error);
+ };
  actions.append(el('span','micro',`Question ${q.number} of ${q.total}`),b);host.append(actions,error);
+}
+// The question bank is graded and persisted on the server. Never increment the
+// question index locally: the next question must come from the saved state.
+// Retain the request ID across a failed retry so server-side idempotency applies.
+let pendingPaidAnswer=null;
+async function answerPaid(questionId,choice,errorNode){
+ if(loading)return;
+ const prior=pendingPaidAnswer;
+ const requestId=prior?.questionId===questionId&&prior.choice===choice?prior.requestId:uuid();
+ pendingPaidAnswer={questionId,choice,requestId};
+ errorNode.textContent='';
+ await run(async()=>{
+  try{
+   const response=await api('assessmentAnswer',{questionId,choice,requestId});
+   if(!response?.state?.assessment)throw Error('Could not confirm the saved answer. Please retry or refresh your assessment.');
+   state=response.state;
+   pendingPaidAnswer=null;
+   if(current==='Paid'){paintPaidAssessment();toPageStart('Paid');}
+  }catch(e){
+   // A failed save leaves the current answer available for correction/retry.
+   // Do not silently swallow the error or advance without server confirmation.
+   errorNode.textContent=e?.message||'Could not save your answer. Please try again.';
+  }
+ });
 }
 async function prepareAssessment(){
  if(assessmentPreparing)return;
