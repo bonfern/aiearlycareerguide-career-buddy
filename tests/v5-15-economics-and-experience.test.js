@@ -47,11 +47,12 @@ test('resume review generates a self-contained branded PDF',()=>{
  assert.ok(pdf.length>2000);
  assert.ok(pdf.toString('latin1').includes('Resume Review and Improvement Priorities'));
 });
-test('UI offers calm CTA, processing and first resume review prompt with clean paid wording',()=>{
+test('UI offers calm CTA, processing and persistent resume review action with clean paid wording',()=>{
  assert.match(css,/.snapshot-cta\{background:#e0f1ee;color:#174c55;font-weight:500/);
  assert.match(html,/id="processingOverlay"/);
  assert.match(app,/Loading your saved career journey/);
- assert.match(html,/data-coach-prompt="resume-review"/);
+ assert.match(html,/id="resumeReviewOpen"/);
+ assert.match(html,/id="coachGuide"/);
  assert.match(html,/Review my resume · 5 credits/);
  assert.doesNotMatch(html,/guaranteed interview questions|paid checkout charges real money/i);
  assert.match(html,/>Proceed</);

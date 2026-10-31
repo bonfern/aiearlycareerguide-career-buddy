@@ -40,8 +40,8 @@ with sync_playwright() as p:
   assert not page.locator('#processingOverlay').is_visible()
   page.locator('#coachNavButton').click()
   assert page.locator('#screenCoach').is_visible()
-  assert page.locator('[data-coach-prompt="resume-review"]').is_visible()
-  page.locator('[data-coach-prompt="resume-review"]').click()
+  assert page.locator('#resumeReviewOpen').is_visible()
+  page.locator('#resumeReviewOpen').click()
   assert page.locator('#resumeReviewPanel').is_visible()
   data='Achievement from employer transforming business processes. '*245
   assert len(data)>1200
@@ -57,7 +57,7 @@ with sync_playwright() as p:
   assert 'Role-ready resume changes' in page.locator('#reportContent').inner_text()
   assert page.evaluate('state.credits')==35
   page.locator('#closeDialog').click()
-  assert page.locator('[data-coach-prompt="resume-review"]').is_visible()
+  assert page.locator('#resumeReviewOpen').is_visible()
   assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Unexpected mobile overflow'
   assert not errors,errors
   page.close();print(f'{width}px: Career Buddy resume action, extended input, 5-credit result, processing indicator, responsive layout PASS')
