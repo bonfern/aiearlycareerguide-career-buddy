@@ -16,10 +16,16 @@ import {assertTestKeys,testPaymentEnabled,testPaymentSignature,validateCapturedP
 import {grantCapturedLivePayment} from './_lib/live-grants.js';
 import {resolveLiveCoupon,parseFirestoreCoupon,couponCounterRef,couponUserRef} from './_lib/firestore-coupons.js';
 import {paymentMode,assertLiveKeys,liveConfigured,approvedLiveTester,requireLiveSettings,publicLiveMode,liveCoupons,canUseFullDiscount,livePaymentSignature,razorpayLiveAPI} from './_lib/razorpay-live.js';
+import {guestSessionId,guestExpiry,guestAllowed,visitorKey,funnelDay,assertGuestOrigin} from './_lib/guest-flow.js';
 import {FREE_SNAPSHOT_VERSION,cacheRoleKey,roleGuidancePrompt,validRoleGuidance,buildSnapshotV2,isSnapshotV2,personalisedSnapshotPrompt,validPersonalInsights,cheapRedirect} from './_lib/free-snapshot-content.js';
 
 /* Public production: verified-email access; live payments validated server-side. */
 const COOKIE='buddy_identity';
+const GUEST_COOKIE='buddy_guest';
+const GUEST_COLLECTION='buddyGuestSessionsV1';
+const FUNNEL_DAILY='buddyFunnelDailyV1';
+const FUNNEL_EVENTS='buddyFunnelUniqueEventsV1';
+const guestEnabled=()=>publicLiveMode()&&process.env.DISABLE_GUEST_SNAPSHOT!=='1';
 const FREE_BROWSER_COLLECTION='buddyFreeBrowserClaimsV1';
 // Temporarily disabled for testing. Re-enable explicitly after QA, not by default.
 const enforceBrowserLimit=()=>process.env.ENFORCE_FREE_BROWSER_LIMIT==='1';
@@ -55,8 +61,79 @@ function browserRef(store,req){
 }
 function assertFreeBrowser(claim,sessionId){if(enforceBrowserLimit()&&!browserAccess(claim,sessionId))fail(409,'This browser already has a free assessment linked to another email. Sign in with your original verified email to continue. If this is a shared device, contact support.');}
 function equal(a,b){if(typeof a!=='string'||typeof b!=='string')return false;const x=Buffer.from(a),y=Buffer.from(b);return x.length===y.length&&crypto.timingSafeEqual(x,y);}
-function cookieValue(req){const raw=req.headers?.cookie||'';return raw.split(';').map(x=>x.trim()).find(x=>x.startsWith(COOKIE+'='))?.split('=').slice(1).join('')||'';}
-function authId(req){const id=verifyCookie(cookieValue(req),process.env.PREVIEW_SESSION_SECRET);if(!id)fail(401,'Verify your email to start or resume.');return id;}
+function readCookie(req,name){const raw=req.headers?.cookie||'';return raw.split(';').map(x=>x.trim()).find(x=>x.startsWith(name+'='))?.split('=').slice(1).join('')||'';}
+function cookieValue(req){return readCookie(req,COOKIE);}
+function cookieId(req,name){return verifyCookie(readCookie(req,name),process.env.PREVIEW_SESSION_SECRET);}
+function authId(req){const id=cookieId(req,COOKIE)||cookieId(req,GUEST_COOKIE);if(!id)fail(401,'Start the free snapshot or verify your email to resume.');return id;}
+function setIdentityCookie(req,res,name,id,maxAge){
+ const secure=String(req.headers['x-forwarded-proto']||'https').split(',')[0].trim()==='https';
+ const value=id?signCookie(id,process.env.PREVIEW_SESSION_SECRET):'';
+ return `${name}=${value}; HttpOnly; SameSite=${name===COOKIE?'Strict':'Lax'}; Path=/; Max-Age=${maxAge}${secure?'; Secure':''}`;
+}
+function requestIpKey(req,purpose){
+ // Vercel's own forwarding header takes priority; never store the raw address.
+ const ip=String(req.headers['x-vercel-forwarded-for']||req.headers['x-forwarded-for']||'').split(',')[0].trim().slice(0,100);
+ return ip?hmac(`${purpose}|${ip}|${funnelDay(now())}`):null;
+}
+async function recordFunnel(req,event,sessionId=''){
+ try{
+  const raw=String(req.headers?.['x-buddy-browser-id']||'');
+  const key=visitorKey(raw,process.env.PREVIEW_SESSION_SECRET,sessionId);
+  if(!key)return;
+  const day=funnelDay(now()),store=await db();
+  const id=hmac(`funnel|${day}|${event}|${key}`);
+  const ref=store.collection(FUNNEL_EVENTS).doc(id),daily=store.collection(FUNNEL_DAILY).doc(day);
+  await store.runTransaction(async tx=>{
+   const [existing,bucket]=await Promise.all([tx.get(ref),tx.get(daily)]);
+   if(existing.exists)return;
+   tx.create(ref,{day,event,expiresAt:now()+90*86400000});
+   tx.set(daily,{day,counts:{...(bucket.data()?.counts||{}),[event]:Number(bucket.data()?.counts?.[event]||0)+1},updatedAt:now()});
+  });
+ }catch(e){console.warn('Career Buddy aggregate funnel tracking skipped',e?.name||'Error');}
+}
+async function funnelEvent(req,res){
+ const body=jsonBody(req);
+ if(!['landing_view','free_cta_clicked'].includes(body.event))fail(400,'Unknown tracking event.');
+ await recordFunnel(req,body.event);
+ return out(res,200,{ok:true});
+}
+async function guestStart(req,res){
+ if(!guestEnabled())fail(403,'Guest assessment is not enabled on this deployment.');
+ const body=jsonBody(req);
+ try{assertGuestOrigin(body,{consentVersion:CONSENT_VERSION});}catch(e){fail(400,e.message);}
+ const authenticated=cookieId(req,COOKIE);
+ if(authenticated){const store=await db(),existing=await store.collection(sessionCollection()).doc(authenticated).get();
+  if(existing.exists)return out(res,200,{state:safeState(existing.data())});
+ }
+ const store=await db(),existingGuest=cookieId(req,GUEST_COOKIE);
+ if(existingGuest){const snapshot=await store.collection(GUEST_COLLECTION).doc(existingGuest).get();
+  if(snapshot.exists&&Number(snapshot.data().expiresAt)>now())return out(res,200,{state:safeState(snapshot.data())});
+ }
+ const sourceKey=requestIpKey(req,'guest-start');
+ // Public cloud visitors can share an IP; keep this configurable but nonzero.
+ const limit=Math.min(100,Math.max(1,Number(process.env.GUEST_STARTS_PER_IP_DAY||15)));
+ const ref=sourceKey?store.collection('buddyGuestNetworkLimitsV1').doc(sourceKey):null;
+ const id=guestSessionId(),t=now(),expiresAt=guestExpiry(t);
+ const doc={id,guest:true,createdAt:t,expiresAt,tier:'free',journeyPreference:'free',credits:0,creditsGranted:0,freeReport:null,report:null,
+  assessmentBank:null,assessmentAnswers:[],quickAnswers:{},quickAnswerExtras:{},quickSkipped:[],quickHistory:[],profile:{...EMPTY_PROFILE},messages:[],
+  consent:{version:CONSENT_VERSION,acceptedAt:t,adultConfirmed:true,source:'guest-start'},usageSummary:{calls:0,inputTokens:0,outputTokens:0,inrCost:0,unpricedCalls:0}};
+ await store.runTransaction(async tx=>{
+  const previous=ref?await tx.get(ref):null;
+  if(previous&&Number(previous.data()?.count||0)>=limit)fail(429,'Too many free assessment sessions from this network today. Please try tomorrow or contact support.');
+  tx.create(store.collection(GUEST_COLLECTION).doc(id),doc);
+  if(ref)tx.set(ref,{count:Number(previous.data()?.count||0)+1,updatedAt:t});
+ });
+ res.setHeader('Set-Cookie',setIdentityCookie(req,res,GUEST_COOKIE,id,7*86400));
+ await recordFunnel(req,'guest_started',id);
+ return out(res,200,{state:safeState(doc)});
+}
+async function funnelSummary(store,from,to){
+ const snap=await store.collection(FUNNEL_DAILY).where('day','>=',from).where('day','<=',to).get();
+ const totals={};
+ for(const doc of snap.docs){for(const [event,value] of Object.entries(doc.data()?.counts||{})){totals[event]=(totals[event]||0)+Number(value||0);}}
+ return totals;
+}
+
 function guardOrigin(req){
  if(req.method!=='POST')return;
  if(!String(req.headers['content-type']||'').startsWith('application/json'))fail(415,'JSON requests only.');
@@ -72,7 +149,7 @@ function safeState(s){
  if(!s.freeReport&&Number(s.profile?.freeIntakeVersion||0)<21){s={...s,profile:applyFreeAnswers({}, {}, []),quickAnswers:{},quickAnswerExtras:{},quickSkipped:[],quickHistory:[]};}
  const paid=isAssessmentPaid(s),coaching=isPaid(s),free=freeReadiness(s.profile||{});const rem=Math.max(0,s.credits||0);
  const assessment=paid?assessmentProgress(s.assessmentBank,s.assessmentAnswers||[]):{total:0,answered:0,finished:false,question:null};
- return {id:s.id,email:s.email||'',feedbackAdmin:isFeedbackAdmin(s.email),mode:publicLiveMode()?'public-live':paymentMode()==='razorpay_live'?'private-live':'preview',version:'5.30',checkoutReady:liveCheckoutReady(),journeyPreference:s.journeyPreference||'free',coachingEligible:Boolean(s.freeReport||s.report),tier:paid?'paid':coaching?'coach':'free',paymentsEnabled:paymentMode()==='razorpay_live'?liveConfigured():testPaymentEnabled(),paymentMode:paymentMode(),
+ return {id:s.id,email:s.email||'',guest:Boolean(s.guest),feedbackAdmin:!s.guest&&isFeedbackAdmin(s.email),mode:publicLiveMode()?'public-live':paymentMode()==='razorpay_live'?'private-live':'preview',version:'5.31',checkoutReady:liveCheckoutReady(),journeyPreference:s.journeyPreference||'free',coachingEligible:Boolean(s.freeReport||s.report),tier:paid?'paid':coaching?'coach':'free',paymentsEnabled:paymentMode()==='razorpay_live'?liveConfigured():testPaymentEnabled(),paymentMode:paymentMode(),
   profile:s.profile||{},guided:guidedProgress(s.profile||{},s.quickAnswers||{},s.quickSkipped||[],'free'),
   assessment:{...assessment,started:Boolean(s.assessmentBank),preparationStep:s.assessmentDraft?.stage||0,
    savedQuestionCount:(s.assessmentDraft?.batches||[]).reduce((n,b)=>n+(Array.isArray(b)?b.length:Array.isArray(b?.questions)?b.questions.length:0),0)+(s.assessmentDraft?.partialQuestions?.length||0),
@@ -132,16 +209,27 @@ async function verifyEmailCode(req,res){
   tx.delete(ref);return challenge.consent;
  });
  if(!result)fail(401,'Verification failed.');
- const sessionRef=store.collection(sessionCollection()).doc(id),existing=await sessionRef.get();let s;
- if(existing.exists){s=existing.data();await sessionRef.update({consent:result});}
- else{
-  const t=now();s={id,email,createdAt:t,expiresAt:t+30*86400000,tier:'free',journeyPreference:'free',credits:0,creditsGranted:0,previewOrders:[],freeReport:null,assessmentBank:null,assessmentAnswers:[],resumeGuidance:null,interviewBank:null,resumeDecision:'',resumeText:'',resumeRevision:null,
+ const sessionRef=store.collection(sessionCollection()).doc(id);
+ const guestId=cookieId(req,GUEST_COOKIE),guestRef=guestId?store.collection(GUEST_COLLECTION).doc(guestId):null;
+ const s=await store.runTransaction(async tx=>{
+  const claimRef=guestRef&&enforceBrowserLimit()&&req.headers?.['x-buddy-browser-id']?browserRef(store,req):null;
+  const [existing,guestSnap,claimSnap]=await Promise.all([tx.get(sessionRef),guestRef?tx.get(guestRef):Promise.resolve(null),claimRef?tx.get(claimRef):Promise.resolve(null)]);
+  const guest=guestSnap?.exists&&guestSnap.data()?.guest&&guestSnap.data()?.expiresAt>now()?guestSnap.data():null;
+  const t=now();let previous=existing.exists?existing.data():null;
+  if(!previous)previous={id,email,createdAt:t,expiresAt:t+30*86400000,tier:'free',journeyPreference:'free',credits:0,creditsGranted:0,previewOrders:[],freeReport:null,assessmentBank:null,assessmentAnswers:[],resumeGuidance:null,interviewBank:null,resumeDecision:'',resumeText:'',resumeRevision:null,
    lastAttemptAt:0,offtopicCount:0,profile:{...EMPTY_PROFILE},quickAnswers:{},quickSkipped:[],quickHistory:[],messages:[{role:'assistant',content:'Welcome to Career Buddy. Your answers and progress are saved to your verified email.'}],report:null,
-   consent:result,usageSummary:{calls:0,inputTokens:0,outputTokens:0,inrCost:0,unpricedCalls:0}};
-  try{await sessionRef.create(s);}catch{const recent=await sessionRef.get();s=recent.data();}
- }
- const isHttps=String(req.headers['x-forwarded-proto']||'https').split(',')[0].trim()==='https';
- res.setHeader('Set-Cookie',`${COOKIE}=${signCookie(id,process.env.PREVIEW_SESSION_SECRET)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${30*86400}${isHttps?'; Secure':''}`);
+   usageSummary:{calls:0,inputTokens:0,outputTokens:0,inrCost:0,unpricedCalls:0}};
+  const transfer=guest&&!previous.freeReport&&!previous.report&&!previous.assessmentBank&&(Boolean(guest.freeReport)||(guest.quickHistory||[]).length>=(previous.quickHistory||[]).length);
+  const fields=transfer?{profile:guest.profile,quickAnswers:guest.quickAnswers||{},quickAnswerExtras:guest.quickAnswerExtras||{},quickSkipped:guest.quickSkipped||[],quickHistory:guest.quickHistory||[],
+    freeReport:guest.freeReport||null,...(guest.freeReportAt?{freeReportAt:guest.freeReportAt}:{}),usageSummary:guest.usageSummary||previous.usageSummary}:{};
+  const final={...previous,...fields,guest:false,email,consent:result};
+  tx.set(sessionRef,final);
+  if(claimRef&&claimSnap?.exists&&guest&&claimSnap.data()?.ownerId===guest.id&&transfer)tx.update(claimRef,{ownerId:id,claimedAt:t,source:'guest-account-upgrade'});
+  if(guestRef&&guestSnap?.exists)tx.delete(guestRef);
+  return final;
+ });
+ res.setHeader('Set-Cookie',[setIdentityCookie(req,res,COOKIE,id,30*86400),setIdentityCookie(req,res,GUEST_COOKIE,null,0)]);
+ if(guestId&&s.freeReport)await recordFunnel(req,'email_verified',id);
  return out(res,200,{state:safeState(s)});
 }
 // Owner dashboards use their own verification UI, but the same signed HttpOnly
@@ -183,13 +271,15 @@ async function analyticsAdmin(req,res){
  const {store,s}=await getSession(req);
  if(!isFeedbackAdmin(s.email))fail(403,'Administrator access required.');
  let opts;try{opts=validateAnalyticsParams(req.query);}catch(e){fail(400,e.message);}
- if(paymentMode()!=='razorpay_live')return out(res,200,{...summarizeCareerAnalytics({},opts),notice:'Not in live payment mode: production-only analytics have no data in this environment.'});
- const [sessions,payments,complimentary]=await Promise.all([
+ if(paymentMode()!=='razorpay_live')return out(res,200,{...summarizeCareerAnalytics({},opts),funnel:await funnelSummary(store,opts.from,opts.to),notice:'Not in live payment mode: production-only analytics have no data in this environment.'});
+ const [sessions,guestSessions,payments,complimentary,funnel]=await Promise.all([
   projectedCollection(store,'buddyLiveEmailSessions',['freeReportAt','reportGeneratedAt','messages','lastCoachReplyAt']),
+  projectedCollection(store,GUEST_COLLECTION,['freeReportAt']),
   projectedCollection(store,'buddyLivePayments',['sessionId','packId','granted','status','grantedAt','amountPaise']),
-  projectedCollection(store,'buddyLiveComplimentaryGrants',['sessionId','packId','priceInr','at'])
+  projectedCollection(store,'buddyLiveComplimentaryGrants',['sessionId','packId','priceInr','at']),
+  funnelSummary(store,opts.from,opts.to)
  ]);
- return out(res,200,summarizeCareerAnalytics({sessions,payments,complimentary},opts));
+ return out(res,200,{...summarizeCareerAnalytics({sessions:[...sessions,...guestSessions],payments,complimentary},opts),funnel});
 }
 async function setAssessmentRole(req,res){
  const body=jsonBody(req),role=typeof body.role==='string'?body.role.replace(/\s+/g,' ').trim():'';
@@ -204,7 +294,7 @@ async function setAssessmentRole(req,res){
  });
  return out(res,200,{state:safeState(updated)});
 }
-async function signOut(req,res){const isHttps=String(req.headers['x-forwarded-proto']||'https').split(',')[0].trim()==='https';res.setHeader('Set-Cookie',`${COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${isHttps?'; Secure':''}`);out(res,200,{ok:true});}
+async function signOut(req,res){res.setHeader('Set-Cookie',[setIdentityCookie(req,res,COOKIE,null,0),setIdentityCookie(req,res,GUEST_COOKIE,null,0)]);out(res,200,{ok:true});}
 async function resetTestSession(req,res){
  if(paymentMode()==='razorpay_live')fail(403,'Session reset is disabled in the private live pilot to protect purchases and coupon limits.');
  const body=jsonBody(req);if(!process.env.OWNER_RESET_CODE||!equal(body.ownerCode,process.env.OWNER_RESET_CODE))fail(403,'Owner reset is not configured or code is incorrect.');
@@ -213,10 +303,17 @@ async function resetTestSession(req,res){
   profile:{...EMPTY_PROFILE},quickAnswers:{},quickSkipped:[],quickHistory:[],messages:[],offtopicCount:0,lastAttemptAt:0,lastRequest:null,usageSummary:{calls:0,inputTokens:0,outputTokens:0,inrCost:0,unpricedCalls:0},busy:null});
  const snap=await ref.get();out(res,200,{state:safeState(snap.data()),notice:'Owner test data reset for this verified email. Previous cost logs remain stored.'});
 }
-async function getSession(req){const store=await db(),id=authId(req),ref=store.collection(sessionCollection()).doc(id),snap=await ref.get();
- if(!snap.exists)fail(401,'Your session was not found. Please sign in again.');
- if(paymentMode()==='razorpay_live'&&!publicLiveMode()&&!approvedLiveTester(snap.data()?.email))fail(403,'Private pilot access is restricted to approved email addresses.');
- return {store,ref,s:snap.data()};}
+async function getSession(req){
+ const store=await db(),verifiedId=cookieId(req,COOKIE),guestId=cookieId(req,GUEST_COOKIE);
+ if(!verifiedId&&!guestId)fail(401,'Please start your free assessment or verify your email.');
+ const id=verifiedId||guestId,isGuest=!verifiedId;
+ const ref=store.collection(isGuest?GUEST_COLLECTION:sessionCollection()).doc(id),snap=await ref.get();
+ if(!snap.exists)fail(401,'Your session has expired. Please start again or verify your email.');
+ const s=snap.data();
+ if(isGuest&&(!guestEnabled()||!s.guest||Number(s.expiresAt)<=now()))fail(401,'Your guest session has expired. Please start a new Free Snapshot.');
+ if(!isGuest&&paymentMode()==='razorpay_live'&&!publicLiveMode()&&!approvedLiveTester(s.email))fail(403,'Private pilot access is restricted to approved email addresses.');
+ return {store,ref,s};
+}
 async function ownerState(req,res){const {store,s}=await getSession(req);
  // Backfill a previous user's browser claim only if nobody else has registered it.
  if(enforceBrowserLimit()&&s.freeReport&&req.headers?.['x-buddy-browser-id']){
@@ -374,6 +471,7 @@ async function quickAnswer(req,res){
    lastQuickAttemptAt:next.lastQuickAttemptAt,lastQuickRequest:next.lastQuickRequest});
   return next.lastQuickRequest.response;
  });
+ await recordFunnel(req,'first_answer');
  out(res,200,{state:result});
 }
 // Rewind one completed free response with no OpenAI calls. Re-validate saved
@@ -612,6 +710,13 @@ async function freeReport(req,res){
   if(!freeReadiness(s.profile).ready)fail(409,'Your answers are incomplete. Please review the questionnaire.');
   if(s.busy?.until>now())fail(409,'Another request is processing.');
   if((limitSnap.data()?.count||0)>=dailyLimit)fail(429,'Free snapshot capacity has been reached today. Please try again tomorrow.');
+  if(s.guest){
+   const network=requestIpKey(req,'guest-report'),netRef=network?store.collection('buddyGuestReportLimitsV1').doc(network):null;
+   if(netRef){const netSnap=await tx.get(netRef),cap=Math.min(30,Math.max(1,Number(process.env.GUEST_REPORTS_PER_IP_DAY||5)));
+    if(Number(netSnap.data()?.count||0)>=cap)fail(429,'Free reports have reached the daily limit for this network. Please try tomorrow.');
+    tx.set(netRef,{count:Number(netSnap.data()?.count||0)+1,updatedAt:now()});
+   }
+  }
   if(bRef&&!bSnap.exists)tx.create(bRef,{ownerId:s.id,claimedAt:now(),source:'free-snapshot'});
   tx.set(limitRef,{count:(limitSnap.data()?.count||0)+1,dateKey,updatedAt:now()});
   tx.update(ref,{busy:{id:key,until:now()+210000}});
@@ -675,6 +780,7 @@ async function freeReport(req,res){
    if(personalUsage)tx.set(store.collection('buddyPreviewUsage').doc(key+'-insight'),{...personalUsage,sessionId:s.id,charged:false,roleGuidanceCacheHit:hit});
    return safeState(next);
   });
+  await recordFunnel(req,'snapshot_generated');
   return out(res,200,{state,notice:personalFallback?'Your snapshot is ready with conservative guidance based on your answers.': 'Your personalised career snapshot is ready.'});
  }catch(e){await release(ref,key);throw e;}
 }
@@ -1139,8 +1245,14 @@ export default async function handler(req,res){
   if(paymentMode()==='unconfigured')fail(503,'Explicit payment mode must be configured on Vercel.');
   if(publicLiveMode() && paymentMode()!=='razorpay_live')fail(503,'Live payment configuration required.');
   if(publicLiveMode() && ['mockPurchase','testCheckout','testPaymentVerify','testPaymentStatus','ownerReset'].includes(action))fail(404,'Route not found.');
-  if(action==='config'&&req.method==='GET')return out(res,200,{configured:configured(),privatePreview:accessCodeRequired(),mode:publicLiveMode()?'verified-email-public-live':paymentMode()==='razorpay_live'?'verified-email-private-live':'verified-email-owner-preview',paymentsEnabled:paymentMode()==='razorpay_live'?liveConfigured():testPaymentEnabled(),checkoutReady:liveCheckoutReady(),paymentMode:paymentMode(),paymentConfigurationError:(paymentMode()==='razorpay_test'&&!testPaymentEnabled())||(paymentMode()==='razorpay_live'&&!liveConfigured()),freeReportsDailyCap:Number(process.env.FREE_REPORT_DAILY_LIMIT||25)});
+  if(action==='config'&&req.method==='GET')return out(res,200,{guestEnabled:guestEnabled(),configured:configured(),privatePreview:accessCodeRequired(),mode:publicLiveMode()?'verified-email-public-live':paymentMode()==='razorpay_live'?'verified-email-private-live':'verified-email-owner-preview',paymentsEnabled:paymentMode()==='razorpay_live'?liveConfigured():testPaymentEnabled(),checkoutReady:liveCheckoutReady(),paymentMode:paymentMode(),paymentConfigurationError:(paymentMode()==='razorpay_test'&&!testPaymentEnabled())||(paymentMode()==='razorpay_live'&&!liveConfigured()),freeReportsDailyCap:Number(process.env.FREE_REPORT_DAILY_LIMIT||25)});
   if(!configured())fail(503,'Career Buddy has not been configured correctly.');
+  // A guest may use only the Free Snapshot routes and identity upgrade endpoints.
+  // Payment, coupons, coaching, owner dashboards, feedback and resume tools remain verified-only.
+  const isGuest=Boolean(cookieId(req,GUEST_COOKIE))&&!cookieId(req,COOKIE);
+  if(isGuest&&!guestAllowed(action)&&!['requestCode','verifyCode','adminRequestCode','adminVerifyCode','adminConfig'].includes(action))fail(403,'Verify your email to access this feature. Your Free Snapshot will be saved.');
+  if(action==='guestStart'&&req.method==='POST')return await guestStart(req,res);
+  if(action==='funnelEvent'&&req.method==='POST')return await funnelEvent(req,res);
   if(action==='adminConfig'&&req.method==='GET')return out(res,200,{configured:configured(),adminEnabled:Boolean((process.env.FEEDBACK_ADMIN_EMAILS||'').trim()),privatePreview:accessCodeRequired(),consentVersion:CONSENT_VERSION});
   if(action==='adminRequestCode'&&req.method==='POST')return await adminRequestCode(req,res);
   if(action==='adminVerifyCode'&&req.method==='POST')return await adminVerifyCode(req,res);
