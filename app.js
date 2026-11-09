@@ -53,11 +53,12 @@ function toPageStart(stage=current,{focusHeading=true}={}){
 function notice(text='',isError=false){if(loading&&!activeProcessingTask&&text&&!isError&&$('processingText'))$('processingText').textContent=text.slice(0,170);$('notice').textContent=text;$('notice').className=text?`notice${isError?' error':''}`:'notice hidden';}
 function show(screen){
  if(document.activeElement instanceof HTMLElement)document.activeElement.blur();
- if(current!==screen)notice(''); // Notices belong to their originating screen.
+ if(current!==screen||screen==='Paid')notice(''); // Clear stale checkout notices on assessment screens and when changing screens.
  if(screen!=='Coach')$('chatReplyNotice')?.classList.add('hidden');
  current=screen;for(const name of screens)$('screen'+name).classList.toggle('hidden',name!==screen);
  $('topnav').classList.toggle('hidden',!state);
- const recoverable=Boolean(state?.email&&state?.emailVerified===false&&['paid','coach'].includes(state.tier));
+ // Purchase access controls belong in My reports, never above assessment questions or coaching.
+ const recoverable=Boolean(screen==='Reports'&&state?.email&&state?.emailVerified===false&&['paid','coach'].includes(state.tier));
  $('paidRecoveryPanel')?.classList.toggle('hidden',!recoverable);if(recoverable)$('paidRecoveryEmail').textContent=`Current purchase email: ${state.email}`;
  $('signOutButton').textContent=state?.guest?'End guest session':'Sign out';
  $('feedbackAdminLink')?.classList.toggle('hidden',!state?.feedbackAdmin);
@@ -237,7 +238,7 @@ async function answerPaid(questionId,choice,errorNode){
    if(!response?.state?.assessment)throw Error('Could not confirm the saved answer. Please retry or refresh your assessment.');
    state=response.state;
    pendingPaidAnswer=null;
-   if(current==='Paid'){paintPaidAssessment();toPageStart('Paid');}
+   if(current==='Paid'){notice('');paintPaidAssessment();toPageStart('Paid');}
   }catch(e){
    // A failed save leaves the current answer available for correction/retry.
    // Do not silently swallow the error or advance without server confirmation.

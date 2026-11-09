@@ -59,8 +59,17 @@ with sync_playwright() as pw:
   if width==390:page.screenshot(path='/mnt/data/v532/samples/V5_32_Checkout_Mobile.png',full_page=True)
   page.locator('#activateStarter').click()
   page.locator('#screenPaid').wait_for(state='visible',timeout=3000)
-  assert page.locator('#paidRecoveryPanel').is_visible(), 'Recovery not shown for unverified paid buyer'
+  assert page.locator('#paidRecoveryPanel').is_hidden(), 'Recovery must not appear above paid questions'
+  # A stale purchase confirmation should not persist at the top of question screens.
+  page.evaluate("notice('Email unchanged.')")
+  page.evaluate("show('Paid')")
+  assert page.locator('#notice').is_hidden(), 'Stale account notice remains on the assessment'
+  page.locator('#myReportsButton').click()
+  assert page.locator('#paidRecoveryPanel').is_visible(), 'Recovery must remain available in My reports'
   assert 'buyer@example.com' in page.locator('#paidRecoveryEmail').inner_text()
+  page.locator('#premiumNavButton').click()
+  assert page.locator('#screenPaid').is_visible()
+  assert page.locator('#paidRecoveryPanel').is_hidden(), 'Recovery returned while answering questions'
   assert page.locator('#screenLogin').is_hidden()
   assert not errs,errs
   print(width,'px PASS: Guest assessment → single-screen email checkout → paid without OTP; no overflow')
