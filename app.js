@@ -1,4 +1,4 @@
-/* Career Buddy V5.32: repeat reviews, visible chat responses, credit status and coaching guide. */
+/* Career Buddy V5.32.2: repeat reviews, visible chat responses, credit status and coaching guide. */
 const $=id=>document.getElementById(id);
 const APP_BASE=window.location.pathname.startsWith('/professionals/') || window.location.pathname==='/professionals' ? '/professionals' : '';
 const servicePath=()=>`${APP_BASE}/api/service`;
@@ -772,7 +772,7 @@ async function init(){track('landing_view');$('processingOverlay')?.classList.re
   const fragment=window.location.hash.match(/^#resume=([a-f0-9]{64})$/);
   if(fragment){history.replaceState(null,'',window.location.pathname+window.location.search);state=(await api('recoverCheckout',{token:fragment[1]})).state;}
   else state=(await api('state')).state;
- }catch(e){notice(e.message,true);try{state=(await api('state')).state;}catch{}}
+ }catch(e){notice(e.message,true);}
  }catch(e){notice(e.message,true);}
  if(state){flow=state.journeyPreference||'free';if(state.tier==='paid'){show('Paid');paint();}else if(state.tier==='coach'){show('Coach');paint();}else show('Choose');}
  else show('Choose');$('processingOverlay')?.classList.add('hidden');}

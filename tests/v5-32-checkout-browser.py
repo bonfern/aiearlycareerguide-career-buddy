@@ -22,7 +22,7 @@ window.fetch=async (url, options)=>{
  const action=new URL(url,'https://example.org').searchParams.get('action');
  const body=options?.body?JSON.parse(options.body):{};
  if(action==='config')return {ok:true,status:200,json:async()=>({configured:true,guestEnabled:true,privatePreview:false,paymentMode:'razorpay_live'})};
- if(action==='state'&&!mockSession)return {ok:false,status:401,json:async()=>({error:'No saved session'})};
+ if(action==='state'&&!mockSession)return {ok:true,status:200,json:async()=>({state:null,authenticated:false})};
  const guest={id:'a'.repeat(64),guest:true,email:'',emailVerified:false,journeyPreference:'free',tier:'free',freeReport:null,freeReportReady:false,
   profile:{freeIntakeVersion:22,assessmentTargetRole:'VP Process Excellence',targetGoalRole:'VP Process Excellence',currentRole:'Head of Shared Services'},
   guided:{question:{id:'careerStage',text:'Where are you in your career?',kind:'single',options:['Senior Leader / Executive','Manager']},completed:0,total:8},
@@ -43,6 +43,7 @@ with sync_playwright() as pw:
   page=browser.new_page(viewport={'width':width,'height':844});errs=[];page.on('pageerror',lambda e:errs.append(str(e)))
   page.set_content(html,wait_until='load');page.wait_for_function("document.querySelector('#processingOverlay').classList.contains('hidden')")
   assert page.locator('#screenChoose').is_visible()
+  assert page.locator('#notice').is_hidden(), 'First-time visitor must not see an authentication error'
   assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'),'Landing overflow '+str(width)
   page.locator('#chooseAssessment').click()
   page.locator('#screenFree').wait_for(state='visible')

@@ -1,4 +1,4 @@
-**Current release: V5.32** — Current-role capture, seniority-aligned snapshots, combined no-OTP paid checkout and email return links. See [V5_32_RELEASE_NOTES.md](V5_32_RELEASE_NOTES.md).
+**Current release: V5.32.2** — Current-role capture, seniority-aligned snapshots, combined no-OTP paid checkout and email return links. See [V5_32_2_RELEASE_NOTES.md](V5_32_2_RELEASE_NOTES.md).
 
 ## V5.30 coaching experience update
 
@@ -6,7 +6,7 @@ This release builds on V5.29 and improves repeat resume reviews (5 credits each)
 
 **Previous: V5.29** — Owner email OTP login on both admin dashboards and `/admin/analytics` for production Free/Premium/Buddy usage and conversions. See `V5_29_RELEASE_NOTES.md`.
 
-> **Latest release:** V5.32 — see [V5_32_RELEASE_NOTES.md](V5_32_RELEASE_NOTES.md) for the updated role-specific Free Snapshot, no-OTP paid checkout, paid recovery links and release testing.
+> **Latest release:** V5.32.2 — see [V5_32_2_RELEASE_NOTES.md](V5_32_2_RELEASE_NOTES.md) for the updated role-specific Free Snapshot, no-OTP paid checkout, paid recovery links and release testing.
 
 **Latest release: V5.26.** See `V5_26_PREMIUM_NAVIGATION_FIX.md` for the Premium Assessment navigation fix and `FIRESTORE_COUPONS_GUIDE.md` for coupons.
 

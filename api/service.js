@@ -150,7 +150,7 @@ function safeState(s){
  if(!s.freeReport&&Number(s.profile?.freeIntakeVersion||0)<21){s={...s,profile:applyFreeAnswers({}, {}, []),quickAnswers:{},quickAnswerExtras:{},quickSkipped:[],quickHistory:[]};}
  const paid=isAssessmentPaid(s),coaching=isPaid(s),free=freeReadiness(s.profile||{});const rem=Math.max(0,s.credits||0);
  const assessment=paid?assessmentProgress(s.assessmentBank,s.assessmentAnswers||[]):{total:0,answered:0,finished:false,question:null};
- return {id:s.id,email:s.email||'',guest:Boolean(s.guest),emailVerified:s.emailVerified!==false,feedbackAdmin:!s.guest&&s.emailVerified!==false&&isFeedbackAdmin(s.email),mode:publicLiveMode()?'public-live':paymentMode()==='razorpay_live'?'private-live':'preview',version:'5.32',checkoutReady:liveCheckoutReady(),journeyPreference:s.journeyPreference||'free',coachingEligible:Boolean(s.freeReport||s.report),tier:paid?'paid':coaching?'coach':'free',paymentsEnabled:paymentMode()==='razorpay_live'?liveConfigured():testPaymentEnabled(),paymentMode:paymentMode(),
+ return {id:s.id,email:s.email||'',guest:Boolean(s.guest),emailVerified:s.emailVerified!==false,feedbackAdmin:!s.guest&&s.emailVerified!==false&&isFeedbackAdmin(s.email),mode:publicLiveMode()?'public-live':paymentMode()==='razorpay_live'?'private-live':'preview',version:'5.32.2',checkoutReady:liveCheckoutReady(),journeyPreference:s.journeyPreference||'free',coachingEligible:Boolean(s.freeReport||s.report),tier:paid?'paid':coaching?'coach':'free',paymentsEnabled:paymentMode()==='razorpay_live'?liveConfigured():testPaymentEnabled(),paymentMode:paymentMode(),
   profile:s.profile||{},guided:guidedProgress(s.profile||{},s.quickAnswers||{},s.quickSkipped||[],'free'),
   assessment:{...assessment,started:Boolean(s.assessmentBank),preparationStep:s.assessmentDraft?.stage||0,
    savedQuestionCount:(s.assessmentDraft?.batches||[]).reduce((n,b)=>n+(Array.isArray(b)?b.length:Array.isArray(b?.questions)?b.questions.length:0),0)+(s.assessmentDraft?.partialQuestions?.length||0),
@@ -413,7 +413,20 @@ async function getSession(req){
  if(!isGuest&&paymentMode()==='razorpay_live'&&!publicLiveMode()&&!approvedLiveTester(s.email))fail(403,'Private pilot access is restricted to approved email addresses.');
  return {store,ref,s};
 }
-async function ownerState(req,res){const {store,s}=await getSession(req);
+async function ownerState(req,res){
+ // A first-time visitor has no identity cookie yet. That is a normal public
+ // landing-page state, not an authentication failure: return an empty state
+ // so the frontend can show the Free Snapshot CTA without a red error banner.
+ const verifiedId=cookieId(req,COOKIE),guestId=cookieId(req,GUEST_COOKIE);
+ if(!verifiedId&&!guestId){
+  // Clear stale or invalid identity cookies so they do not trigger repeated
+  // failed restoration attempts on subsequent page loads.
+  if(readCookie(req,COOKIE)||readCookie(req,GUEST_COOKIE)){
+   res.setHeader('Set-Cookie',[setIdentityCookie(req,res,COOKIE,null,0),setIdentityCookie(req,res,GUEST_COOKIE,null,0)]);
+  }
+  return out(res,200,{state:null,authenticated:false});
+ }
+ const {store,s}=await getSession(req);
  // Backfill a previous user's browser claim only if nobody else has registered it.
  if(enforceBrowserLimit()&&s.freeReport&&req.headers?.['x-buddy-browser-id']){
   try{const bRef=browserRef(store,req);await bRef.create({ownerId:s.id,claimedAt:now(),source:'existing-snapshot'});}catch(e){if(e.status===400)throw e;}

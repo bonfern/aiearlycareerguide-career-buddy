@@ -18,8 +18,8 @@ window.fetch=async (url, opts)=>{
   freeReadiness:{missing:['Complete all free questions']},quickHistory:[],profile:{},credits:0,previewOrders:[],
   paymentMode:'razorpay_live',checkoutReady:true,packs:[]};
  const payload=action==='config'?{configured:true,guestEnabled:true,privatePreview:false,paymentMode:'razorpay_live'}:
-  action==='guestStart'?{state}:action==='setJourney'?{state}:action==='state'?{error:'No saved session'}:{ok:true};
- return {ok:action!=='state',status:action==='state'?401:200,json:async()=>payload};
+  action==='guestStart'?{state}:action==='setJourney'?{state}:action==='state'?{state:null,authenticated:false}:{ok:true};
+ return {ok:true,status:200,json:async()=>payload};
 };
 </script>'''
 app=(root/'app.js').read_text()
@@ -32,6 +32,7 @@ with sync_playwright() as pw:
   page.set_content(html,wait_until='load')
   page.wait_for_function("document.querySelector('#processingOverlay').classList.contains('hidden')")
   assert page.locator('#screenChoose').is_visible()
+  assert page.locator('#notice').is_hidden(), 'First-time visitor must not see an authentication error'
   assert page.get_by_text('FREE Career Snapshot').first.is_visible()
   assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth'),'Landing page overflow at '+str(width)
   if width==390:
@@ -43,8 +44,9 @@ with sync_playwright() as pw:
   assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'Free questionnaire overflow'
   page.evaluate("""()=>{state.freeReport={version:6,profileSummary:'Your career direction.',transferableAdvantage:'Applied skills.',targetCompetencies:[],careerOpportunities:[],nextBestMoves:[]};show('Snapshot');paint();}""")
   page.locator('#snapshotUpgrade').click()
-  assert page.locator('#screenLogin').is_visible(), 'Upgrade must request verified account'
-  assert 'Save your snapshot and go Premium' in page.locator('#authTitle').inner_text()
+  assert page.locator('#screenUpgrade').is_visible(), 'Upgrade must show the integrated Premium checkout'
+  assert page.locator('#checkoutEmailStarter').is_visible(), 'Premium checkout email field is missing'
+  assert page.locator('#screenLogin').is_hidden(), 'Guest upgrade should not return to the OTP screen'
   assert not errors, errors
   print(f'{width}px: FREE CTA, instant guest questions, verified upgrade and no overflow PASS')
   page.close()
