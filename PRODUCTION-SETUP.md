@@ -44,3 +44,7 @@ Owner code can only be redeemed by explicitly named email addresses; no Razorpay
 
 ## High-priority launch gate
 Before public marketing: review consent, terms/refunds/privacy against the actual Career Buddy product; ensure support contact; add WAF bot/IP rate limits in Vercel and Resend sending caps; test payment failure/recovery, refund and disputes; verify reports/resumes for factual accuracy and cost monitoring. No public release should be considered verified solely from passing local tests.
+
+## V5.31: Guest Free Snapshot
+
+See [V5_31_RELEASE_NOTES.md](V5_31_RELEASE_NOTES.md) for rollout and QA. In public-live mode guest access is enabled by default; `DISABLE_GUEST_SNAPSHOT=1` disables it. Optional rate limits: `GUEST_STARTS_PER_IP_DAY=15` and `GUEST_REPORTS_PER_IP_DAY=5`. Revisit the existing `FREE_REPORT_DAILY_LIMIT=5` before running ads: this is a global daily limit, not five per person. Keep the existing authenticated payment/OTP flow.

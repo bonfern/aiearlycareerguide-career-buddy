@@ -21,6 +21,14 @@
    card('Completed free snapshots',number(s.freeCompleted)),card('Premium paying customers',number(s.premiumBuyers)),card('Standalone Buddy paying customers',number(s.buddyBuyers)),
    card('Premium reports completed',number(s.premiumReportsCompleted)),card('Coaching active users',number(s.coachingActiveUsers)),card('Paid coaching refills',number(s.refillPurchases)),
    card('Premium complimentary activations',number(s.premiumCouponUsers)),card('Buddy complimentary activations',number(s.buddyCouponUsers)),card('Gross verified receipts (before refunds)',currency(s.grossReceiptsInr)));
+  const funnel=data.funnel||{};
+  $('freeFunnelCards').replaceChildren(
+   card('Landing pages loaded',number(funnel.landing_view)),
+   card('Free CTA clicked',number(funnel.free_cta_clicked)),
+   card('Guest sessions started',number(funnel.guest_started)),
+   card('First question answered',number(funnel.first_answer)),
+   card('Free snapshots generated',number(funnel.snapshot_generated)),
+   card('Verified email after free',number(funnel.email_verified)));
   const bars=$('conversionBars');bars.replaceChildren();
   for(const [label,key,users] of [['Free → Premium','freeToPremiumPct','paidFromFreePremium'],['Free → Buddy Intro','freeToBuddyPct','paidFromFreeBuddy'],['Free → Any paid product','freeToAnyPct','paidFromFreeAny']]){
    const group=elem('div',undefined,'conversion-row'),head=elem('div',undefined,'labels'),meter=elem('div',undefined,'conversion-meter');

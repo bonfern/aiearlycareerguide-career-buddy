@@ -1,4 +1,4 @@
-/* Career Buddy V5.30: repeat reviews, visible chat responses, credit status and coaching guide. */
+/* Career Buddy V5.31: repeat reviews, visible chat responses, credit status and coaching guide. */
 const $=id=>document.getElementById(id);
 const APP_BASE=window.location.pathname.startsWith('/professionals/') || window.location.pathname==='/professionals' ? '/professionals' : '';
 const servicePath=()=>`${APP_BASE}/api/service`;
@@ -11,13 +11,23 @@ function browserId(){
 
 
 const screens=['Choose','Login','Free','Snapshot','Upgrade','Paid','Toolkit','CoachOffer','Coach','Refills','Reports'];
-let state=null,configured=false,privatePreview=true,flow='free',current='Choose',loading=false,reportKind='free',preparationError='',freeBackDraft=null;
+let state=null,configured=false,privatePreview=true,guestEnabled=false,authReturn='free',flow='free',current='Choose',loading=false,reportKind='free',preparationError='',freeBackDraft=null;
 let coachGuideFor=null,latestCoachReply=null,chatRetry=null,resumeReviewRetry=null;
 let reportPolling=false,reportProgressText='',reportPhase='starting',assessmentPreparing=false,assessmentPrepText='',activeProcessingTask=false;
 const uuid=()=>crypto.randomUUID();
 const money=n=>`₹${Number(n||0).toLocaleString('en-IN')}`;
 const el=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=String(text);return node;};
 async function api(action,data){const r=await fetch(`${servicePath()}?action=${encodeURIComponent(action)}`,{method:data?'POST':'GET',credentials:'same-origin',headers:data?{'Content-Type':'application/json','X-Buddy-Browser-Id':browserId()}:{'X-Buddy-Browser-Id':browserId()},body:data?JSON.stringify(data):undefined});let out={};try{out=await r.json();}catch{}if(!r.ok)throw Error(out.error||`Request failed (${r.status})`);return out;}
+// Funnel events are pseudonymous, never contain career answers or email, and never block the experience.
+function track(event){void api('funnelEvent',{event}).catch(()=>{});}
+function startVerification(intent='save'){
+ authReturn=intent;
+ $('loginForm').classList.remove('hidden');$('verifyForm').classList.add('hidden');$('otpCode').value='';
+ $('loginInstructionCard').classList.toggle('hidden',Boolean(state?.guest&&state?.freeReport));
+ $('authTitle').textContent=intent==='premium'?'Save your snapshot and go Premium':intent==='coach'?'Save your snapshot and meet Career Buddy':'Save your free snapshot';
+ $('authExplanation').textContent='Verify your email once to save your existing free answers and continue. Your snapshot will carry over automatically.';
+ show('Login');
+}
 // Prevent browsers from restoring an old vertical position when a stage is replaced.
 try{if('scrollRestoration' in history)history.scrollRestoration='manual';}catch{}
 let navigationSequence=0;
@@ -47,6 +57,7 @@ function show(screen){
  if(screen!=='Coach')$('chatReplyNotice')?.classList.add('hidden');
  current=screen;for(const name of screens)$('screen'+name).classList.toggle('hidden',name!==screen);
  $('topnav').classList.toggle('hidden',!state);
+ $('signOutButton').textContent=state?.guest?'End guest session':'Sign out';
  $('feedbackAdminLink')?.classList.toggle('hidden',!state?.feedbackAdmin);
  $('analyticsAdminLink')?.classList.toggle('hidden',!state?.feedbackAdmin);
  $('testerTools').classList.toggle('hidden',!state||state.mode!=='preview');$('signedEmail').textContent=state?.email?`Verified as ${state.email}`:'';
@@ -56,10 +67,23 @@ function show(screen){
 function setFlow(next){flow=next;try{sessionStorage.setItem('buddy-v53-intent',next);}catch{}}
 function isAssessmentPaid(){return state?.tier==='paid';}
 function isCoachActive(){return Boolean(state?.freeReport||state?.reportGenerated)&&(state?.tier==='paid'||state?.tier==='coach');}
-function goAssessment(){if(!state){show('Login');return;}if(!state.freeReport){show('Free');$('freeIntroNote').textContent='Your responses create a personalised career snapshot. You can review and change your answers before generating it.';}else if(isAssessmentPaid())show(state.reportGenerated?'Toolkit':'Paid');else if(flow==='premium')show('Upgrade');else show('Snapshot');paint();}
-function goPremium(){setFlow('premium');if(!state){show('Login');return;}if(state.freeReport){goAssessment();return;}show('Free');paint();}
-function goCoach(){if(!state){show('Login');return;}if(!state.freeReport&&!state.reportGenerated){show('Free');paint();notice('Complete your free career snapshot before starting Career Buddy coaching.');return;}if(isCoachActive())show('Coach');else show('CoachOffer');paint();}
-async function choose(next){setFlow(next);if(!state){show('Login');return;}await run(async()=>{state=(await api('setJourney',{journey:next})).state;notice('');goAssessment();});}
+function goAssessment(){if(!state){startVerification('free');return;}if(!state.freeReport){show('Free');$('freeIntroNote').textContent='Your responses create a personalised career snapshot. You can review and change your answers before generating it.';}else if(isAssessmentPaid())show(state.reportGenerated?'Toolkit':'Paid');else if(flow==='premium')show('Upgrade');else show('Snapshot');paint();}
+function goPremium(){setFlow('premium');if(state?.guest&&state.freeReport){startVerification('premium');return;}if(!state){startVerification('premium');return;}if(state.freeReport){goAssessment();return;}show('Free');paint();}
+function goCoach(){if(state?.guest&&state.freeReport){startVerification('coach');return;}if(!state){startVerification('coach');return;}if(!state.freeReport&&!state.reportGenerated){show('Free');paint();notice('Complete your free career snapshot before starting Career Buddy coaching.');return;}if(isCoachActive())show('Coach');else show('CoachOffer');paint();}
+async function choose(next){
+ setFlow(next);
+ if(state?.guest&&state.freeReport&&next==='premium'){startVerification('premium');return;}
+ if(!state&&guestEnabled&&next==='free'){
+  track('free_cta_clicked');
+  await run(async()=>{
+   if(!configured)throw Error('The free assessment is temporarily unavailable. Please try again shortly.');
+   state=(await api('guestStart',{adultConfirmed:true,privacyAccepted:true,consentVersion:CONSENT_VERSION})).state;
+   goAssessment();
+  });return;
+ }
+ if(!state){startVerification(next==='premium'?'premium':'free');return;}
+ await run(async()=>{state=(await api('setJourney',{journey:next})).state;notice('');goAssessment();});
+}
 function paint(){if(!state)return;const s=current;
  if(s==='Free')paintQuestion(true);
  if(s==='Upgrade'){const role=state.profile?.targetGoalRole||'';const field=$('assessmentRole');if(field&&!field.value&&role&&!/^(?:still exploring|not sure|unsure|undecided|exploring|get promoted|earn a higher salary|move into leadership|build future-ready skills)$/i.test(role))field.value=role;}
@@ -327,8 +351,8 @@ function renderFocusedFreeSnapshot(host,r){
  host.append(el('p','snapshot-disclaimer','Your free snapshot is based on self-reported answers, not tested competency scores.'));
 }
 
-function paintSnapshot(){const r=state.freeReport||{},view=$('snapshotSummary');view.replaceChildren();
- renderFeedbackSlot('feedbackFree','free');
+function paintSnapshot(){const r=state.freeReport||{},view=$('snapshotSummary');view.replaceChildren();$('saveGuestSnapshot').classList.toggle('hidden',!state?.guest);
+ if(state?.guest)$('feedbackFree').replaceChildren();else renderFeedbackSlot('feedbackFree','free');
  if(!state.freeReport){view.append(el('p','','Finish the free discovery first.'));return;}
  if(r.version>=6){renderFocusedFreeSnapshot(view,r);}
  else if(r.version>=5){
@@ -525,6 +549,7 @@ function afterPurchase(packId,statusMessage=''){
  if(statusMessage)notice(statusMessage);
 }
 async function activate(packId,couponId){
+ if(state?.guest){startVerification(packId==='starter'?'premium':'coach');return;}
  await run(async()=>{
   const couponCode=$(couponId)?.value?.trim()||'';
   if(packId==='starter'&&state?.profile?.freeIntakeVersion>=18){
@@ -713,11 +738,22 @@ function openDetailed(){if(!state.report)return;reportKind='report';const r=stat
  host.append(el('h3','','Interview preparation'));for(const [i,x] of (r.interviewPreparation||[]).entries())host.append(el('h4','',`${i+1}. ${x.question}`),el('p','',`Assessed topic: ${x.whatEvaluated}`),el('p','',`Answer framework: ${x.answerFramework}`));
 
 }
-async function init(){$('processingOverlay')?.classList.remove('hidden');$('processingText').textContent='Loading your saved career journey…';try{const config=await api('config');configured=!!config.configured;privatePreview=!!config.privatePreview;const codeRow=$('previewCodeRow');if(codeRow)codeRow.classList.toggle('hidden',!privatePreview);$('accessCode').required=privatePreview;if(!configured)notice('Career Buddy is not configured. Please contact support.',true);if(config.paymentConfigurationError)notice('Payment mode is configured but the required Razorpay keys are missing or invalid. Check Vercel settings.',true);try{state=(await api('state')).state;}catch{} }catch(e){notice(e.message,true);}if(state){flow=state.journeyPreference||'free';}show('Choose');$('processingOverlay')?.classList.add('hidden');}
+async function init(){track('landing_view');$('processingOverlay')?.classList.remove('hidden');$('processingText').textContent='Loading your saved career journey…';try{const config=await api('config');configured=!!config.configured;privatePreview=!!config.privatePreview;guestEnabled=!!config.guestEnabled;
+ if(!guestEnabled){
+  document.querySelector('.hero .lead').textContent='Explore your career direction with a free personalised snapshot. Email verification is required before you begin.';
+  document.querySelector('.guest-privacy-note').textContent='To start the assessment, please verify your email and confirm you are 18+ after reviewing the Privacy Policy.';
+  document.querySelector('.trust-note').textContent='✓ Free career discovery · ✓ Secure email verification · ✓ Premium options after your snapshot';
+ }
+ const codeRow=$('previewCodeRow');if(codeRow)codeRow.classList.toggle('hidden',!privatePreview);$('accessCode').required=privatePreview;if(!configured)notice('Career Buddy is not configured. Please contact support.',true);if(config.paymentConfigurationError)notice('Payment mode is configured but the required Razorpay keys are missing or invalid. Check Vercel settings.',true);try{state=(await api('state')).state;}catch{} }catch(e){notice(e.message,true);}if(state){flow=state.journeyPreference||'free';}show('Choose');$('processingOverlay')?.classList.add('hidden');}
 $('resumeReviewOpen').onclick=()=>toggleResumeReview(true);$('closeResumeReview').onclick=()=>toggleResumeReview(false);$('submitResumeReview').onclick=submitResumeReview;$('coachResumeText').oninput=()=>{$('resumeReviewChars').textContent=`${$('coachResumeText').value.length.toLocaleString()} / 16,000 characters`;};
-$('chooseAssessment').onclick=()=>choose('free');$('backToChoice').onclick=()=>show('Choose');$('homeButton').onclick=()=>show('Choose');$('myReportsButton').onclick=()=>{show('Reports');paint();};$('premiumNavButton').onclick=goPremium;$('coachNavButton').onclick=goCoach;$('signOutButton').onclick=async()=>{await run(async()=>{await api('logout',{});state=null;notice('Signed out. Verify your email to resume later.');show('Choose');});};
+$('chooseAssessment').onclick=()=>choose('free');$('backToChoice').onclick=()=>show('Choose');$('homeButton').onclick=()=>show('Choose');$('myReportsButton').onclick=()=>{show('Reports');paint();};$('premiumNavButton').onclick=goPremium;$('coachNavButton').onclick=goCoach;$('signOutButton').onclick=async()=>{await run(async()=>{await api('logout',{});state=null;notice('Session ended. You can start a new free snapshot.');show('Choose');});};
 $('loginForm').onsubmit=async e=>{e.preventDefault();await run(async()=>{if(!configured)throw Error('The service is currently unavailable. Please contact support.');if(!$('privacyConsent').checked||!$('adultConsent').checked)throw Error('Please review the privacy notice and age requirement.');await api('requestCode',{email:$('emailAddress').value.trim(),previewCode:$('accessCode').value,privacyConsent:true,adultConsent:true,consentVersion:CONSENT_VERSION});$('loginForm').classList.add('hidden');$('verifyForm').classList.remove('hidden');$('authHelp').textContent='Code sent. Check your email and enter the six digits below.';toPageStart('Login');});};
-$('verifyForm').onsubmit=async e=>{e.preventDefault();await run(async()=>{state=(await api('verifyCode',{email:$('emailAddress').value.trim(),previewCode:$('accessCode').value,code:$('otpCode').value.trim()})).state;notice('Email verified. Your progress is saved.');state=(await api('setJourney',{journey:flow==='premium'?'premium':'free'})).state;goAssessment();});};
+$('verifyForm').onsubmit=async e=>{e.preventDefault();await run(async()=>{
+ state=(await api('verifyCode',{email:$('emailAddress').value.trim(),previewCode:$('accessCode').value,code:$('otpCode').value.trim()})).state;
+ state=(await api('setJourney',{journey:authReturn==='premium'?'premium':'free'})).state;
+ notice('Email verified. Your free answers and snapshot have been saved to your account.');
+ if(authReturn==='coach')goCoach();else if(authReturn==='save'){show('Snapshot');paint();}else goAssessment();
+ });};
 async function verifyCoupon(packId,inputId,statusId){
  const node=$(statusId),code=$(inputId).value.trim();
  if(!code){node.textContent='Enter a coupon code to check.';return;}
@@ -733,7 +769,7 @@ async function verifyCoupon(packId,inputId,statusId){
  }catch(e){node.textContent=e.message;}
 }
 $('checkStarterCoupon').onclick=()=>verifyCoupon('starter','starterCoupon','starterCouponStatus');$('checkIntroCoupon').onclick=()=>verifyCoupon('intro','introCoupon','introCouponStatus');
-$('snapshotDownload').onclick=()=>download('free');$('snapshotView').onclick=openFree;$('snapshotUpgrade').onclick=async()=>{await choose('premium');};$('snapshotCoach').onclick=goCoach;$('backSnapshot').onclick=()=>{show('Snapshot');paint();};$('activateStarter').onclick=()=>activate('starter','starterCoupon');$('activateIntro').onclick=()=>activate('intro','introCoupon');
+$('saveGuestSnapshot').onclick=()=>startVerification('save');$('snapshotDownload').onclick=()=>download('free');$('snapshotView').onclick=openFree;$('snapshotUpgrade').onclick=async()=>{await choose('premium');};$('snapshotCoach').onclick=goCoach;$('backSnapshot').onclick=()=>{show('Snapshot');paint();};$('activateStarter').onclick=()=>activate('starter','starterCoupon');$('activateIntro').onclick=()=>activate('intro','introCoupon');
 $('viewDetailed').onclick=openDetailed;$('downloadDetailed').onclick=()=>download('report');$('toolkitCoach').onclick=goCoach;
 $('coachCreditPill').onclick=$('coachCreditInlineRefill').onclick=()=>{show('Refills');paint();};
 $('chatViewReply').onclick=viewLatestCoachReply;

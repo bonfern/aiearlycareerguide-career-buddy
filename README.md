@@ -2,7 +2,7 @@
 
 This release builds on V5.29 and improves repeat resume reviews (5 credits each), chat loading/reply visibility, composer-side low-credit notices, and a collapsible coaching guide. See [V5_30_RELEASE_NOTES.md](V5_30_RELEASE_NOTES.md) for the implementation, tests and deployment checklist. No pricing, scoring or payment rules were changed.
 
-**Latest: V5.29** — Owner email OTP login on both admin dashboards and `/admin/analytics` for production Free/Premium/Buddy usage and conversions. See `V5_29_RELEASE_NOTES.md`.
+**Previous: V5.29** — Owner email OTP login on both admin dashboards and `/admin/analytics` for production Free/Premium/Buddy usage and conversions. See `V5_29_RELEASE_NOTES.md`.
 
 > **Latest release:** V5.28 — see [V5_28_RELEASE_NOTES.md](V5_28_RELEASE_NOTES.md) for changes, owner dashboard setup and test results.
 
@@ -12,11 +12,13 @@ This release builds on V5.29 and improves repeat resume reviews (5 credits each)
 
 Separate Career Buddy application behind **https://www.aiearlycareerguide.com/professionals/**, deployed from the GitHub repository `aiearlycareerguide-career-buddy`. Do not upload to the old Professional Assessment or the main-website repository.
 
+**Latest: V5.31** — Guest Free Career Snapshot, optional verified account for saving and paid upgrades, first-party funnel analytics, and mobile CTA improvements. See [V5_31_RELEASE_NOTES.md](V5_31_RELEASE_NOTES.md).
+
 ## Current Free Career Discovery
 
 Seven questions with a conditional eighth **career interests** question when the user is still exploring. Multi-select questions allow **up to three** answers. The new free snapshot is a concise two-page career discovery report: current career direction and self-reported strengths; a transferable advantage; three ranked exploratory career pathways with reasons; and three immediate next moves. A short final section describes what the paid competency assessment evaluates. It does not publish readiness scores, detailed skill gaps, certifications, interview banks or a 30/60/90-day roadmap. Free answers and Back do not use AI tokens.
 
-**Latest changes:** see [V5_26_PREMIUM_NAVIGATION_FIX.md](V5_26_PREMIUM_NAVIGATION_FIX.md) for the missing answer-saving handler. V5.25 assessment recovery and messaging changes remain included. Free discovery remains unchanged from V5.24.
+**Historical changes:** see [V5_26_PREMIUM_NAVIGATION_FIX.md](V5_26_PREMIUM_NAVIGATION_FIX.md) for the missing answer-saving handler. V5.25 assessment recovery and messaging changes remain included. Free discovery remains unchanged from V5.24.
 
 ## Local validation
 

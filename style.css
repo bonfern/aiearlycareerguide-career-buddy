@@ -231,3 +231,16 @@ a.sample-report-link{display:inline-block;text-decoration:underline}
 .message.resume-timeline-entry .secondary{display:block;margin-top:10px;min-height:36px;padding:8px 12px}
 @media(max-width:600px){.chat-form{bottom:0;border-radius:12px}.chat-reply-notice{right:9px;left:9px;bottom:10px}.coach-guide{padding:12px}.coach-credit-top{gap:5px;font-size:11px}}
 @media(prefers-reduced-motion:reduce){.typing-indicator{animation:none}.coach-credit-fill{transition:none}}
+
+/* V5.31 - mobile-first guest acquisition; keep the original brand identity. */
+.hero-free-heading{font-size:clamp(26px,3vw,39px);line-height:1.17;color:#fff;margin:0 0 14px;font-weight:820}
+.hero-free-heading em{font-style:normal;color:#ffe06d;display:inline}
+.choice-card .snapshot-cta{background:#ffd447;color:#102344;font-weight:850;font-size:clamp(17px,1.8vw,21px);min-height:56px;border-color:#ffd447;box-shadow:0 6px 20px #ffd44722;text-transform:uppercase}
+.choice-card:hover .snapshot-cta,.choice-card:focus-visible .snapshot-cta{background:#ffe88c;color:#102344}
+.guest-privacy-note{font-size:12px;color:#e6eff7;line-height:1.55;margin:16px 0 0;max-width:575px}
+.guest-privacy-note a{color:#ffe06d;text-decoration:underline}
+@media(max-width:880px){.hero-copy{grid-row:1;padding:27px 24px 25px}.hero-image{grid-row:2;height:130px;max-height:130px;object-position:center 35%;border-radius:0}}
+@media(max-width:600px){.hero{min-height:auto}.hero-copy{padding:22px 17px}.hero h1{font-size:clamp(27px,7vw,35px)}.hero-free-heading{font-size:25px}.hero .lead{font-size:14px;margin-bottom:17px}.hero-image{height:105px;max-height:105px}.choice-card{padding:15px;gap:7px}.choice-card strong{font-size:18px}.choice-card .snapshot-cta{font-size:16px;min-height:54px;padding:12px 9px}.guest-privacy-note{font-size:11px}}
+
+/* On phones the decorative portrait would appear as a cropped fragment below the CTA. */
+@media(max-width:880px){.hero-image{display:none}.hero{grid-template-columns:1fr}}
