@@ -1,13 +1,14 @@
 {
   "name": "aiearlycareerguide-career-buddy",
-  "version": "0.5.31",
+  "version": "0.5.32",
   "private": true,
   "type": "module",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --test tests/*.test.js"
+    "test": "node --test tests/*.test.js",
+    "test:v532": "node --test tests/v5-31-guest.test.js tests/v5-32-conversion.test.js"
   },
   "dependencies": {
     "firebase-admin": "^13.0.0"

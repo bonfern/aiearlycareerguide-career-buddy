@@ -1,10 +1,12 @@
+**Current release: V5.32** — Current-role capture, seniority-aligned snapshots, combined no-OTP paid checkout and email return links. See [V5_32_RELEASE_NOTES.md](V5_32_RELEASE_NOTES.md).
+
 ## V5.30 coaching experience update
 
 This release builds on V5.29 and improves repeat resume reviews (5 credits each), chat loading/reply visibility, composer-side low-credit notices, and a collapsible coaching guide. See [V5_30_RELEASE_NOTES.md](V5_30_RELEASE_NOTES.md) for the implementation, tests and deployment checklist. No pricing, scoring or payment rules were changed.
 
 **Previous: V5.29** — Owner email OTP login on both admin dashboards and `/admin/analytics` for production Free/Premium/Buddy usage and conversions. See `V5_29_RELEASE_NOTES.md`.
 
-> **Latest release:** V5.28 — see [V5_28_RELEASE_NOTES.md](V5_28_RELEASE_NOTES.md) for changes, owner dashboard setup and test results.
+> **Latest release:** V5.32 — see [V5_32_RELEASE_NOTES.md](V5_32_RELEASE_NOTES.md) for the updated role-specific Free Snapshot, no-OTP paid checkout, paid recovery links and release testing.
 
 **Latest release: V5.26.** See `V5_26_PREMIUM_NAVIGATION_FIX.md` for the Premium Assessment navigation fix and `FIRESTORE_COUPONS_GUIDE.md` for coupons.
 
@@ -16,7 +18,7 @@ Separate Career Buddy application behind **https://www.aiearlycareerguide.com/pr
 
 ## Current Free Career Discovery
 
-Seven questions with a conditional eighth **career interests** question when the user is still exploring. Multi-select questions allow **up to three** answers. The new free snapshot is a concise two-page career discovery report: current career direction and self-reported strengths; a transferable advantage; three ranked exploratory career pathways with reasons; and three immediate next moves. A short final section describes what the paid competency assessment evaluates. It does not publish readiness scores, detailed skill gaps, certifications, interview banks or a 30/60/90-day roadmap. Free answers and Back do not use AI tokens.
+Eight questions, including the current designation, with a conditional ninth **career interests** question when the user is still exploring. Multi-select questions allow **up to three** answers. The new free snapshot is a concise two-page career discovery report: current career direction and self-reported strengths; a transferable advantage; one target-specific pathway for a named role (or three exploratory alternatives when undecided); and three immediate next moves. A short final section describes what the paid competency assessment evaluates. It does not publish readiness scores, detailed skill gaps, certifications, interview banks or a 30/60/90-day roadmap. Free answers and Back do not use AI tokens.
 
 **Historical changes:** see [V5_26_PREMIUM_NAVIGATION_FIX.md](V5_26_PREMIUM_NAVIGATION_FIX.md) for the missing answer-saving handler. V5.25 assessment recovery and messaging changes remain included. Free discovery remains unchanged from V5.24.
 

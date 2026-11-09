@@ -1,4 +1,4 @@
-/* Career Buddy V5.31: repeat reviews, visible chat responses, credit status and coaching guide. */
+/* Career Buddy V5.32: repeat reviews, visible chat responses, credit status and coaching guide. */
 const $=id=>document.getElementById(id);
 const APP_BASE=window.location.pathname.startsWith('/professionals/') || window.location.pathname==='/professionals' ? '/professionals' : '';
 const servicePath=()=>`${APP_BASE}/api/service`;
@@ -57,10 +57,12 @@ function show(screen){
  if(screen!=='Coach')$('chatReplyNotice')?.classList.add('hidden');
  current=screen;for(const name of screens)$('screen'+name).classList.toggle('hidden',name!==screen);
  $('topnav').classList.toggle('hidden',!state);
+ const recoverable=Boolean(state?.email&&state?.emailVerified===false&&['paid','coach'].includes(state.tier));
+ $('paidRecoveryPanel')?.classList.toggle('hidden',!recoverable);if(recoverable)$('paidRecoveryEmail').textContent=`Current purchase email: ${state.email}`;
  $('signOutButton').textContent=state?.guest?'End guest session':'Sign out';
  $('feedbackAdminLink')?.classList.toggle('hidden',!state?.feedbackAdmin);
  $('analyticsAdminLink')?.classList.toggle('hidden',!state?.feedbackAdmin);
- $('testerTools').classList.toggle('hidden',!state||state.mode!=='preview');$('signedEmail').textContent=state?.email?`Verified as ${state.email}`:'';
+ $('testerTools').classList.toggle('hidden',!state||state.mode!=='preview');$('signedEmail').textContent=state?.email?`${state.emailVerified===false?'Checkout email (not verified)':'Verified as'} ${state.email}`:'';
  syncPaymentLabels(); // Scoped payment recovery UI cannot float above unrelated screens.
  toPageStart(screen);
 }
@@ -68,11 +70,11 @@ function setFlow(next){flow=next;try{sessionStorage.setItem('buddy-v53-intent',n
 function isAssessmentPaid(){return state?.tier==='paid';}
 function isCoachActive(){return Boolean(state?.freeReport||state?.reportGenerated)&&(state?.tier==='paid'||state?.tier==='coach');}
 function goAssessment(){if(!state){startVerification('free');return;}if(!state.freeReport){show('Free');$('freeIntroNote').textContent='Your responses create a personalised career snapshot. You can review and change your answers before generating it.';}else if(isAssessmentPaid())show(state.reportGenerated?'Toolkit':'Paid');else if(flow==='premium')show('Upgrade');else show('Snapshot');paint();}
-function goPremium(){setFlow('premium');if(state?.guest&&state.freeReport){startVerification('premium');return;}if(!state){startVerification('premium');return;}if(state.freeReport){goAssessment();return;}show('Free');paint();}
-function goCoach(){if(state?.guest&&state.freeReport){startVerification('coach');return;}if(!state){startVerification('coach');return;}if(!state.freeReport&&!state.reportGenerated){show('Free');paint();notice('Complete your free career snapshot before starting Career Buddy coaching.');return;}if(isCoachActive())show('Coach');else show('CoachOffer');paint();}
+function goPremium(){setFlow('premium');if(state?.freeReport)track('premium_offer_view');if(state?.guest&&state.freeReport){show('Upgrade');paint();return;}if(!state){startVerification('premium');return;}if(state.freeReport){goAssessment();return;}show('Free');paint();}
+function goCoach(){if(state?.freeReport)track('coaching_offer_view');if(state?.guest&&state.freeReport){show('CoachOffer');paint();return;}if(!state){startVerification('coach');return;}if(!state.freeReport&&!state.reportGenerated){show('Free');paint();notice('Complete your free career snapshot before starting Career Buddy coaching.');return;}if(isCoachActive())show('Coach');else show('CoachOffer');paint();}
 async function choose(next){
  setFlow(next);
- if(state?.guest&&state.freeReport&&next==='premium'){startVerification('premium');return;}
+ if(state?.guest&&state.freeReport&&next==='premium'){track('premium_offer_view');show('Upgrade');paint();return;}
  if(!state&&guestEnabled&&next==='free'){
   track('free_cta_clicked');
   await run(async()=>{
@@ -86,6 +88,7 @@ async function choose(next){
 }
 function paint(){if(!state)return;const s=current;
  if(s==='Free')paintQuestion(true);
+ if(s==='Upgrade'||s==='CoachOffer')updateCheckoutEmail(s);
  if(s==='Upgrade'){const role=state.profile?.targetGoalRole||'';const field=$('assessmentRole');if(field&&!field.value&&role&&!/^(?:still exploring|not sure|unsure|undecided|exploring|get promoted|earn a higher salary|move into leadership|build future-ready skills)$/i.test(role))field.value=role;}
  if(s==='Paid')paintPaidAssessment();
  if(s==='Snapshot')paintSnapshot();
@@ -343,7 +346,7 @@ function renderFocusedFreeSnapshot(host,r){
   const item=el('li');item.append(el('strong','',skill.title));
   for(const detail of (skill.bullets||[]).slice(0,2))item.append(el('p','',detail));skills.append(item);
  }host.append(skills);
- host.append(el('h3','','2. Three career pathways to explore'));
+ host.append(el('h3','',`2. ${r.careerOpportunities?.length===1?'Your chosen target role':'Career pathways to explore'}`));
  const paths=el('ol','ranked-career-paths');for(const path of (r.careerOpportunities||[]).slice(0,3))paths.append(el('li','',path));host.append(paths);
  host.append(el('h3','','3. Your three immediate next moves'));
  const actions=el('ol','ranked-career-actions');for(const action of (r.nextBestMoves||[]).slice(0,3))actions.append(el('li','',action));host.append(actions);
@@ -546,11 +549,31 @@ function afterPurchase(packId,statusMessage=''){
  if(packId==='starter'){setFlow('premium');show(state.reportGenerated?'Toolkit':'Paid');}
  else show('Coach');
  paint();
+ if(state?.emailVerified===false){void api('resendReturnLink',{}).then(r=>{if(r?.notice&&current!=='Free')notice(r.notice);}).catch(()=>{notice('Your purchase is active in this browser. Use Resend secure link to try emailing a return link.',true);});}
  if(statusMessage)notice(statusMessage);
 }
+
+function updateCheckoutEmail(screen){
+ const pack=screen==='Upgrade'?'Starter':'Intro';
+ const block=$(`checkoutEmail${pack}Block`),existing=$(`checkoutExisting${pack}`);
+ if(!block||!existing)return;
+ const signed=Boolean(state?.email);
+ block.classList.toggle('hidden',signed);existing.classList.toggle('hidden',!signed);
+ const editor=$(`checkoutEmailEdit${pack}`);editor?.classList.toggle('hidden',!(signed&&state.emailVerified===false&&state.tier==='free'));
+ if(signed)existing.textContent=`Email for this purchase: ${state.email}${state.emailVerified===false?' (not yet mailbox-verified)':''}. Your purchase stays in this secure browser session; a return link is sent after payment.`;
+}
+async function ensureCheckoutIdentity(packId){
+ if(!state?.guest)return;
+ const kind=packId==='starter'?'Starter':'Intro';
+ const email=$(`checkoutEmail${kind}`)?.value.trim().toLowerCase()||'';
+ if(!/^[^\s@]{1,64}@[^\s@]+\.[a-z]{2,}$/i.test(email))throw Error('Please enter a valid email address for your purchase.');
+ if(!$(`checkoutConsent${kind}`)?.checked)throw Error('Please confirm you are 18+ and review the privacy terms on this checkout page.');
+ state=(await api('checkoutIdentity',{email,privacyConsent:true,adultConfirmed:true,consentVersion:CONSENT_VERSION,packId})).state;
+ updateCheckoutEmail(packId==='starter'?'Upgrade':'CoachOffer');
+}
 async function activate(packId,couponId){
- if(state?.guest){startVerification(packId==='starter'?'premium':'coach');return;}
  await run(async()=>{
+  if(state?.guest)await ensureCheckoutIdentity(packId);
   const couponCode=$(couponId)?.value?.trim()||'';
   if(packId==='starter'&&state?.profile?.freeIntakeVersion>=18){
    const role=$('assessmentRole')?.value?.trim()||'';
@@ -744,7 +767,14 @@ async function init(){track('landing_view');$('processingOverlay')?.classList.re
   document.querySelector('.guest-privacy-note').textContent='To start the assessment, please verify your email and confirm you are 18+ after reviewing the Privacy Policy.';
   document.querySelector('.trust-note').textContent='✓ Free career discovery · ✓ Secure email verification · ✓ Premium options after your snapshot';
  }
- const codeRow=$('previewCodeRow');if(codeRow)codeRow.classList.toggle('hidden',!privatePreview);$('accessCode').required=privatePreview;if(!configured)notice('Career Buddy is not configured. Please contact support.',true);if(config.paymentConfigurationError)notice('Payment mode is configured but the required Razorpay keys are missing or invalid. Check Vercel settings.',true);try{state=(await api('state')).state;}catch{} }catch(e){notice(e.message,true);}if(state){flow=state.journeyPreference||'free';}show('Choose');$('processingOverlay')?.classList.add('hidden');}
+ const codeRow=$('previewCodeRow');if(codeRow)codeRow.classList.toggle('hidden',!privatePreview);$('accessCode').required=privatePreview;if(!configured)notice('Career Buddy is not configured. Please contact support.',true);if(config.paymentConfigurationError)notice('Payment mode is configured but the required Razorpay keys are missing or invalid. Check Vercel settings.',true);try{
+  const fragment=window.location.hash.match(/^#resume=([a-f0-9]{64})$/);
+  if(fragment){history.replaceState(null,'',window.location.pathname+window.location.search);state=(await api('recoverCheckout',{token:fragment[1]})).state;}
+  else state=(await api('state')).state;
+ }catch(e){notice(e.message,true);try{state=(await api('state')).state;}catch{}}
+ }catch(e){notice(e.message,true);}
+ if(state){flow=state.journeyPreference||'free';if(state.tier==='paid'){show('Paid');paint();}else if(state.tier==='coach'){show('Coach');paint();}else show('Choose');}
+ else show('Choose');$('processingOverlay')?.classList.add('hidden');}
 $('resumeReviewOpen').onclick=()=>toggleResumeReview(true);$('closeResumeReview').onclick=()=>toggleResumeReview(false);$('submitResumeReview').onclick=submitResumeReview;$('coachResumeText').oninput=()=>{$('resumeReviewChars').textContent=`${$('coachResumeText').value.length.toLocaleString()} / 16,000 characters`;};
 $('chooseAssessment').onclick=()=>choose('free');$('backToChoice').onclick=()=>show('Choose');$('homeButton').onclick=()=>show('Choose');$('myReportsButton').onclick=()=>{show('Reports');paint();};$('premiumNavButton').onclick=goPremium;$('coachNavButton').onclick=goCoach;$('signOutButton').onclick=async()=>{await run(async()=>{await api('logout',{});state=null;notice('Session ended. You can start a new free snapshot.');show('Choose');});};
 $('loginForm').onsubmit=async e=>{e.preventDefault();await run(async()=>{if(!configured)throw Error('The service is currently unavailable. Please contact support.');if(!$('privacyConsent').checked||!$('adultConsent').checked)throw Error('Please review the privacy notice and age requirement.');await api('requestCode',{email:$('emailAddress').value.trim(),previewCode:$('accessCode').value,privacyConsent:true,adultConsent:true,consentVersion:CONSENT_VERSION});$('loginForm').classList.add('hidden');$('verifyForm').classList.remove('hidden');$('authHelp').textContent='Code sent. Check your email and enter the six digits below.';toPageStart('Login');});};
@@ -759,6 +789,7 @@ async function verifyCoupon(packId,inputId,statusId){
  if(!code){node.textContent='Enter a coupon code to check.';return;}
  node.textContent='Checking coupon…';
  try{
+  if(state?.guest)await ensureCheckoutIdentity(packId);
   if(packId==='starter'&&state?.profile?.freeIntakeVersion>=18&&!state?.profile?.assessmentTargetRole){
    const role=$('assessmentRole')?.value?.trim()||'';
    if(role.length<3)throw Error('Enter your target job role before checking this coupon.');
@@ -767,6 +798,13 @@ async function verifyCoupon(packId,inputId,statusId){
   const info=await api('couponStatus',{packId,couponCode:code});
   node.textContent=`Valid coupon: ${info.discountPercent}% off · Payable ${money(info.priceInr)}.`;
  }catch(e){node.textContent=e.message;}
+}
+for(const kind of ['Starter','Intro']){
+ $(`checkoutEmailUpdate${kind}`).onclick=()=>run(async()=>{
+  const email=$(`checkoutCorrected${kind}`).value.trim();if(!email)throw Error('Enter the corrected email address.');
+  const out=await api('checkoutEmailUpdate',{email});state=out.state;$(`checkoutCorrected${kind}`).value='';
+  updateCheckoutEmail(kind==='Starter'?'Upgrade':'CoachOffer');notice(out.notice);
+ });
 }
 $('checkStarterCoupon').onclick=()=>verifyCoupon('starter','starterCoupon','starterCouponStatus');$('checkIntroCoupon').onclick=()=>verifyCoupon('intro','introCoupon','introCouponStatus');
 $('saveGuestSnapshot').onclick=()=>startVerification('save');$('snapshotDownload').onclick=()=>download('free');$('snapshotView').onclick=openFree;$('snapshotUpgrade').onclick=async()=>{await choose('premium');};$('snapshotCoach').onclick=goCoach;$('backSnapshot').onclick=()=>{show('Snapshot');paint();};$('activateStarter').onclick=()=>activate('starter','starterCoupon');$('activateIntro').onclick=()=>activate('intro','introCoupon');
@@ -779,6 +817,17 @@ for(const button of document.querySelectorAll('[data-coach-prompt]')){
  button.onclick=()=>{const input=$('chatInput');if(button.dataset.coachPrompt==='resume-review'){toggleResumeReview(true);return;}if(input.disabled)return;input.value=button.dataset.coachPrompt;input.dispatchEvent(new Event('input'));input.focus({preventScroll:true});};
 }
 $('chatForm').onsubmit=submitChat;$('chatInput').oninput=()=>{$('chatCount').textContent=`${$('chatInput').value.length.toLocaleString()} / 1,200 characters`;};$('chatInput').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('chatForm').requestSubmit();}};
+$('resendPaidLink').onclick=()=>run(async()=>{
+ const out=await api('resendReturnLink',{});notice(out.notice);
+});
+$('correctPaidEmail').onclick=()=>run(async()=>{
+ const email=$('paidCorrectEmail').value.trim();if(!email)throw Error('Enter the corrected email.');
+ const out=await api('checkoutEmailUpdate',{email});state=out.state;$('paidCorrectEmail').value='';show(current);paint();notice(out.notice);
+});
+$('requestPaidReturnLink').onclick=()=>run(async()=>{
+ const email=$('emailAddress').value.trim();if(!email)throw Error('Enter the email you used for your paid purchase.');
+ const out=await api('requestPaidReturnLink',{email});$('paidReturnLinkStatus').textContent=out.notice;
+});
 $('checkPaymentStatus').onclick=reconcileTestPayment;
 $('buyStandard').onclick=()=>activate('standard','refillCoupon');$('buyExtended').onclick=()=>activate('extended','refillCoupon');$('refillBack').onclick=goCoach;
 $('resetSession').onclick=async()=>{const ownerCode=prompt('Owner-only reset: enter the OWNER_RESET_CODE.');if(!ownerCode)return;await run(async()=>{state=(await api('ownerReset',{ownerCode})).state;notice('Test session reset. Your API usage logs remain available.');setFlow('free');goAssessment();});};

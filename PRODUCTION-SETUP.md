@@ -47,4 +47,4 @@ Before public marketing: review consent, terms/refunds/privacy against the actua
 
 ## V5.31: Guest Free Snapshot
 
-See [V5_31_RELEASE_NOTES.md](V5_31_RELEASE_NOTES.md) for rollout and QA. In public-live mode guest access is enabled by default; `DISABLE_GUEST_SNAPSHOT=1` disables it. Optional rate limits: `GUEST_STARTS_PER_IP_DAY=15` and `GUEST_REPORTS_PER_IP_DAY=5`. Revisit the existing `FREE_REPORT_DAILY_LIMIT=5` before running ads: this is a global daily limit, not five per person. Keep the existing authenticated payment/OTP flow.
+See [V5_31_RELEASE_NOTES.md](V5_31_RELEASE_NOTES.md) for rollout and QA. In public-live mode guest access is enabled by default; `DISABLE_GUEST_SNAPSHOT=1` disables it. Optional rate limits: `GUEST_STARTS_PER_IP_DAY=15` and `GUEST_REPORTS_PER_IP_DAY=5`. Revisit the existing `FREE_REPORT_DAILY_LIMIT=5` before running ads: this is a global daily limit, not five per person. V5.32 public-live paid purchases may use secure purchase sessions without OTP; account recovery uses emailed one-time return links. Owner/admin email verification remains in place. See V5_32_RELEASE_NOTES.md and validate the live flow on a preview deployment.

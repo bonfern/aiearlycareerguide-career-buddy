@@ -244,3 +244,31 @@ a.sample-report-link{display:inline-block;text-decoration:underline}
 
 /* On phones the decorative portrait would appear as a cropped fragment below the CTA. */
 @media(max-width:880px){.hero-image{display:none}.hero{grid-template-columns:1fr}}
+/* V5.32: single-screen, accessible checkout email and consent. */
+.checkout-email-block{margin:20px 0 14px;padding:18px;border-radius:14px;background:#f2f7fd;border:1px solid #dae6ef;color:#102344}
+.checkout-email-block h2{font-size:1.2rem;line-height:1.3;margin:0 0 8px}
+.checkout-email-block input[type="email"]{width:100%;max-width:100%;box-sizing:border-box}
+.checkout-consent{display:flex;align-items:flex-start;gap:10px;margin:12px 0;font-size:.88rem;line-height:1.5;cursor:pointer}
+.checkout-consent input[type="checkbox"]{flex:0 0 auto;margin:4px 0 0;width:17px;height:17px}
+.checkout-existing{margin:14px 0;padding:12px 14px;background:#eaf7ef;border-radius:10px;overflow-wrap:anywhere}
+.checkout-email-block .micro{line-height:1.5}
+
+/* V5.32 cross-browser purchase access, without requiring inbox at checkout. */
+.paid-recovery{margin:12px auto 18px;max-width:790px;padding:16px;border:1px solid #bddbd2;border-radius:14px;background:#f3faf8;color:#102344}
+.paid-recovery p{margin:5px 0 10px;line-height:1.5}
+.paid-recovery-actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.paid-recovery-edit{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.paid-recovery-edit input{flex:1 1 220px;min-width:0;box-sizing:border-box}
+.paid-recovery-edit button{flex:0 1 auto;white-space:normal}
+@media(max-width:440px){.paid-recovery-edit input,.paid-recovery-edit button{width:100%;flex:1 1 100%}}
+/* A tall wrapped mobile nav must not float over the checkout/email field. */
+@media(max-width:700px){.topbar{position:relative;top:auto}}
+
+.paid-signin{margin-top:20px;padding:16px;border:1px solid #d9e4ef;border-radius:12px;background:#f6f9fd}
+.paid-signin h2{font-size:1.12rem;margin:0 0 7px}
+.paid-signin .micro{line-height:1.45}
+
+.checkout-email-edit{margin:12px 0;padding:13px;border:1px solid #d7e6f1;border-radius:12px;background:#f6fafc}
+.checkout-edit-row{display:flex;flex-wrap:wrap;gap:8px}
+.checkout-edit-row input{flex:1 1 180px;min-width:0}
+@media(max-width:440px){.checkout-edit-row>*{flex-basis:100%;width:100%}}
