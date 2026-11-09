@@ -5,6 +5,7 @@ import {getApps,initializeApp,cert} from 'firebase-admin/app';
 import {getFirestore} from 'firebase-admin/firestore';
 import {paymentMode,validWebhookSignature,requireLiveSettings,razorpayLiveAPI} from './_lib/razorpay-live.js';
 import {grantCapturedLivePayment} from './_lib/live-grants.js';
+import {sendPaidReturnLink,isCheckoutIdentity} from './_lib/paid-return-link.js';
 import {validateCapturedPayment} from './_lib/razorpay-test.js';
 export const config={api:{bodyParser:false}};
 let database;
@@ -39,7 +40,8 @@ export default async function handler(req,res){
   if(paymentId){payment=await razorpayLiveAPI('GET',`/v1/payments/${paymentId}`);}
   else{const results=await razorpayLiveAPI('GET',`/v1/orders/${orderId}/payments`);payment=(results.items||[]).find(x=>validateCapturedPayment(x,order));}
   if(!validateCapturedPayment(payment,order))return res.status(200).json({received:true});
-  await grantCapturedLivePayment(store,order,payment);
+  const credited=await grantCapturedLivePayment(store,order,payment);
+  if(isCheckoutIdentity(credited)){try{await sendPaidReturnLink(store,credited);}catch(e){console.error('Paid return-link notification failed',e?.name||'Error');}}
   return res.status(200).json({received:true});
  }catch(err){console.error('Career Buddy live webhook verification/fulfilment failed:',err?.name||'Error');return res.status(500).json({error:'Webhook processing failed'});}
 }

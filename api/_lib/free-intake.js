@@ -1,8 +1,9 @@
 /* V5.21: seven core questions, with one interest question only for users
    who are exploring. All three-choice answers are self-reported; no AI during intake. */
-export const FREE_INTAKE_VERSION=21;
+export const FREE_INTAKE_VERSION=22;
 export const FREE_QUESTIONS=Object.freeze([
  {id:'careerStage',kind:'single',text:'Where are you in your career journey right now?',options:['School Student','College / University Student','Early Career (0-3 years)','Mid-Career Professional (4-10 years)','Experienced Professional (10+ years)','Manager / Team Leader','Senior Leader / Executive','Returning to Work After a Break','Other']},
+ {id:'currentRole',kind:'text',text:'What is your current or most recent job title / designation?',placeholder:'e.g. Head of Shared Services, Operations Manager, or Graduate',maxLength:100,minLength:3},
  {id:'targetGoalRole',kind:'text',text:'What specific career role or direction are you aiming for?',placeholder:'e.g. Data Analyst, Project Manager, or Still exploring',maxLength:100,minLength:3},
  {id:'careerPriorities',kind:'multi',text:'What are your top career priorities for the next 2–3 years?',options:['Grow in my current role','Get promoted','Earn a higher salary','Change to a different role','Move into a new industry','Move into leadership','Build future-ready skills','Find my first job or internship','Find a stable and secure role','Start a business or freelance','Return to work after a break','Other'],maxSelections:3},
  {id:'interestFields',kind:'multi',conditional:'exploring',text:'Which career fields interest you most?',options:['Technology & Software','Data & Analytics','Artificial Intelligence (AI)','Finance & Accounting','Sales & Business Development','Marketing','Operations & Supply Chain','Project Management','Human Resources','Customer Experience','Product Management','Consulting','Design & Creativity','Education & Training','Healthcare','Research','Entrepreneurship','Other'],maxSelections:3},
@@ -18,7 +19,7 @@ export function isExploringGoal(value=''){
  return /^(?:still exploring|exploring|not sure|unsure|undecided|i don.t know|no specific role yet|open to options|not decided yet|career exploration)$/.test(s);
 }
 export function activeFreeQuestions(answers={}){
- return FREE_QUESTIONS.filter(q=>q.conditional!=='exploring'||isExploringGoal(answers.targetGoalRole));
+ return FREE_QUESTIONS.filter(q=>q.conditional!=='exploring'||isExploringGoal(answers.targetGoalRole)).map(q=>q.id==='currentRole'&&/student/i.test(String(answers.careerStage||''))?{...q,text:'What are you currently studying or what qualification did you most recently complete?',placeholder:'e.g. BBA student, Class 12 Commerce, or BTech graduate'}:q);
 }
 export function freeAnswered(answers={},skips=[]){
  return activeFreeQuestions(answers).filter(q=>Object.hasOwn(answers,q.id)||skips.includes(q.id)).map(q=>q.id);
@@ -31,7 +32,7 @@ export function applyFreeAnswers(answers={},extras={},skips=[]){
   return (Array.isArray(v)?v:[v]).filter(x=>typeof x==='string').map(x=>x==='Other'?other:x).map(flat).filter(Boolean);
  };
  const single=id=>resolved(id)[0]||'';
- const stage=single('careerStage'),target=single('targetGoalRole'),exploring=isExploringGoal(target);
+ const stage=single('careerStage'),currentRole=single('currentRole'),target=single('targetGoalRole'),exploring=isExploringGoal(target);
  const interests=exploring?resolved('interestFields').slice(0,3):[];
  const strengths=resolved('personalStrengths').slice(0,3);
  const priorities=resolved('careerPriorities').slice(0,3);
@@ -47,7 +48,7 @@ export function applyFreeAnswers(answers={},extras={},skips=[]){
   careerBarriers:barriers,educationLevel:single('educationLevel'),existingSkills:skillDetail,
   careerAmbition:initialGoal,learningTime:single('learningTime'),targetGoalRole:target,
   experience,goal:exploring?initialGoal:`${initialGoal}; target: ${target||'not selected'}`,
-  targetRole:direction,assessmentTargetRole:'',currentRole:stage||'Career exploration',
+  targetRole:direction,assessmentTargetRole:'',currentRole:currentRole,
   roleExperience:selfReportedTools,skills:selfReportedTools,skillEvidence:skillDetail,
   responsibilities:[],gaps:barriers,achievements:[],constraints:single('learningTime')?`Learning time per week: ${single('learningTime')}`:'',
   industry:interests[0]||'',timeframe:'2–3 years',applicationDepth:'',evidenceExample:'',

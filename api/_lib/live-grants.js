@@ -1,4 +1,5 @@
 import {validateCapturedPayment} from './razorpay-test.js';
+import {emailKey} from './identity.js';
 import {couponCounterRef,couponUserRef} from './firestore-coupons.js';
 /** Shared idempotent fulfilment for verified checkout and signed live webhooks. */
 export async function grantCapturedLivePayment(store,order,confirmed){
@@ -14,7 +15,7 @@ export async function grantCapturedLivePayment(store,order,confirmed){
   // released a reservation and the charge later arrives via webhook.
   let counterRef=null,userRef=null,counter={},user={};
   if(stored.couponSource==='firestore'&&stored.coupon){
-   counterRef=couponCounterRef(store,stored.coupon);userRef=couponUserRef(store,stored.sessionId);
+   counterRef=couponCounterRef(store,stored.coupon);userRef=couponUserRef(store,emailKey(s.email));
    const counterSnap=await tx.get(counterRef),userSnap=await tx.get(userRef);
    counter=counterSnap.data()||{};user=userSnap.data()||{};
   }

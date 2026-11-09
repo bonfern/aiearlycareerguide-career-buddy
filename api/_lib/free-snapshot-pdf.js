@@ -25,16 +25,15 @@ export function buildFreeSnapshotPdf(snapshot={}){
   // V5.22: Free is exploration, not a paid evaluation. Two compact A4 pages.
   section('1. Your career profile',[snapshot.profileSummary||'Your current career direction.']);
   section('Your transferable advantage',[snapshot.transferableAdvantage||'Your selected strengths can help you identify suitable starting points.']);
-  section('Four important skills for your target direction',(snapshot.targetCompetencies||[]).slice(0,4).map(skill=>({title:skill.title,bullets:(skill.bullets||[]).slice(0,2)})),true);
-  section('2. Three career pathways to explore',(snapshot.careerOpportunities||[]).slice(0,3).map((p,i)=>`${i+1}. ${p}`));
-  newPage();
+  section('Four important skills for your target role or direction',(snapshot.targetCompetencies||[]).slice(0,4).map(skill=>({title:skill.title,bullets:(skill.bullets||[]).slice(0,2)})),true);
+  section(snapshot.careerOpportunities?.length===1?'2. Your chosen target role':'2. Career pathways to explore',(snapshot.careerOpportunities||[]).slice(0,3).map((p,i)=>`${i+1}. ${p}`));
   section('3. Your three immediate next moves',(snapshot.nextBestMoves||[]).slice(0,3).map((m,i)=>`${i+1}. ${m}`));
   section('Want to know more? Try our Premium Assessment.',[
     'What a Premium Assessment evaluates: 12-15 role-specific scenario and knowledge questions across 4-5 essential competencies.',
     'What the report includes: competency results, technical and behavioural priorities, skill-by-skill gaps, action steps and practical evidence tasks.',
     'Development guidance: 30/60/90-day plan, progress checklist, learning and certification suggestions, and role-specific interview preparation.',
     'Premium also includes 40 Career Buddy coaching credits. Resume review is an optional separate coaching tool using five credits.',
-    'Preview the illustrative sample report: https://aiearlycareerguide-career-buddy.vercel.app/sample-premium-report.pdf'
+    'Preview the illustrative sample report: https://www.aiearlycareerguide.com/professionals/sample-premium-report.pdf'
   ],true);
   draw('Free discovery is based on your answers and does not measure competency scores.',{size:9,max:100});
  }else if(snapshot.version>=5){

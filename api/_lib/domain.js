@@ -58,11 +58,12 @@ export function freeReadiness(p={}){
  if(p.freeIntakeVersion>=21){
   const ok=v=>typeof v==='string'&&v.trim().length>=2;
   if(!ok(p.careerStage)||!ok(p.targetGoalRole))missing.push('Your career stage and direction');
+  if(p.freeIntakeVersion>=22&&!ok(p.currentRole))missing.push('Your current or most recent role');
   if(!Array.isArray(p.careerPriorities)||!p.careerPriorities.length)missing.push('Career priorities');
   if(isExploringGoal(p.targetGoalRole)&&(!Array.isArray(p.interestFields)||!p.interestFields.length))missing.push('Career interests');
   if(!Array.isArray(p.personalStrengths)||!p.personalStrengths.length||!ok(p.educationLevel))missing.push('Strengths and education');
   if(!Array.isArray(p.careerBarriers)||!p.careerBarriers.length||!ok(p.learningTime))missing.push('Barriers and learning time');
-  return {ready:missing.length===0,missing,completed:5-missing.length,total:5};
+  return {ready:missing.length===0,missing,completed:(p.freeIntakeVersion>=22?6:5)-missing.length,total:p.freeIntakeVersion>=22?6:5};
  }
  if(p.freeIntakeVersion>=18){
   const ok=v=>typeof v==='string'&&v.trim().length>=2;
